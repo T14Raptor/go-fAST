@@ -5,8 +5,8 @@ import (
 	"github.com/t14raptor/go-trump/token"
 )
 
-func (p *parser) parseBlockStatement() ast.BlockStatement {
-	node := ast.BlockStatement{}
+func (p *parser) parseBlockStatement() *ast.BlockStatement {
+	node := &ast.BlockStatement{}
 	node.LeftBrace = p.expect(token.LeftBrace)
 	node.List = p.parseStatementList()
 	node.RightBrace = p.expect(token.RightBrace)
@@ -16,7 +16,7 @@ func (p *parser) parseBlockStatement() ast.BlockStatement {
 
 func (p *parser) parseEmptyStatement() ast.Stmt {
 	idx := p.expect(token.Semicolon)
-	return ast.EmptyStatement{Semicolon: idx}
+	return &ast.EmptyStatement{Semicolon: idx}
 }
 
 func (p *parser) parseStatementList() (list ast.Statements) {
@@ -68,15 +68,15 @@ func (p *parser) parseStatement() ast.Stmt {
 	case token.Async:
 		if f := p.parseMaybeAsyncFunction(true); f != nil {
 			return &ast.FunctionDeclaration{
-				Function: *f,
+				Function: f,
 			}
 		}
 	case token.Function:
-		return ast.FunctionDeclaration{
+		return &ast.FunctionDeclaration{
 			Function: p.parseFunction(true, false, p.idx),
 		}
 	case token.Class:
-		return ast.ClassDeclaration{
+		return &ast.ClassDeclaration{
 			Class: p.parseClass(true),
 		}
 	case token.Switch:
@@ -91,7 +91,7 @@ func (p *parser) parseStatement() ast.Stmt {
 
 	expression := p.parseExpression()
 
-	if identifier, isIdentifier := expression.(ast.Identifier); isIdentifier && p.token == token.Colon {
+	if identifier, isIdentifier := expression.(*ast.Identifier); isIdentifier && p.token == token.Colon {
 		// LabelledStatement
 		colon := p.idx
 		p.next() // :
@@ -105,7 +105,7 @@ func (p *parser) parseStatement() ast.Stmt {
 		p.scope.allowLet = false
 		statement := p.parseStatement()
 		p.scope.labels = p.scope.labels[:len(p.scope.labels)-1] // Pop the label
-		return ast.LabelledStatement{
+		return &ast.LabelledStatement{
 			Label:     identifier,
 			Colon:     colon,
 			Statement: refStmt(statement),
@@ -114,13 +114,13 @@ func (p *parser) parseStatement() ast.Stmt {
 
 	p.optionalSemicolon()
 
-	return ast.ExpressionStatement{
+	return &ast.ExpressionStatement{
 		Expression: ptrExpr(expression),
 	}
 }
 
 func (p *parser) parseTryStatement() ast.Stmt {
-	node := ast.TryStatement{
+	node := &ast.TryStatement{
 		Try:  p.expect(token.Try),
 		Body: p.parseBlockStatement(),
 	}
@@ -143,8 +143,7 @@ func (p *parser) parseTryStatement() ast.Stmt {
 
 	if p.token == token.Finally {
 		p.next()
-		finalStmt := p.parseBlockStatement()
-		node.Finally = &finalStmt
+		node.Finally = p.parseBlockStatement()
 	}
 
 	if node.Catch == nil && node.Finally == nil {
@@ -191,13 +190,13 @@ func (p *parser) parseMaybeAsyncFunction(declaration bool) *ast.FunctionLiteral 
 		idx := p.idx
 		p.next()
 		fn := p.parseFunction(declaration, true, idx)
-		return &fn
+		return fn
 	}
 	return nil
 }
 
-func (p *parser) parseFunction(declaration, async bool, start ast.Idx) ast.FunctionLiteral {
-	node := ast.FunctionLiteral{
+func (p *parser) parseFunction(declaration, async bool, start ast.Idx) *ast.FunctionLiteral {
+	node := &ast.FunctionLiteral{
 		Function: start,
 		Async:    async,
 	}
@@ -224,7 +223,7 @@ func (p *parser) parseFunction(declaration, async bool, start ast.Idx) ast.Funct
 	}
 
 	p.tokenToBindingId()
-	var name ast.Identifier
+	name := &ast.Identifier{}
 	if p.token == token.Identifier {
 		name = p.parseIdentifier()
 	} else if declaration {
@@ -255,7 +254,7 @@ func (p *parser) parseFunction(declaration, async bool, start ast.Idx) ast.Funct
 	return node
 }
 
-func (p *parser) parseFunctionBlock(async, allowAwait, allowYield bool) (body ast.BlockStatement) {
+func (p *parser) parseFunctionBlock(async, allowAwait, allowYield bool) (body *ast.BlockStatement) {
 	p.openScope()
 	p.scope.inFunction = true
 	p.scope.inAsync = async
@@ -299,7 +298,7 @@ func (p *parser) parseClass(declaration bool) ast.ClassLiteral {
 	}
 
 	p.tokenToBindingId()
-	var name ast.Identifier
+	name := &ast.Identifier{}
 	if p.token == token.Identifier {
 		name = p.parseIdentifier()
 	} else if declaration {
@@ -465,7 +464,7 @@ func (p *parser) parseReturnStatement() ast.Stmt {
 		return ast.BadStatement{From: idx, To: p.idx}
 	}
 
-	node := ast.ReturnStatement{
+	node := &ast.ReturnStatement{
 		Return: idx,
 	}
 
@@ -491,7 +490,7 @@ func (p *parser) parseThrowStatement() ast.Stmt {
 		return ast.BadStatement{From: idx, To: p.idx}
 	}
 
-	node := ast.ThrowStatement{
+	node := &ast.ThrowStatement{
 		Throw:    idx,
 		Argument: ptrExpr(p.parseExpression()),
 	}
@@ -614,7 +613,7 @@ func (p *parser) parseForOf(idx ast.Idx, into ast.ForInto) ast.ForOfStatement {
 	}
 }
 
-func (p *parser) parseFor(idx ast.Idx, initializer ast.ForLoopInitializer) ast.ForStatement {
+func (p *parser) parseFor(idx ast.Idx, initializer ast.ForLoopInitializer) *ast.ForStatement {
 	// Already have consumed "<initializer> ;"
 
 	var test, update ast.Expr
@@ -629,7 +628,7 @@ func (p *parser) parseFor(idx ast.Idx, initializer ast.ForLoopInitializer) ast.F
 	}
 	p.expect(token.RightParenthesis)
 
-	return ast.ForStatement{
+	return &ast.ForStatement{
 		For:         idx,
 		Initializer: &initializer,
 		Test:        ptrExpr(test),
@@ -715,22 +714,22 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 			}
 			if forIn || forOf {
 				switch e := expr.(type) {
-				case ast.Identifier, ast.PrivateDotExpression, ast.VariableDeclarator:
+				case *ast.Identifier, *ast.PrivateDotExpression, *ast.VariableDeclarator:
 					// These are all acceptable
-				case ast.ObjectLiteral:
+				case *ast.ObjectLiteral:
 					expr = p.reinterpretAsObjectAssignmentPattern(e)
-				case ast.ArrayLiteral:
+				case *ast.ArrayLiteral:
 					expr = p.reinterpretAsArrayAssignmentPattern(e)
 				default:
 					p.error("Invalid left-hand side in for-in or for-of")
 					p.nextStatement()
-					return ast.BadStatement{From: idx, To: p.idx}
+					return &ast.BadStatement{From: idx, To: p.idx}
 				}
-				into = ast.ForIntoExpression{
+				into = &ast.ForIntoExpression{
 					Expression: ptrExpr(expr),
 				}
 			} else {
-				initializer = ast.ForLoopInitializerExpression{
+				initializer = &ast.ForLoopInitializerExpression{
 					Expression: ptrExpr(expr),
 				}
 			}
@@ -832,7 +831,7 @@ func (p *parser) parseWhileStatement() ast.Stmt {
 func (p *parser) parseIfStatement() ast.Stmt {
 	p.expect(token.If)
 	p.expect(token.LeftParenthesis)
-	node := ast.IfStatement{
+	node := &ast.IfStatement{
 		Test: ptrExpr(p.parseExpression()),
 	}
 	p.expect(token.RightParenthesis)
@@ -881,7 +880,7 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 		if !p.scope.inIteration && !p.scope.inSwitch {
 			goto illegal
 		}
-		return ast.BranchStatement{
+		return &ast.BranchStatement{
 			Idx:   idx,
 			Token: token.Break,
 		}
@@ -895,10 +894,10 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 			return ast.BadStatement{From: idx, To: identifier.Idx1()}
 		}
 		p.semicolon()
-		return ast.BranchStatement{
+		return &ast.BranchStatement{
 			Idx:   idx,
 			Token: token.Break,
-			Label: &identifier,
+			Label: identifier,
 		}
 	}
 
@@ -940,10 +939,10 @@ func (p *parser) parseContinueStatement() ast.Stmt {
 			goto illegal
 		}
 		p.semicolon()
-		return ast.BranchStatement{
+		return &ast.BranchStatement{
 			Idx:   idx,
 			Token: token.Continue,
-			Label: &identifier,
+			Label: identifier,
 		}
 	}
 

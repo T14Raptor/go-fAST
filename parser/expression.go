@@ -8,11 +8,11 @@ import (
 	"github.com/t14raptor/go-trump/unistring"
 )
 
-func (p *parser) parseIdentifier() ast.Identifier {
+func (p *parser) parseIdentifier() *ast.Identifier {
 	literal := p.parsedLiteral
 	idx := p.idx
 	p.next()
-	return ast.Identifier{
+	return &ast.Identifier{
 		Idx:  idx,
 		Name: literal,
 	}
@@ -24,13 +24,13 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 	switch p.token {
 	case token.Identifier:
 		p.next()
-		return ast.Identifier{
+		return &ast.Identifier{
 			Idx:  idx,
 			Name: parsedLiteral,
 		}
 	case token.Null:
 		p.next()
-		return ast.NullLiteral{
+		return &ast.NullLiteral{
 			Idx:     idx,
 			Literal: literal,
 		}
@@ -45,14 +45,14 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 		default:
 			p.error("Illegal boolean literal")
 		}
-		return ast.BooleanLiteral{
+		return &ast.BooleanLiteral{
 			Idx:     idx,
 			Literal: literal,
 			Value:   value,
 		}
 	case token.String:
 		p.next()
-		return ast.StringLiteral{
+		return &ast.StringLiteral{
 			Idx:     idx,
 			Literal: literal,
 			Value:   parsedLiteral,
@@ -64,7 +64,7 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 			p.error(err.Error())
 			value = 0
 		}
-		return ast.NumberLiteral{
+		return &ast.NumberLiteral{
 			Idx:     idx,
 			Literal: literal,
 			Value:   value,
@@ -81,7 +81,7 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 		return p.parseTemplateLiteral(false)
 	case token.This:
 		p.next()
-		return ast.ThisExpression{Idx: idx}
+		return &ast.ThisExpression{Idx: idx}
 	case token.Super:
 		return p.parseSuperProperty()
 	case token.Async:
@@ -96,12 +96,12 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 
 	if p.isBindingId(p.token) {
 		p.next()
-		return ast.Identifier{Idx: idx}
+		return &ast.Identifier{Idx: idx}
 	}
 
 	p.errorUnexpectedToken(p.token)
 	p.nextStatement()
-	return ast.InvalidExpression{From: idx, To: p.idx}
+	return &ast.InvalidExpression{From: idx, To: p.idx}
 }
 
 func (p *parser) parseSuperProperty() ast.Expr {
@@ -113,32 +113,32 @@ func (p *parser) parseSuperProperty() ast.Expr {
 		if !token.ID(p.token) {
 			p.expect(token.Identifier)
 			p.nextStatement()
-			return ast.InvalidExpression{From: idx, To: p.idx}
+			return &ast.InvalidExpression{From: idx, To: p.idx}
 		}
 		idIdx := p.idx
 		parsedLiteral := p.parsedLiteral
 		p.next()
-		return ast.MemberExpression{
-			Object: ptrExpr(ast.SuperExpression{
+		return &ast.MemberExpression{
+			Object: ptrExpr(&ast.SuperExpression{
 				Idx: idx,
 			}),
-			Property: ptrExpr(ast.Identifier{
+			Property: ptrExpr(&ast.Identifier{
 				Idx:  idIdx,
 				Name: parsedLiteral,
 			}),
 		}
 	case token.LeftBracket:
-		return p.parseBracketMember(ast.SuperExpression{
+		return p.parseBracketMember(&ast.SuperExpression{
 			Idx: idx,
 		})
 	case token.LeftParenthesis:
-		return p.parseCallExpression(ast.SuperExpression{
+		return p.parseCallExpression(&ast.SuperExpression{
 			Idx: idx,
 		})
 	default:
 		p.error("'super' keyword unexpected here")
 		p.nextStatement()
-		return ast.InvalidExpression{From: idx, To: p.idx}
+		return &ast.InvalidExpression{From: idx, To: p.idx}
 	}
 }
 
@@ -156,11 +156,11 @@ func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.
 			p.error("Rest parameter must be last formal parameter")
 			return ast.ParameterList{}
 		}
-		params = append(params, p.reinterpretAsBinding(item))
+		params = append(params, p.reinterpretAsBinding(item.Expr))
 	}
 	var rest ast.Expr
 	if firstRestIdx != -1 {
-		rest = p.reinterpretAsBindingRestElement(list[firstRestIdx])
+		rest = p.reinterpretAsBindingRestElement(list[firstRestIdx].Expr)
 	}
 	return ast.ParameterList{
 		List: params,
@@ -198,7 +198,7 @@ func (p *parser) parseParenthesisedExpression() ast.Expr {
 	}
 	p.expect(token.RightParenthesis)
 	if len(list) == 1 && len(p.errors) == 0 {
-		return list[0]
+		return list[0].Expr
 	}
 	if len(list) == 0 {
 		p.errorUnexpectedToken(token.RightParenthesis)
@@ -207,12 +207,12 @@ func (p *parser) parseParenthesisedExpression() ast.Expr {
 			To:   p.idx,
 		}
 	}
-	return ast.SequenceExpression{
+	return &ast.SequenceExpression{
 		Sequence: list,
 	}
 }
 
-func (p *parser) parseRegExpLiteral() ast.RegExpLiteral {
+func (p *parser) parseRegExpLiteral() *ast.RegExpLiteral {
 	offset := p.chrOffset - 1 // Opening slash already gotten
 	if p.token == token.QuotientAssign {
 		offset -= 1 // =
@@ -241,7 +241,7 @@ func (p *parser) parseRegExpLiteral() ast.RegExpLiteral {
 
 	literal := p.str[offset:endOffset]
 
-	return ast.RegExpLiteral{
+	return &ast.RegExpLiteral{
 		Idx:     idx,
 		Literal: literal,
 		Pattern: pattern,
@@ -277,7 +277,7 @@ func (p *parser) parseBindingTarget() (target ast.BindingTarget) {
 	p.tokenToBindingId()
 	switch p.token {
 	case token.Identifier:
-		target = ast.Identifier{
+		target = &ast.Identifier{
 			Name: p.parsedLiteral,
 			Idx:  p.idx,
 		}
@@ -335,7 +335,7 @@ func (p *parser) parseObjectPropertyKey() (string, unistring.String, ast.Expr, t
 	p.next()
 	switch tkn {
 	case token.Identifier, token.String, token.Keyword, token.EscapedReservedWord:
-		value = ast.StringLiteral{
+		value = &ast.StringLiteral{
 			Idx:     idx,
 			Literal: literal,
 			Value:   parsedLiteral,
@@ -353,7 +353,7 @@ func (p *parser) parseObjectPropertyKey() (string, unistring.String, ast.Expr, t
 		}
 	case token.PrivateIdentifier:
 		value = ast.PrivateIdentifier{
-			Identifier: ast.Identifier{
+			Identifier: &ast.Identifier{
 				Idx:  idx,
 				Name: parsedLiteral,
 			},
@@ -361,7 +361,7 @@ func (p *parser) parseObjectPropertyKey() (string, unistring.String, ast.Expr, t
 	default:
 		// null, false, class, etc.
 		if token.ID(tkn) {
-			value = ast.StringLiteral{
+			value = &ast.StringLiteral{
 				Idx:     idx,
 				Literal: literal,
 				Value:   unistring.String(literal),
@@ -392,7 +392,7 @@ func (p *parser) parseObjectProperty() ast.Property {
 	}
 	if token.ID(tkn) || tkn == token.String || tkn == token.Number || tkn == token.Illegal {
 		if generator {
-			return ast.PropertyKeyed{
+			return &ast.PropertyKeyed{
 				Key:      ptrExpr(value),
 				Kind:     ast.PropertyKindMethod,
 				Value:    ptrExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, true, false)),
@@ -401,7 +401,7 @@ func (p *parser) parseObjectProperty() ast.Property {
 		}
 		switch {
 		case p.token == token.LeftParenthesis:
-			return ast.PropertyKeyed{
+			return &ast.PropertyKeyed{
 				Key:      ptrExpr(value),
 				Kind:     ast.PropertyKindMethod,
 				Value:    ptrExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, false, false)),
@@ -417,7 +417,7 @@ func (p *parser) parseObjectProperty() ast.Property {
 					initializer = p.parseAssignmentExpression()
 				}
 				return ast.PropertyShort{
-					Name: ast.Identifier{
+					Name: &ast.Identifier{
 						Name: parsedLiteral,
 						Idx:  value.Idx0(),
 					},
@@ -443,7 +443,7 @@ func (p *parser) parseObjectProperty() ast.Property {
 				kind = ast.PropertyKindSet
 			}
 
-			return ast.PropertyKeyed{
+			return &ast.PropertyKeyed{
 				Key:      ptrExpr(keyValue),
 				Kind:     kind,
 				Value:    ptrExpr(p.parseMethodDefinition(keyStartIdx, kind, false, async)),
@@ -453,7 +453,7 @@ func (p *parser) parseObjectProperty() ast.Property {
 	}
 
 	p.expect(token.Colon)
-	return ast.PropertyKeyed{
+	return &ast.PropertyKeyed{
 		Key:      ptrExpr(value),
 		Kind:     ast.PropertyKindValue,
 		Value:    ptrExpr(p.parseAssignmentExpression()),
@@ -461,7 +461,7 @@ func (p *parser) parseObjectProperty() ast.Property {
 	}
 }
 
-func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKind, generator, async bool) ast.FunctionLiteral {
+func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKind, generator, async bool) *ast.FunctionLiteral {
 	if generator != p.scope.allowYield {
 		p.scope.allowYield = generator
 		defer func() {
@@ -485,7 +485,7 @@ func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKin
 			p.error("Setter must have exactly one formal parameter.")
 		}
 	}
-	node := ast.FunctionLiteral{
+	node := &ast.FunctionLiteral{
 		Function:      keyStartIdx,
 		ParameterList: parameterList,
 		Generator:     generator,
@@ -496,7 +496,7 @@ func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKin
 	return node
 }
 
-func (p *parser) parseObjectLiteral() ast.ObjectLiteral {
+func (p *parser) parseObjectLiteral() *ast.ObjectLiteral {
 	var value []ast.Property
 	idx0 := p.expect(token.LeftBrace)
 	for p.token != token.RightBrace && p.token != token.Eof {
@@ -512,14 +512,14 @@ func (p *parser) parseObjectLiteral() ast.ObjectLiteral {
 	}
 	idx1 := p.expect(token.RightBrace)
 
-	return ast.ObjectLiteral{
+	return &ast.ObjectLiteral{
 		LeftBrace:  idx0,
 		RightBrace: idx1,
 		Value:      value,
 	}
 }
 
-func (p *parser) parseArrayLiteral() ast.ArrayLiteral {
+func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 	idx0 := p.expect(token.LeftBracket)
 	var value ast.Expressions
 	for p.token != token.RightBracket && p.token != token.Eof {
@@ -542,7 +542,7 @@ func (p *parser) parseArrayLiteral() ast.ArrayLiteral {
 	}
 	idx1 := p.expect(token.RightBracket)
 
-	return ast.ArrayLiteral{
+	return &ast.ArrayLiteral{
 		LeftBracket:  idx0,
 		RightBracket: idx1,
 		Value:        value,
@@ -613,7 +613,7 @@ func (p *parser) parseArgumentList() (argumentList ast.Expressions, idx0, idx1 a
 
 func (p *parser) parseCallExpression(left ast.Expr) ast.Expr {
 	argumentList, idx0, idx1 := p.parseArgumentList()
-	return ast.CallExpression{
+	return &ast.CallExpression{
 		Callee:           ptrExpr(left),
 		LeftParenthesis:  idx0,
 		ArgumentList:     argumentList,
@@ -633,7 +633,7 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 		return ast.PrivateDotExpression{
 			Left: ptrExpr(left),
 			Identifier: ast.PrivateIdentifier{
-				Identifier: ast.Identifier{
+				Identifier: &ast.Identifier{
 					Idx:  idx,
 					Name: literal,
 				},
@@ -649,9 +649,9 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 
 	p.next()
 
-	return ast.MemberExpression{
+	return &ast.MemberExpression{
 		Object: ptrExpr(left),
-		Property: ptrExpr(ast.StringLiteral{
+		Property: ptrExpr(&ast.StringLiteral{
 			Idx:   idx,
 			Value: literal,
 		}),
@@ -662,7 +662,7 @@ func (p *parser) parseBracketMember(left ast.Expr) ast.Expr {
 	p.expect(token.LeftBracket)
 	member := p.parseExpression()
 	p.expect(token.RightBracket)
-	return ast.MemberExpression{
+	return &ast.MemberExpression{
 		Object:   ptrExpr(left),
 		Property: ptrExpr(member),
 	}
@@ -674,7 +674,7 @@ func (p *parser) parseNewExpression() ast.Expr {
 		p.next()
 		if p.literal == "target" {
 			return ast.MetaProperty{
-				Meta: ast.Identifier{
+				Meta: &ast.Identifier{
 					Name: unistring.String(token.New.String()),
 					Idx:  idx,
 				},
@@ -688,7 +688,7 @@ func (p *parser) parseNewExpression() ast.Expr {
 		bad.From = idx
 		return bad
 	}
-	node := ast.NewExpression{
+	node := &ast.NewExpression{
 		New:    idx,
 		Callee: ptrExpr(callee),
 	}
@@ -786,13 +786,13 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 		p.next()
 		operand := p.parseUnaryExpression()
 		switch operand.(type) {
-		case ast.Identifier, ast.PrivateDotExpression, ast.MemberExpression:
+		case *ast.Identifier, *ast.PrivateDotExpression, *ast.MemberExpression:
 		default:
 			p.error("Invalid left-hand side in assignment")
 			p.nextStatement()
 			return ast.InvalidExpression{From: idx, To: p.idx}
 		}
-		return ast.UnaryExpression{
+		return &ast.UnaryExpression{
 			Operator: tkn,
 			Idx:      idx,
 			Operand:  ptrExpr(operand),
@@ -808,13 +808,13 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 			idx := p.idx
 			p.next()
 			switch operand.(type) {
-			case ast.Identifier, ast.PrivateDotExpression, ast.MemberExpression:
+			case *ast.Identifier, *ast.PrivateDotExpression, *ast.MemberExpression:
 			default:
 				p.error("Invalid left-hand side in assignment")
 				p.nextStatement()
-				return ast.InvalidExpression{From: idx, To: p.idx}
+				return &ast.InvalidExpression{From: idx, To: p.idx}
 			}
-			return ast.UnaryExpression{
+			return &ast.UnaryExpression{
 				Operator: tkn,
 				Idx:      idx,
 				Operand:  ptrExpr(operand),
@@ -833,7 +833,7 @@ func (p *parser) parseUnaryExpression() ast.Expr {
 		tkn := p.token
 		idx := p.idx
 		p.next()
-		return ast.UnaryExpression{
+		return &ast.UnaryExpression{
 			Operator: tkn,
 			Idx:      idx,
 			Operand:  ptrExpr(p.parseUnaryExpression()),
@@ -869,13 +869,13 @@ func (p *parser) parseExponentiationExpression() ast.Expr {
 
 	if p.token == token.Exponent {
 		if !parenthesis {
-			if u, isUnary := left.(ast.UnaryExpression); isUnary && u.Operator != token.Increment && u.Operator != token.Decrement {
+			if u, isUnary := left.(*ast.UnaryExpression); isUnary && u.Operator != token.Increment && u.Operator != token.Decrement {
 				p.error("Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence")
 			}
 		}
 		for {
 			p.next()
-			left = ast.BinaryExpression{
+			left = &ast.BinaryExpression{
 				Operator: token.Exponent,
 				Left:     ptrExpr(left),
 				Right:    ptrExpr(p.parseExponentiationExpression()),
@@ -896,7 +896,7 @@ func (p *parser) parseMultiplicativeExpression() ast.Expr {
 		p.token == token.Remainder {
 		tkn := p.token
 		p.next()
-		left = ast.BinaryExpression{
+		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseExponentiationExpression()),
@@ -912,7 +912,7 @@ func (p *parser) parseAdditiveExpression() ast.Expr {
 	for p.token == token.Plus || p.token == token.Minus {
 		tkn := p.token
 		p.next()
-		left = ast.BinaryExpression{
+		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseMultiplicativeExpression()),
@@ -929,7 +929,7 @@ func (p *parser) parseShiftExpression() ast.Expr {
 		p.token == token.UnsignedShiftRight {
 		tkn := p.token
 		p.next()
-		left = ast.BinaryExpression{
+		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseAdditiveExpression()),
@@ -941,8 +941,8 @@ func (p *parser) parseShiftExpression() ast.Expr {
 
 func (p *parser) parseRelationalExpression() ast.Expr {
 	if p.scope.allowIn && p.token == token.PrivateIdentifier {
-		left := ast.PrivateIdentifier{
-			Identifier: ast.Identifier{
+		left := &ast.PrivateIdentifier{
+			Identifier: &ast.Identifier{
 				Idx:  p.idx,
 				Name: p.parsedLiteral,
 			},
@@ -950,7 +950,7 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 		p.next()
 		if p.token == token.In {
 			p.next()
-			return ast.BinaryExpression{
+			return &ast.BinaryExpression{
 				Operator: p.token,
 				Left:     ptrExpr(left),
 				Right:    ptrExpr(p.parseShiftExpression()),
@@ -970,7 +970,7 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 	case token.Less, token.LessOrEqual, token.Greater, token.GreaterOrEqual:
 		tkn := p.token
 		p.next()
-		return ast.BinaryExpression{
+		return &ast.BinaryExpression{
 			Operator:   tkn,
 			Left:       ptrExpr(left),
 			Right:      ptrExpr(p.parseRelationalExpression()),
@@ -979,7 +979,7 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 	case token.InstanceOf:
 		tkn := p.token
 		p.next()
-		return ast.BinaryExpression{
+		return &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseRelationalExpression()),
@@ -990,7 +990,7 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 		}
 		tkn := p.token
 		p.next()
-		return ast.BinaryExpression{
+		return &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseRelationalExpression()),
@@ -1007,7 +1007,7 @@ func (p *parser) parseEqualityExpression() ast.Expr {
 		p.token == token.StrictEqual || p.token == token.StrictNotEqual {
 		tkn := p.token
 		p.next()
-		left = ast.BinaryExpression{
+		left = &ast.BinaryExpression{
 			Operator:   tkn,
 			Left:       ptrExpr(left),
 			Right:      ptrExpr(p.parseRelationalExpression()),
@@ -1024,7 +1024,7 @@ func (p *parser) parseBitwiseAndExpression() ast.Expr {
 	for p.token == token.And {
 		tkn := p.token
 		p.next()
-		left = ast.BinaryExpression{
+		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseEqualityExpression()),
@@ -1040,7 +1040,7 @@ func (p *parser) parseBitwiseExclusiveOrExpression() ast.Expr {
 	for p.token == token.ExclusiveOr {
 		tkn := p.token
 		p.next()
-		left = ast.BinaryExpression{
+		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseBitwiseAndExpression()),
@@ -1056,7 +1056,7 @@ func (p *parser) parseBitwiseOrExpression() ast.Expr {
 	for p.token == token.Or {
 		tkn := p.token
 		p.next()
-		left = ast.BinaryExpression{
+		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseBitwiseExclusiveOrExpression()),
@@ -1072,7 +1072,7 @@ func (p *parser) parseLogicalAndExpression() ast.Expr {
 	for p.token == token.LogicalAnd {
 		tkn := p.token
 		p.next()
-		left = ast.BinaryExpression{
+		left = &ast.BinaryExpression{
 			Operator: tkn,
 			Left:     ptrExpr(left),
 			Right:    ptrExpr(p.parseBitwiseOrExpression()),
@@ -1098,7 +1098,7 @@ func (p *parser) parseLogicalOrExpression() ast.Expr {
 			switch p.token {
 			case token.LogicalOr:
 				p.next()
-				left = ast.BinaryExpression{
+				left = &ast.BinaryExpression{
 					Operator: token.LogicalOr,
 					Left:     ptrExpr(left),
 					Right:    ptrExpr(p.parseLogicalAndExpression()),
@@ -1121,7 +1121,7 @@ func (p *parser) parseLogicalOrExpression() ast.Expr {
 					goto mixed
 				}
 
-				left = ast.BinaryExpression{
+				left = &ast.BinaryExpression{
 					Operator: token.Coalesce,
 					Left:     ptrExpr(left),
 					Right:    ptrExpr(right),
@@ -1149,7 +1149,7 @@ func (p *parser) parseConditionalExpression() ast.Expr {
 		consequent := p.parseAssignmentExpression()
 		p.scope.allowIn = allowIn
 		p.expect(token.Colon)
-		return ast.ConditionalExpression{
+		return &ast.ConditionalExpression{
 			Test:       ptrExpr(left),
 			Consequent: ptrExpr(consequent),
 			Alternate:  ptrExpr(p.parseAssignmentExpression()),
@@ -1161,7 +1161,7 @@ func (p *parser) parseConditionalExpression() ast.Expr {
 
 func (p *parser) parseArrowFunction(start ast.Idx, paramList ast.ParameterList, async bool) ast.Expr {
 	p.expect(token.Arrow)
-	node := ast.ArrowFunctionLiteral{
+	node := &ast.ArrowFunctionLiteral{
 		Start:         start,
 		ParameterList: paramList,
 		Async:         async,
@@ -1182,7 +1182,7 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 	if p.token != token.Identifier {
 		p.errorUnexpectedToken(p.token)
 		p.next()
-		return ast.InvalidExpression{
+		return &ast.InvalidExpression{
 			From: start,
 			To:   p.idx,
 		}
@@ -1259,7 +1259,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 		operator = token.UnsignedShiftRight
 	case token.Arrow:
 		var paramList *ast.ParameterList
-		if id, ok := left.(ast.Identifier); ok {
+		if id, ok := left.(*ast.Identifier); ok {
 			paramList = &ast.ParameterList{
 				Opening: id.Idx,
 				Closing: id.Idx1() - 1,
@@ -1284,7 +1284,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 					p.scope.allowAwait = false
 				}()
 			}
-			if _, ok := left.(ast.CallExpression); ok {
+			if _, ok := left.(*ast.CallExpression); ok {
 				p.restore(&state)
 				p.next() // skip "async"
 				paramL := p.parseFunctionParameterList()
@@ -1303,21 +1303,21 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 		p.next()
 		ok := false
 		switch l := left.(type) {
-		case ast.Identifier, ast.PrivateDotExpression, ast.MemberExpression:
+		case *ast.Identifier, *ast.PrivateDotExpression, *ast.MemberExpression:
 			ok = true
-		case ast.ArrayLiteral:
+		case *ast.ArrayLiteral:
 			if !parenthesis && operator == token.Assign {
 				left = p.reinterpretAsArrayAssignmentPattern(l)
 				ok = true
 			}
-		case ast.ObjectLiteral:
+		case *ast.ObjectLiteral:
 			if !parenthesis && operator == token.Assign {
 				left = p.reinterpretAsObjectAssignmentPattern(l)
 				ok = true
 			}
 		}
 		if ok {
-			return ast.AssignExpression{
+			return &ast.AssignExpression{
 				Left:     ptrExpr(left),
 				Operator: operator,
 				Right:    ptrExpr(p.parseAssignmentExpression()),
@@ -1325,7 +1325,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 		}
 		p.error("Invalid left-hand side in assignment")
 		p.nextStatement()
-		return ast.InvalidExpression{From: idx, To: p.idx}
+		return &ast.InvalidExpression{From: idx, To: p.idx}
 	}
 
 	return left
@@ -1351,7 +1351,7 @@ func (p *parser) parseYieldExpression() ast.Expr {
 		var state parserState
 		p.mark(&state)
 		expr := p.parseAssignmentExpression()
-		if _, bad := expr.(ast.InvalidExpression); bad {
+		if _, bad := expr.(*ast.InvalidExpression); bad {
 			expr = nil
 			p.restore(&state)
 		}
@@ -1373,7 +1373,7 @@ func (p *parser) parseExpression() ast.Expr {
 			p.next()
 			sequence = append(sequence, ast.Expression{Expr: p.parseAssignmentExpression()})
 		}
-		return ast.SequenceExpression{
+		return &ast.SequenceExpression{
 			Sequence: sequence,
 		}
 	}
@@ -1387,7 +1387,7 @@ func (p *parser) checkComma(from, to ast.Idx) {
 	}
 }
 
-func (p *parser) reinterpretAsArrayAssignmentPattern(left ast.ArrayLiteral) ast.Expr {
+func (p *parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) ast.Expr {
 	value := left.Value
 	var rest ast.Expr
 	for i, item := range value {
@@ -1396,11 +1396,11 @@ func (p *parser) reinterpretAsArrayAssignmentPattern(left ast.ArrayLiteral) ast.
 				p.error("Rest element must be last element")
 				return ast.InvalidExpression{From: left.Idx0(), To: left.Idx1()}
 			}
-			p.checkComma(spread.Expr.Idx1(), left.RightBracket)
-			rest = p.reinterpretAsDestructAssignTarget(spread.Expr)
+			p.checkComma(spread.Idx1(), left.RightBracket)
+			rest = p.reinterpretAsDestructAssignTarget(spread.Expression.Expr)
 			value = value[:len(value)-1]
 		} else {
-			value[i] = ast.Expression{Expr: p.reinterpretAsAssignmentElement(item)}
+			value[i] = ast.Expression{Expr: p.reinterpretAsAssignmentElement(item.Expr)}
 		}
 	}
 	return ast.ArrayPattern{
@@ -1411,33 +1411,33 @@ func (p *parser) reinterpretAsArrayAssignmentPattern(left ast.ArrayLiteral) ast.
 	}
 }
 
-func (p *parser) reinterpretArrayAssignPatternAsBinding(pattern ast.ArrayPattern) ast.ArrayPattern {
+func (p *parser) reinterpretArrayAssignPatternAsBinding(pattern *ast.ArrayPattern) *ast.ArrayPattern {
 	for i, item := range pattern.Elements {
-		pattern.Elements[i] = ast.Expression{Expr: p.reinterpretAsDestructBindingTarget(item)}
+		pattern.Elements[i] = ast.Expression{Expr: p.reinterpretAsDestructBindingTarget(item.Expr)}
 	}
 	if pattern.Rest != nil {
-		pattern.Rest = ptrExpr(p.reinterpretAsDestructBindingTarget(*pattern.Rest))
+		pattern.Rest = ptrExpr(p.reinterpretAsDestructBindingTarget(pattern.Rest.Expr))
 	}
 	return pattern
 }
 
-func (p *parser) reinterpretAsArrayBindingPattern(left ast.ArrayLiteral) ast.BindingTarget {
+func (p *parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) ast.BindingTarget {
 	value := left.Value
 	var rest ast.Expr
 	for i, item := range value {
 		if spread, ok := item.Expr.(ast.SpreadElement); ok {
 			if i != len(value)-1 {
 				p.error("Rest element must be last element")
-				return ast.InvalidExpression{From: left.Idx0(), To: left.Idx1()}
+				return &ast.InvalidExpression{From: left.Idx0(), To: left.Idx1()}
 			}
-			p.checkComma(spread.Expr.Idx1(), left.RightBracket)
-			rest = p.reinterpretAsDestructBindingTarget(spread.Expr)
+			p.checkComma(spread.Idx1(), left.RightBracket)
+			rest = p.reinterpretAsDestructBindingTarget(spread.Expression.Expr)
 			value = value[:len(value)-1]
 		} else {
-			value[i] = ast.Expression{Expr: p.reinterpretAsBindingElement(item)}
+			value[i] = ast.Expression{Expr: p.reinterpretAsBindingElement(item.Expr)}
 		}
 	}
-	return ast.ArrayPattern{
+	return &ast.ArrayPattern{
 		LeftBracket:  left.LeftBracket,
 		RightBracket: left.RightBracket,
 		Elements:     value,
@@ -1453,10 +1453,10 @@ func (p *parser) parseObjectBindingPattern() ast.BindingTarget {
 	return p.reinterpretAsObjectBindingPattern(p.parseObjectLiteral())
 }
 
-func (p *parser) reinterpretArrayObjectPatternAsBinding(pattern ast.ObjectPattern) ast.ObjectPattern {
+func (p *parser) reinterpretArrayObjectPatternAsBinding(pattern *ast.ObjectPattern) *ast.ObjectPattern {
 	for _, prop := range pattern.Properties {
 		if keyed, ok := prop.(ast.PropertyKeyed); ok {
-			keyed.Value = ptrExpr(p.reinterpretAsBindingElement(*keyed.Value))
+			keyed.Value = ptrExpr(p.reinterpretAsBindingElement(keyed.Value.Expr))
 		}
 	}
 	if pattern.Rest != nil {
@@ -1465,7 +1465,7 @@ func (p *parser) reinterpretArrayObjectPatternAsBinding(pattern ast.ObjectPatter
 	return pattern
 }
 
-func (p *parser) reinterpretAsObjectBindingPattern(expr ast.ObjectLiteral) ast.BindingTarget {
+func (p *parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) ast.BindingTarget {
 	var rest ast.Expr
 	value := expr.Value
 	for i, prop := range value {
@@ -1473,7 +1473,7 @@ func (p *parser) reinterpretAsObjectBindingPattern(expr ast.ObjectLiteral) ast.B
 		switch prop := prop.(type) {
 		case ast.PropertyKeyed:
 			if prop.Kind == ast.PropertyKindValue {
-				prop.Value = ptrExpr(p.reinterpretAsBindingElement(*prop.Value))
+				prop.Value = ptrExpr(p.reinterpretAsBindingElement(prop.Value.Expr))
 				ok = true
 			}
 		case ast.PropertyShort:
@@ -1484,7 +1484,7 @@ func (p *parser) reinterpretAsObjectBindingPattern(expr ast.ObjectLiteral) ast.B
 				return &ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()}
 			}
 			// TODO make sure there is no trailing comma
-			rest = p.reinterpretAsBindingRestElement(prop.Expr)
+			rest = p.reinterpretAsBindingRestElement(prop.Expression.Expr)
 			value = value[:i]
 			ok = true
 		}
@@ -1493,7 +1493,7 @@ func (p *parser) reinterpretAsObjectBindingPattern(expr ast.ObjectLiteral) ast.B
 			return &ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()}
 		}
 	}
-	return ast.ObjectPattern{
+	return &ast.ObjectPattern{
 		LeftBrace:  expr.LeftBrace,
 		RightBrace: expr.RightBrace,
 		Properties: value,
@@ -1501,7 +1501,7 @@ func (p *parser) reinterpretAsObjectBindingPattern(expr ast.ObjectLiteral) ast.B
 	}
 }
 
-func (p *parser) reinterpretAsObjectAssignmentPattern(l ast.ObjectLiteral) ast.Expr {
+func (p *parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) ast.Expr {
 	var rest ast.Expr
 	value := l.Value
 	for i, prop := range value {
@@ -1509,7 +1509,7 @@ func (p *parser) reinterpretAsObjectAssignmentPattern(l ast.ObjectLiteral) ast.E
 		switch prop := prop.(type) {
 		case ast.PropertyKeyed:
 			if prop.Kind == ast.PropertyKindValue {
-				prop.Value = ptrExpr(p.reinterpretAsAssignmentElement(*prop.Value))
+				prop.Value = ptrExpr(p.reinterpretAsAssignmentElement(prop.Value.Expr))
 				ok = true
 			}
 		case ast.PropertyShort:
@@ -1520,7 +1520,7 @@ func (p *parser) reinterpretAsObjectAssignmentPattern(l ast.ObjectLiteral) ast.E
 				return ast.InvalidExpression{From: l.Idx0(), To: l.Idx1()}
 			}
 			// TODO make sure there is no trailing comma
-			rest = prop.Expr
+			rest = prop.Expression.Expr
 			value = value[:i]
 			ok = true
 		}
@@ -1529,7 +1529,7 @@ func (p *parser) reinterpretAsObjectAssignmentPattern(l ast.ObjectLiteral) ast.E
 			return ast.InvalidExpression{From: l.Idx0(), To: l.Idx1()}
 		}
 	}
-	return ast.ObjectPattern{
+	return &ast.ObjectPattern{
 		LeftBrace:  l.LeftBrace,
 		RightBrace: l.RightBrace,
 		Properties: value,
@@ -1541,7 +1541,7 @@ func (p *parser) reinterpretAsAssignmentElement(expr ast.Expr) ast.Expr {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
 		if expr.Operator == token.Assign {
-			expr.Left = ptrExpr(p.reinterpretAsDestructAssignTarget(*expr.Left))
+			expr.Left = ptrExpr(p.reinterpretAsDestructAssignTarget(expr.Left.Expr))
 			return expr
 		} else {
 			p.error("Invalid destructuring assignment target")
@@ -1556,7 +1556,7 @@ func (p *parser) reinterpretAsBindingElement(expr ast.Expr) ast.Expr {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
 		if expr.Operator == token.Assign {
-			expr.Left = ptrExpr(p.reinterpretAsDestructBindingTarget(*expr.Left))
+			expr.Left = ptrExpr(p.reinterpretAsDestructBindingTarget(expr.Left.Expr))
 			return expr
 		} else {
 			p.error("Invalid destructuring assignment target")
@@ -1572,7 +1572,7 @@ func (p *parser) reinterpretAsBinding(expr ast.Expr) ast.VariableDeclarator {
 	case ast.AssignExpression:
 		if expr.Operator == token.Assign {
 			return ast.VariableDeclarator{
-				Target:      p.reinterpretAsDestructBindingTarget(*expr.Left),
+				Target:      p.reinterpretAsDestructBindingTarget(expr.Left.Expr),
 				Initializer: expr.Right,
 			}
 		} else {
@@ -1592,9 +1592,9 @@ func (p *parser) reinterpretAsDestructAssignTarget(item ast.Expr) ast.Expr {
 	switch item := item.(type) {
 	case nil:
 		return nil
-	case ast.ArrayLiteral:
+	case *ast.ArrayLiteral:
 		return p.reinterpretAsArrayAssignmentPattern(item)
-	case ast.ObjectLiteral:
+	case *ast.ObjectLiteral:
 		return p.reinterpretAsObjectAssignmentPattern(item)
 	case ast.Pattern, *ast.Identifier, *ast.PrivateDotExpression, *ast.MemberExpression:
 		return item
@@ -1607,15 +1607,15 @@ func (p *parser) reinterpretAsDestructBindingTarget(item ast.Expr) ast.BindingTa
 	switch item := item.(type) {
 	case nil:
 		return nil
-	case ast.ArrayPattern:
+	case *ast.ArrayPattern:
 		return p.reinterpretArrayAssignPatternAsBinding(item)
-	case ast.ObjectPattern:
+	case *ast.ObjectPattern:
 		return p.reinterpretArrayObjectPatternAsBinding(item)
-	case ast.ArrayLiteral:
+	case *ast.ArrayLiteral:
 		return p.reinterpretAsArrayBindingPattern(item)
-	case ast.ObjectLiteral:
+	case *ast.ObjectLiteral:
 		return p.reinterpretAsObjectBindingPattern(item)
-	case ast.Identifier:
+	case *ast.Identifier:
 		if !p.scope.allowAwait || item.Name != "await" {
 			return item
 		}

@@ -28,8 +28,12 @@ type Node interface {
 type (
 	Expressions []Expression
 	Statements  []Statement
-	Expression  struct {
-		Expr
+	// Expression is a struct to allow defining methods on it.
+	Expression struct {
+		Expr interface {
+			Node
+			_expr()
+		}
 	}
 	Statement struct {
 		Stmt
@@ -153,9 +157,9 @@ type (
 
 	FunctionLiteral struct {
 		Function      Idx
-		Name          Identifier
+		Name          *Identifier
 		ParameterList ParameterList
-		Body          BlockStatement
+		Body          *BlockStatement
 		Source        string
 
 		Async, Generator bool
@@ -164,7 +168,7 @@ type (
 	ClassLiteral struct {
 		Class      Idx
 		RightBrace Idx
-		Name       Identifier
+		Name       *Identifier
 		SuperClass *Expression
 		Body       []ClassElement
 		Source     string
@@ -193,7 +197,7 @@ type (
 	}
 
 	PrivateIdentifier struct {
-		Identifier
+		*Identifier
 	}
 
 	NewExpression struct {
@@ -241,7 +245,7 @@ type (
 	}
 
 	PropertyShort struct {
-		Name        Identifier
+		Name        *Identifier
 		Initializer *Expression
 	}
 
@@ -253,7 +257,7 @@ type (
 	}
 
 	SpreadElement struct {
-		Expression
+		Expression Expression
 	}
 
 	RegExpLiteral struct {
@@ -304,10 +308,20 @@ type (
 	}
 
 	MetaProperty struct {
-		Meta, Property Identifier
+		Meta, Property *Identifier
 		Idx            Idx
 	}
 )
+
+func (n SpreadElement) Idx0() Idx {
+	return n.Expression.Expr.Idx0()
+}
+
+func (n SpreadElement) Idx1() Idx {
+	return n.Expression.Expr.Idx1()
+}
+
+func (n SpreadElement) _expr() {}
 
 func (MemberExpression) _bindingTarget() {}
 
@@ -387,7 +401,7 @@ type (
 	CatchStatement struct {
 		Catch     Idx
 		Parameter *BindingTarget
-		Body      BlockStatement
+		Body      *BlockStatement
 	}
 
 	DebuggerStatement struct {
@@ -439,7 +453,7 @@ type (
 	}
 
 	LabelledStatement struct {
-		Label     Identifier
+		Label     *Identifier
 		Colon     Idx
 		Statement *Statement
 	}
@@ -463,7 +477,7 @@ type (
 
 	TryStatement struct {
 		Try     Idx
-		Body    BlockStatement
+		Body    *BlockStatement
 		Catch   *CatchStatement
 		Finally *BlockStatement
 	}
@@ -493,7 +507,7 @@ type (
 	}
 
 	FunctionDeclaration struct {
-		Function FunctionLiteral
+		Function *FunctionLiteral
 	}
 
 	ClassDeclaration struct {
@@ -550,14 +564,14 @@ type (
 		Idx      Idx
 		Key      *Expression
 		Kind     PropertyKind // "method", "get" or "set"
-		Body     FunctionLiteral
+		Body     *FunctionLiteral
 		Computed bool
 		Static   bool
 	}
 
 	ClassStaticBlock struct {
 		Static Idx
-		Block  BlockStatement
+		Block  *BlockStatement
 		Source string
 	}
 )
@@ -641,22 +655,22 @@ type Program struct {
 // Idx0 //
 // ==== //
 
-func (self Optional) Idx0() Idx              { return (*self.Expr).Idx0() }
-func (self OptionalChain) Idx0() Idx         { return (*self.Base).Idx0() }
+func (self Optional) Idx0() Idx              { return (*self.Expr).Expr.Idx0() }
+func (self OptionalChain) Idx0() Idx         { return (*self.Base).Expr.Idx0() }
 func (self ObjectPattern) Idx0() Idx         { return self.LeftBrace }
 func (self ParameterList) Idx0() Idx         { return self.Opening }
 func (self ArrayLiteral) Idx0() Idx          { return self.LeftBracket }
 func (self ArrayPattern) Idx0() Idx          { return self.LeftBracket }
 func (self YieldExpression) Idx0() Idx       { return self.Yield }
 func (self AwaitExpression) Idx0() Idx       { return self.Await }
-func (self AssignExpression) Idx0() Idx      { return (*self.Left).Idx0() }
-func (self BinaryExpression) Idx0() Idx      { return (*self.Left).Idx0() }
+func (self AssignExpression) Idx0() Idx      { return (*self.Left).Expr.Idx0() }
+func (self BinaryExpression) Idx0() Idx      { return (*self.Left).Expr.Idx0() }
 func (self BooleanLiteral) Idx0() Idx        { return self.Idx }
-func (self BracketExpression) Idx0() Idx     { return (*self.Left).Idx0() }
-func (self CallExpression) Idx0() Idx        { return (*self.Callee).Idx0() }
-func (self ConditionalExpression) Idx0() Idx { return (*self.Test).Idx0() }
-func (self DotExpression) Idx0() Idx         { return (*self.Left).Idx0() }
-func (self PrivateDotExpression) Idx0() Idx  { return (*self.Left).Idx0() }
+func (self BracketExpression) Idx0() Idx     { return (*self.Left).Expr.Idx0() }
+func (self CallExpression) Idx0() Idx        { return (*self.Callee).Expr.Idx0() }
+func (self ConditionalExpression) Idx0() Idx { return (*self.Test).Expr.Idx0() }
+func (self DotExpression) Idx0() Idx         { return (*self.Left).Expr.Idx0() }
+func (self PrivateDotExpression) Idx0() Idx  { return (*self.Left).Expr.Idx0() }
 func (self FunctionLiteral) Idx0() Idx       { return self.Function }
 func (self ClassLiteral) Idx0() Idx          { return self.Class }
 func (self ArrowFunctionLiteral) Idx0() Idx  { return self.Start }
@@ -667,7 +681,7 @@ func (self NullLiteral) Idx0() Idx           { return self.Idx }
 func (self NumberLiteral) Idx0() Idx         { return self.Idx }
 func (self ObjectLiteral) Idx0() Idx         { return self.LeftBrace }
 func (self RegExpLiteral) Idx0() Idx         { return self.Idx }
-func (self SequenceExpression) Idx0() Idx    { return self.Sequence[0].Idx0() }
+func (self SequenceExpression) Idx0() Idx    { return self.Sequence[0].Expr.Idx0() }
 func (self StringLiteral) Idx0() Idx         { return self.Idx }
 func (self TemplateElement) Idx0() Idx       { return self.Idx }
 func (self TemplateLiteral) Idx0() Idx       { return self.OpenQuote }
@@ -686,7 +700,7 @@ func (self CatchStatement) Idx0() Idx      { return self.Catch }
 func (self DebuggerStatement) Idx0() Idx   { return self.Debugger }
 func (self DoWhileStatement) Idx0() Idx    { return self.Do }
 func (self EmptyStatement) Idx0() Idx      { return self.Semicolon }
-func (self ExpressionStatement) Idx0() Idx { return (*self.Expression).Idx0() }
+func (self ExpressionStatement) Idx0() Idx { return (*self.Expression).Expr.Idx0() }
 func (self ForInStatement) Idx0() Idx      { return self.For }
 func (self ForOfStatement) Idx0() Idx      { return self.For }
 func (self ForStatement) Idx0() Idx        { return self.For }
@@ -705,12 +719,12 @@ func (self FunctionDeclaration) Idx0() Idx { return self.Function.Idx0() }
 func (self ClassDeclaration) Idx0() Idx    { return self.Class.Idx0() }
 func (self VariableDeclarator) Idx0() Idx  { return self.Target.Idx0() }
 
-func (self ForLoopInitializerExpression) Idx0() Idx  { return (*self.Expression).Idx0() }
+func (self ForLoopInitializerExpression) Idx0() Idx  { return (*self.Expression).Expr.Idx0() }
 func (self ForLoopInitializerVarDeclList) Idx0() Idx { return self.List[0].Idx0() }
 func (self ForLoopInitializerLexicalDecl) Idx0() Idx { return self.LexicalDeclaration.Idx0() }
 func (self PropertyShort) Idx0() Idx                 { return self.Name.Idx }
-func (self PropertyKeyed) Idx0() Idx                 { return (*self.Key).Idx0() }
-func (self ExpressionBody) Idx0() Idx                { return self.Expression.Idx0() }
+func (self PropertyKeyed) Idx0() Idx                 { return (*self.Key).Expr.Idx0() }
+func (self ExpressionBody) Idx0() Idx                { return self.Expression.Expr.Idx0() }
 
 func (self FieldDefinition) Idx0() Idx  { return self.Idx }
 func (self MethodDefinition) Idx0() Idx { return self.Idx }
@@ -718,24 +732,24 @@ func (self ClassStaticBlock) Idx0() Idx { return self.Static }
 
 func (self ForDeclaration) Idx0() Idx    { return self.Idx }
 func (self ForIntoVar) Idx0() Idx        { return self.Binding.Idx0() }
-func (self ForIntoExpression) Idx0() Idx { return (*self.Expression).Idx0() }
+func (self ForIntoExpression) Idx0() Idx { return (*self.Expression).Expr.Idx0() }
 
 // ==== //
 // Idx1 //
 // ==== //
 
-func (self Optional) Idx1() Idx              { return (*self.Expr).Idx1() }
-func (self OptionalChain) Idx1() Idx         { return (*self.Base).Idx1() }
+func (self Optional) Idx1() Idx              { return (*self.Expr).Expr.Idx1() }
+func (self OptionalChain) Idx1() Idx         { return (*self.Base).Expr.Idx1() }
 func (self ArrayLiteral) Idx1() Idx          { return self.RightBracket + 1 }
 func (self ArrayPattern) Idx1() Idx          { return self.RightBracket + 1 }
-func (self AssignExpression) Idx1() Idx      { return (*self.Right).Idx1() }
-func (self AwaitExpression) Idx1() Idx       { return (*self.Argument).Idx1() }
+func (self AssignExpression) Idx1() Idx      { return (*self.Right).Expr.Idx1() }
+func (self AwaitExpression) Idx1() Idx       { return (*self.Argument).Expr.Idx1() }
 func (self InvalidExpression) Idx1() Idx     { return self.To }
-func (self BinaryExpression) Idx1() Idx      { return (*self.Right).Idx1() }
+func (self BinaryExpression) Idx1() Idx      { return (*self.Right).Expr.Idx1() }
 func (self BooleanLiteral) Idx1() Idx        { return Idx(int(self.Idx) + len(self.Literal)) }
 func (self BracketExpression) Idx1() Idx     { return self.RightBracket + 1 }
 func (self CallExpression) Idx1() Idx        { return self.RightParenthesis + 1 }
-func (self ConditionalExpression) Idx1() Idx { return (*self.Test).Idx1() }
+func (self ConditionalExpression) Idx1() Idx { return (*self.Test).Expr.Idx1() }
 func (self DotExpression) Idx1() Idx         { return self.Identifier.Idx1() }
 func (self PrivateDotExpression) Idx1() Idx  { return self.Identifier.Idx1() }
 func (self FunctionLiteral) Idx1() Idx       { return self.Body.Idx1() }
@@ -746,7 +760,7 @@ func (self NewExpression) Idx1() Idx {
 	if self.ArgumentList != nil {
 		return self.RightParenthesis + 1
 	} else {
-		return (*self.Callee).Idx1()
+		return (*self.Callee).Expr.Idx1()
 	}
 }
 func (self NullLiteral) Idx1() Idx        { return Idx(int(self.Idx) + 4) } // "null"
@@ -755,7 +769,7 @@ func (self ObjectLiteral) Idx1() Idx      { return self.RightBrace + 1 }
 func (self ObjectPattern) Idx1() Idx      { return self.RightBrace + 1 }
 func (self ParameterList) Idx1() Idx      { return self.Closing + 1 }
 func (self RegExpLiteral) Idx1() Idx      { return Idx(int(self.Idx) + len(self.Literal)) }
-func (self SequenceExpression) Idx1() Idx { return self.Sequence[len(self.Sequence)-1].Idx1() }
+func (self SequenceExpression) Idx1() Idx { return self.Sequence[len(self.Sequence)-1].Expr.Idx1() }
 func (self StringLiteral) Idx1() Idx      { return Idx(int(self.Idx) + len(self.Literal)) }
 func (self TemplateElement) Idx1() Idx    { return Idx(int(self.Idx) + len(self.Literal)) }
 func (self TemplateLiteral) Idx1() Idx    { return self.CloseQuote + 1 }
@@ -763,9 +777,9 @@ func (self ThisExpression) Idx1() Idx     { return self.Idx + 4 }
 func (self SuperExpression) Idx1() Idx    { return self.Idx + 5 }
 func (self UnaryExpression) Idx1() Idx {
 	if self.Postfix {
-		return (*self.Operand).Idx1() + 2 // ++ --
+		return (*self.Operand).Expr.Idx1() + 2 // ++ --
 	}
-	return (*self.Operand).Idx1()
+	return (*self.Operand).Expr.Idx1()
 }
 func (self MetaProperty) Idx1() Idx {
 	return self.Property.Idx1()
@@ -777,9 +791,9 @@ func (self BranchStatement) Idx1() Idx     { return self.Idx }
 func (self CaseStatement) Idx1() Idx       { return self.Consequent[len(self.Consequent)-1].Idx1() }
 func (self CatchStatement) Idx1() Idx      { return self.Body.Idx1() }
 func (self DebuggerStatement) Idx1() Idx   { return self.Debugger + 8 }
-func (self DoWhileStatement) Idx1() Idx    { return (*self.Test).Idx1() }
+func (self DoWhileStatement) Idx1() Idx    { return (*self.Test).Expr.Idx1() }
 func (self EmptyStatement) Idx1() Idx      { return self.Semicolon + 1 }
-func (self ExpressionStatement) Idx1() Idx { return (*self.Expression).Idx1() }
+func (self ExpressionStatement) Idx1() Idx { return (*self.Expression).Expr.Idx1() }
 func (self ForInStatement) Idx1() Idx      { return (*self.Body).Idx1() }
 func (self ForOfStatement) Idx1() Idx      { return (*self.Body).Idx1() }
 func (self ForStatement) Idx1() Idx        { return (*self.Body).Idx1() }
@@ -793,7 +807,7 @@ func (self LabelledStatement) Idx1() Idx { return self.Colon + 1 }
 func (self Program) Idx1() Idx           { return self.Body[len(self.Body)-1].Idx1() }
 func (self ReturnStatement) Idx1() Idx   { return self.Return + 6 }
 func (self SwitchStatement) Idx1() Idx   { return self.Body[len(self.Body)-1].Idx1() }
-func (self ThrowStatement) Idx1() Idx    { return (*self.Argument).Idx1() }
+func (self ThrowStatement) Idx1() Idx    { return (*self.Argument).Expr.Idx1() }
 func (self TryStatement) Idx1() Idx {
 	if self.Finally != nil {
 		return self.Finally.Idx1()
@@ -811,12 +825,12 @@ func (self FunctionDeclaration) Idx1() Idx { return self.Function.Idx1() }
 func (self ClassDeclaration) Idx1() Idx    { return self.Class.Idx1() }
 func (self VariableDeclarator) Idx1() Idx {
 	if self.Initializer != nil {
-		return (*self.Initializer).Idx1()
+		return (*self.Initializer).Expr.Idx1()
 	}
 	return self.Target.Idx1()
 }
 
-func (self ForLoopInitializerExpression) Idx1() Idx { return (*self.Expression).Idx1() }
+func (self ForLoopInitializerExpression) Idx1() Idx { return (*self.Expression).Expr.Idx1() }
 func (self ForLoopInitializerVarDeclList) Idx1() Idx {
 	return self.List[len(self.List)-1].Idx1()
 }
@@ -824,20 +838,20 @@ func (self ForLoopInitializerLexicalDecl) Idx1() Idx { return self.LexicalDeclar
 
 func (self PropertyShort) Idx1() Idx {
 	if self.Initializer != nil {
-		return (*self.Initializer).Idx1()
+		return (*self.Initializer).Expr.Idx1()
 	}
 	return self.Name.Idx1()
 }
 
-func (self PropertyKeyed) Idx1() Idx { return (*self.Value).Idx1() }
+func (self PropertyKeyed) Idx1() Idx { return (*self.Value).Expr.Idx1() }
 
-func (self ExpressionBody) Idx1() Idx { return self.Expression.Idx1() }
+func (self ExpressionBody) Idx1() Idx { return self.Expression.Expr.Idx1() }
 
 func (self FieldDefinition) Idx1() Idx {
 	if self.Initializer != nil {
-		return (*self.Initializer).Idx1()
+		return (*self.Initializer).Expr.Idx1()
 	}
-	return (*self.Key).Idx1()
+	return (*self.Key).Expr.Idx1()
 }
 
 func (self MethodDefinition) Idx1() Idx {
@@ -850,11 +864,11 @@ func (self ClassStaticBlock) Idx1() Idx {
 
 func (self YieldExpression) Idx1() Idx {
 	if self.Argument != nil {
-		return (*self.Argument).Idx1()
+		return (*self.Argument).Expr.Idx1()
 	}
 	return self.Yield + 5
 }
 
 func (self ForDeclaration) Idx1() Idx    { return self.Target.Idx1() }
 func (self ForIntoVar) Idx1() Idx        { return self.Binding.Idx1() }
-func (self ForIntoExpression) Idx1() Idx { return (*self.Expression).Idx1() }
+func (self ForIntoExpression) Idx1() Idx { return (*self.Expression).Expr.Idx1() }

@@ -27,7 +27,7 @@ func gen(s *state) {
 		s.out.WriteString("[")
 		for i, ex := range n.Value {
 			if ex.Expr != nil {
-				gen(s.wrap(ex))
+				gen(s.wrap(ex.Expr))
 				if i < len(n.Value)-1 {
 					s.out.WriteString(", ")
 				}
@@ -39,7 +39,7 @@ func gen(s *state) {
 			s.out.WriteString("(")
 			defer s.out.WriteString(")")
 		}
-		gen(s.wrap(*n.Left))
+		gen(s.wrap(n.Left.Expr))
 
 		s.out.WriteString(" ")
 		s.out.WriteString(n.Operator.String())
@@ -48,7 +48,7 @@ func gen(s *state) {
 		}
 		s.out.WriteString(" ")
 
-		gen(s.wrap(*n.Right))
+		gen(s.wrap(n.Right.Expr))
 	case *ast.InvalidExpression:
 	case *ast.BadStatement:
 	case *ast.BinaryExpression:
@@ -60,16 +60,16 @@ func gen(s *state) {
 				defer s.out.WriteString(")")
 			}
 		}
-		gen(s.wrap(*n.Left))
+		gen(s.wrap(n.Left.Expr))
 		s.out.WriteString(" " + n.Operator.String() + " ")
-		gen(s.wrap(*n.Right))
+		gen(s.wrap(n.Right.Expr))
 	case *ast.BlockStatement:
 		s.out.WriteString("{")
 
 		s.indent++
 		for _, st := range n.List {
 			s.lineAndPad()
-			gen(s.wrap(st))
+			gen(s.wrap(st.Stmt))
 		}
 		s.indent--
 
@@ -85,16 +85,16 @@ func gen(s *state) {
 		}
 		s.out.WriteString(";")
 	case *ast.CallExpression:
-		if _, ok := n.Callee.Expr.(ast.FunctionLiteral); ok {
+		if _, ok := n.Callee.Expr.(*ast.FunctionLiteral); ok {
 			s.out.WriteString("(")
-			gen(s.wrap(*n.Callee))
+			gen(s.wrap(n.Callee.Expr))
 			s.out.WriteString(")")
 		} else {
-			gen(s.wrap(*n.Callee))
+			gen(s.wrap(n.Callee.Expr))
 		}
 		s.out.WriteString("(")
 		for i, a := range n.ArgumentList {
-			gen(s.wrap(a))
+			gen(s.wrap(a.Expr))
 			if i < len(n.ArgumentList)-1 {
 				s.out.WriteString(", ")
 			}
@@ -103,7 +103,7 @@ func gen(s *state) {
 	case *ast.CaseStatement:
 		if n.Test != nil {
 			s.out.WriteString("case ")
-			gen(s.wrap(*n.Test))
+			gen(s.wrap(n.Test.Expr))
 			s.out.WriteString(": ")
 		} else {
 			s.out.WriteString("default: ")
@@ -120,72 +120,72 @@ func gen(s *state) {
 			s.out.WriteString("(")
 			defer s.out.WriteString(")")
 		}
-		gen(s.wrap(*n.Test))
+		gen(s.wrap(n.Test.Expr))
 		s.out.WriteString(" ? ")
-		gen(s.wrap(*n.Consequent))
+		gen(s.wrap(n.Consequent.Expr))
 		s.out.WriteString(" : ")
-		gen(s.wrap(*n.Alternate))
+		gen(s.wrap(n.Alternate.Expr))
 	case *ast.DebuggerStatement:
 		s.out.WriteString("debugger;")
 	case *ast.DoWhileStatement:
-		gen(s.wrap(*n.Test))
-		gen(s.wrap(*n.Body))
+		gen(s.wrap(n.Test.Expr))
+		gen(s.wrap(n.Body.Stmt))
 	case *ast.MemberExpression:
-		gen(s.wrap(*n.Object))
+		gen(s.wrap(n.Object.Expr))
 		if st, ok := n.Property.Expr.(*ast.StringLiteral); ok && valid(st.Value.String()) {
 			s.out.WriteString(".")
 			s.out.WriteString(st.Value.String())
 		} else {
 			s.out.WriteString("[")
-			gen(s.wrap(*n.Property))
+			gen(s.wrap(n.Property.Expr))
 			s.out.WriteString("]")
 		}
 	case *ast.DotExpression:
-		gen(s.wrap(*n.Left))
+		gen(s.wrap(n.Left.Expr))
 		s.out.WriteString(".")
 		s.out.WriteString(n.Identifier.Name.String())
 	case *ast.EmptyStatement:
 		s.out.WriteString(";")
 	case *ast.ExpressionStatement:
-		gen(s.wrap(*n.Expression))
+		gen(s.wrap(n.Expression.Expr))
 		s.out.WriteString(";")
 		if len(n.Comment) > 0 {
 			s.out.WriteString(" // " + n.Comment)
 		}
 	case *ast.ExpressionBody:
-		gen(s.wrap(n.Expression))
+		gen(s.wrap(n.Expression.Expr))
 	case *ast.ForInStatement:
 		s.out.WriteString("for (")
 		gen(s.wrap(*n.Into))
 		s.out.WriteString(" in ")
-		gen(s.wrap(*n.Source))
+		gen(s.wrap(n.Source.Expr))
 		s.out.WriteString(") ")
-		gen(s.wrap(*n.Body))
+		gen(s.wrap(n.Body.Stmt))
 	case *ast.ForIntoExpression:
-		gen(s.wrap(*n.Expression))
+		gen(s.wrap(n.Expression.Expr))
 	case *ast.ForStatement:
 		s.out.WriteString("for (")
 		gen(s.wrap(*n.Initializer))
 		s.out.WriteString("; ")
-		gen(s.wrap(*n.Test))
+		gen(s.wrap(n.Test.Expr))
 		s.out.WriteString("; ")
-		gen(s.wrap(*n.Update))
+		gen(s.wrap(n.Update.Expr))
 		s.out.WriteString(") ")
 
 		switch n.Body.Stmt.(type) {
 		case ast.EmptyStatement, ast.BlockStatement:
 		default:
-			n.Body = &ast.Statement{ast.BlockStatement{List: ast.Statements{*n.Body}}}
+			n.Body = &ast.Statement{&ast.BlockStatement{List: ast.Statements{*n.Body}}}
 		}
-		gen(s.wrap(*n.Body))
+		gen(s.wrap(n.Body.Stmt))
 	case *ast.ForLoopInitializerExpression:
-		gen(s.wrap(*n.Expression))
+		gen(s.wrap(n.Expression.Expr))
 	case *ast.FunctionLiteral:
 		s.out.WriteString("function ")
 		gen(s.wrap(n.Name))
 		s.out.WriteString("(")
 		for i, p := range n.ParameterList.List {
-			gen(s.wrap(p))
+			gen(s.wrap(&p))
 			if i < len(n.ParameterList.List)-1 {
 				s.out.WriteString(", ")
 			}
@@ -198,15 +198,15 @@ func gen(s *state) {
 		}
 	case *ast.IfStatement:
 		s.out.WriteString("if (")
-		gen(s.wrap(*n.Test))
+		gen(s.wrap(n.Test.Expr))
 		s.out.WriteString(") ")
 
 		switch n.Consequent.Stmt.(type) {
 		case ast.EmptyStatement, ast.BlockStatement:
 		default:
-			n.Consequent = &ast.Statement{Stmt: ast.BlockStatement{List: ast.Statements{*n.Consequent}}}
+			n.Consequent = &ast.Statement{Stmt: &ast.BlockStatement{List: ast.Statements{*n.Consequent}}}
 		}
-		gen(s.wrap(*n.Consequent))
+		gen(s.wrap(n.Consequent.Stmt))
 
 		if n.Alternate != nil {
 			s.out.WriteString(" else ")
@@ -214,19 +214,19 @@ func gen(s *state) {
 			switch n.Alternate.Stmt.(type) {
 			case ast.EmptyStatement, ast.BlockStatement, ast.IfStatement:
 			default:
-				n.Alternate = &ast.Statement{Stmt: ast.BlockStatement{List: ast.Statements{*n.Alternate}}}
+				n.Alternate = &ast.Statement{Stmt: &ast.BlockStatement{List: ast.Statements{*n.Alternate}}}
 			}
-			gen(s.wrap(*n.Alternate))
+			gen(s.wrap(n.Alternate.Stmt))
 		}
 	case *ast.LabelledStatement:
 		gen(s.wrap(n.Label))
-		gen(s.wrap(*n.Statement))
+		gen(s.wrap(n.Statement.Stmt))
 	case *ast.NewExpression:
 		s.out.WriteString("new ")
-		gen(s.wrap(*n.Callee))
+		gen(s.wrap(n.Callee.Expr))
 		s.out.WriteString("(")
 		for i, a := range n.ArgumentList {
-			gen(s.wrap(a))
+			gen(s.wrap(a.Expr))
 			if i < len(n.ArgumentList)-1 {
 				s.out.WriteString(", ")
 			}
@@ -254,13 +254,13 @@ func gen(s *state) {
 		}
 		s.out.WriteString("}")
 	case *ast.PropertyKeyed:
-		gen(s.wrap(*n.Key))
+		gen(s.wrap(n.Key.Expr))
 		s.out.WriteString(": ")
-		gen(s.wrap(*n.Value))
+		gen(s.wrap(n.Value.Expr))
 	case *ast.Program:
 		if n != nil {
 			for _, b := range n.Body {
-				gen(s.wrap(b))
+				gen(s.wrap(b.Stmt))
 				s.line()
 			}
 		}
@@ -271,7 +271,7 @@ func gen(s *state) {
 			s.out.WriteString("return")
 			if n.Argument != nil {
 				s.out.WriteString(" ")
-				gen(s.wrap(*n.Argument))
+				gen(s.wrap(n.Argument.Expr))
 			}
 			s.out.WriteString(";")
 		}
@@ -282,7 +282,7 @@ func gen(s *state) {
 			defer s.out.WriteString(")")
 		}
 		for i, e := range n.Sequence {
-			gen(s.wrap(e))
+			gen(s.wrap(e.Expr))
 			if i < len(n.Sequence)-1 {
 				s.out.WriteString(", ")
 			}
@@ -291,13 +291,13 @@ func gen(s *state) {
 		s.out.WriteString(n.Literal)
 	case *ast.SwitchStatement:
 		s.out.WriteString("switch (")
-		gen(s.wrap(*n.Discriminant))
+		gen(s.wrap(n.Discriminant.Expr))
 		s.out.WriteString(") {")
 
 		s.indent++
 		for _, c := range n.Body {
 			s.lineAndPad()
-			gen(s.wrap(c))
+			gen(s.wrap(&c))
 		}
 		s.indent--
 
@@ -309,7 +309,7 @@ func gen(s *state) {
 		s.out.WriteString("this")
 	case *ast.ThrowStatement:
 		s.out.WriteString("throw ")
-		gen(s.wrap(*n.Argument))
+		gen(s.wrap(n.Argument.Expr))
 		s.out.WriteString(";")
 	case *ast.TryStatement:
 		s.out.WriteString("try ")
@@ -342,7 +342,7 @@ func gen(s *state) {
 		if wrap {
 			s.out.WriteString("(")
 		}
-		gen(s.wrap(*n.Operand))
+		gen(s.wrap(n.Operand.Expr))
 		if wrap {
 			s.out.WriteString(")")
 		}
@@ -356,36 +356,36 @@ func gen(s *state) {
 			gen(s.wrap(v.Target))
 			if v.Initializer != nil {
 				s.out.WriteString(" = ")
-				gen(s.wrap(*v.Initializer))
+				gen(s.wrap(v.Initializer.Expr))
 			}
 		}
 		s.out.WriteString(";")
 		s.line()
 	case *ast.WhileStatement:
 		s.out.WriteString("while (")
-		gen(s.wrap(*n.Test))
+		gen(s.wrap(n.Test.Expr))
 		s.out.WriteString(") ")
-		gen(s.wrap(*n.Body))
+		gen(s.wrap(n.Body.Stmt))
 	case *ast.WithStatement:
-		gen(s.wrap(*n.Object))
-		gen(s.wrap(*n.Body))
+		gen(s.wrap(n.Object.Expr))
+		gen(s.wrap(n.Body.Stmt))
 	case *ast.VariableDeclarator:
 		gen(s.wrap(n.Target))
 		if n.Initializer != nil {
 			s.out.WriteString(" = ")
-			gen(s.wrap(*n.Initializer))
+			gen(s.wrap(n.Initializer.Expr))
 		}
 	case *ast.ForLoopInitializerLexicalDecl:
 		s.out.WriteString(n.LexicalDeclaration.Token.String())
 		s.out.WriteString(" ")
 		for _, b := range n.LexicalDeclaration.List {
-			gen(s.wrap(b))
+			gen(s.wrap(&b))
 		}
 	case *ast.LexicalDeclaration:
 		s.out.WriteString(n.Token.String())
 		s.out.WriteString(" ")
 		for i, b := range n.List {
-			gen(s.wrap(b))
+			gen(s.wrap(&b))
 			if i < len(n.List)-1 {
 				s.out.WriteString(", ")
 			}
