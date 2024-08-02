@@ -3,7 +3,7 @@ package parser
 import (
 	"fmt"
 
-	"github.com/t14raptor/go-trump/token"
+	"github.com/t14raptor/go-fast/token"
 )
 
 const (

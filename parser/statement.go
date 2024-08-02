@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/t14raptor/go-trump/ast"
-	"github.com/t14raptor/go-trump/token"
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
 )
 
 func (p *parser) parseBlockStatement() *ast.BlockStatement {

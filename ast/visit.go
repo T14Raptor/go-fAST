@@ -1,7 +1,5 @@
 package ast
 
-import "fmt"
-
 type VisitableNode interface {
 	Node
 	VisitWith(v Visitor)
@@ -67,7 +65,9 @@ type Visitor interface {
 	VisitFunctionDeclaration(node *FunctionDeclaration)
 }
 
-type NoopVisitor struct{ V Visitor }
+type NoopVisitor struct {
+	V Visitor
+}
 
 func (nv *NoopVisitor) VisitProgram(node *Program) {
 	node.VisitChildrenWith(nv.V)
@@ -501,9 +501,7 @@ func (n *Statements) VisitWith(v Visitor) {
 }
 
 func (n *Statements) VisitChildrenWith(v Visitor) {
-	fmt.Println("hello2", len(*n))
 	for i := range *n {
-		fmt.Printf("%T", v)
 		v.VisitStatement(&((*n)[i]))
 	}
 }

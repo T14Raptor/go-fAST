@@ -1,7 +1,7 @@
 package parser
 
 import (
-	"github.com/t14raptor/go-trump/unistring"
+	"github.com/t14raptor/go-fast/unistring"
 )
 
 type scope struct {

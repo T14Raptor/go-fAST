@@ -3,7 +3,7 @@ package generator
 import (
 	"strings"
 
-	"github.com/t14raptor/go-trump/ast"
+	"github.com/t14raptor/go-fast/ast"
 )
 
 type state struct {

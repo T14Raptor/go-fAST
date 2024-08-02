@@ -1,4 +1,4 @@
-module github.com/t14raptor/go-trump
+module github.com/t14raptor/go-fast
 
 go 1.20
 

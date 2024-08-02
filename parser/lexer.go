@@ -9,9 +9,9 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/t14raptor/go-trump/ast"
-	"github.com/t14raptor/go-trump/token"
-	"github.com/t14raptor/go-trump/unistring"
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/unistring"
 	"golang.org/x/text/unicode/rangetable"
 )
 

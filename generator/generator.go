@@ -2,8 +2,8 @@ package generator
 
 import (
 	"fmt"
-	"github.com/t14raptor/go-trump/ast"
-	"github.com/t14raptor/go-trump/token"
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
 	"strings"
 	"unicode"
 )
