@@ -131,7 +131,13 @@ func gen(s *state) {
 		gen(s.wrap(n.Test.Expr))
 		gen(s.wrap(n.Body.Stmt))
 	case *ast.MemberExpression:
-		gen(s.wrap(n.Object.Expr))
+		if _, ok := n.Object.Expr.(*ast.AssignExpression); ok {
+			s.out.WriteString("(")
+			gen(s.wrap(n.Object.Expr))
+			s.out.WriteString(")")
+		} else {
+			gen(s.wrap(n.Object.Expr))
+		}
 		if st, ok := n.Property.Expr.(*ast.StringLiteral); ok && valid(st.Value.String()) {
 			s.out.WriteString(".")
 			s.out.WriteString(st.Value.String())
@@ -280,7 +286,7 @@ func gen(s *state) {
 		}
 	case *ast.SequenceExpression:
 		switch s.parent.node.(type) {
-		case *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression:
+		case *ast.PropertyKeyed, *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression:
 			s.out.WriteString("(")
 			defer s.out.WriteString(")")
 		}
