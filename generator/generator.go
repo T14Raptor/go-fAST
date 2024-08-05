@@ -181,6 +181,7 @@ func gen(s *state) {
 	case *ast.ForLoopInitializerExpression:
 		gen(s.wrap(n.Expression.Expr))
 	case *ast.ForIntoVar:
+		s.out.WriteString("var ")
 		gen(s.wrap(n.Binding))
 	case *ast.FunctionLiteral:
 		s.out.WriteString("function ")
@@ -279,7 +280,7 @@ func gen(s *state) {
 		}
 	case *ast.SequenceExpression:
 		switch s.parent.node.(type) {
-		case *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression:
+		case *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression:
 			s.out.WriteString("(")
 			defer s.out.WriteString(")")
 		}
@@ -354,11 +355,14 @@ func gen(s *state) {
 		}
 	case *ast.VariableStatement:
 		s.out.WriteString("var ")
-		for _, v := range n.List {
+		for i, v := range n.List {
 			gen(s.wrap(v.Target))
 			if v.Initializer != nil {
 				s.out.WriteString(" = ")
 				gen(s.wrap(v.Initializer.Expr))
+			}
+			if i < len(n.List)-1 {
+				s.out.WriteString(",")
 			}
 		}
 		s.out.WriteString(";")
