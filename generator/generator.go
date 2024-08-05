@@ -173,19 +173,21 @@ func gen(s *state) {
 		s.out.WriteString(") ")
 
 		switch n.Body.Stmt.(type) {
-		case ast.EmptyStatement, ast.BlockStatement:
+		case *ast.EmptyStatement, *ast.BlockStatement:
 		default:
 			n.Body = &ast.Statement{&ast.BlockStatement{List: ast.Statements{*n.Body}}}
 		}
 		gen(s.wrap(n.Body.Stmt))
 	case *ast.ForLoopInitializerExpression:
 		gen(s.wrap(n.Expression.Expr))
+	case *ast.ForIntoVar:
+		gen(s.wrap(n.Binding))
 	case *ast.FunctionLiteral:
 		s.out.WriteString("function ")
 		gen(s.wrap(n.Name))
 		s.out.WriteString("(")
 		for i, p := range n.ParameterList.List {
-			gen(s.wrap(&p))
+			gen(s.wrap(p))
 			if i < len(n.ParameterList.List)-1 {
 				s.out.WriteString(", ")
 			}
@@ -202,7 +204,7 @@ func gen(s *state) {
 		s.out.WriteString(") ")
 
 		switch n.Consequent.Stmt.(type) {
-		case ast.EmptyStatement, ast.BlockStatement:
+		case *ast.EmptyStatement, *ast.BlockStatement:
 		default:
 			n.Consequent = &ast.Statement{Stmt: &ast.BlockStatement{List: ast.Statements{*n.Consequent}}}
 		}
@@ -212,7 +214,7 @@ func gen(s *state) {
 			s.out.WriteString(" else ")
 
 			switch n.Alternate.Stmt.(type) {
-			case ast.EmptyStatement, ast.BlockStatement, ast.IfStatement:
+			case *ast.EmptyStatement, *ast.BlockStatement, *ast.IfStatement:
 			default:
 				n.Alternate = &ast.Statement{Stmt: &ast.BlockStatement{List: ast.Statements{*n.Alternate}}}
 			}
@@ -360,7 +362,6 @@ func gen(s *state) {
 			}
 		}
 		s.out.WriteString(";")
-		s.line()
 	case *ast.WhileStatement:
 		s.out.WriteString("while (")
 		gen(s.wrap(n.Test.Expr))
@@ -375,17 +376,19 @@ func gen(s *state) {
 			s.out.WriteString(" = ")
 			gen(s.wrap(n.Initializer.Expr))
 		}
-	case *ast.ForLoopInitializerLexicalDecl:
-		s.out.WriteString(n.LexicalDeclaration.Token.String())
-		s.out.WriteString(" ")
-		for _, b := range n.LexicalDeclaration.List {
-			gen(s.wrap(&b))
+	case *ast.ForLoopInitializerVarDeclList:
+		s.out.WriteString("var ")
+		for i, decl := range n.List {
+			gen(s.wrap(decl))
+			if i < len(n.List)-1 {
+				s.out.WriteString(", ")
+			}
 		}
 	case *ast.LexicalDeclaration:
 		s.out.WriteString(n.Token.String())
 		s.out.WriteString(" ")
 		for i, b := range n.List {
-			gen(s.wrap(&b))
+			gen(s.wrap(b))
 			if i < len(n.List)-1 {
 				s.out.WriteString(", ")
 			}

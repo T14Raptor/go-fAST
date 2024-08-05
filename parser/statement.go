@@ -156,7 +156,7 @@ func (p *parser) parseTryStatement() ast.Stmt {
 
 func (p *parser) parseFunctionParameterList() ast.ParameterList {
 	opening := p.expect(token.LeftParenthesis)
-	var list []ast.VariableDeclarator
+	var list []*ast.VariableDeclarator
 	var rest ast.Expr
 	if !p.scope.inFuncParams {
 		p.scope.inFuncParams = true
@@ -585,13 +585,13 @@ func (p *parser) parseIterationStatement() ast.Stmt {
 	return p.parseStatement()
 }
 
-func (p *parser) parseForIn(idx ast.Idx, into ast.ForInto) ast.ForInStatement {
+func (p *parser) parseForIn(idx ast.Idx, into ast.ForInto) *ast.ForInStatement {
 	// Already have consumed "<into> in"
 
 	source := p.parseExpression()
 	p.expect(token.RightParenthesis)
 
-	return ast.ForInStatement{
+	return &ast.ForInStatement{
 		For:    idx,
 		Into:   &into,
 		Source: ptrExpr(source),
@@ -599,13 +599,13 @@ func (p *parser) parseForIn(idx ast.Idx, into ast.ForInto) ast.ForInStatement {
 	}
 }
 
-func (p *parser) parseForOf(idx ast.Idx, into ast.ForInto) ast.ForOfStatement {
+func (p *parser) parseForOf(idx ast.Idx, into ast.ForInto) *ast.ForOfStatement {
 	// Already have consumed "<into> of"
 
 	source := p.parseAssignmentExpression()
 	p.expect(token.RightParenthesis)
 
-	return ast.ForOfStatement{
+	return &ast.ForOfStatement{
 		For:    idx,
 		Into:   &into,
 		Source: ptrExpr(source),
@@ -677,11 +677,11 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 					p.error("for-in loop variable declaration may not have an initializer")
 				}
 				if tok == token.Var {
-					into = ast.ForIntoVar{
+					into = &ast.ForIntoVar{
 						Binding: list[0],
 					}
 				} else {
-					into = ast.ForDeclaration{
+					into = &ast.ForDeclaration{
 						Idx:     idx,
 						IsConst: tok == token.Const,
 						Target:  list[0].Target,
@@ -690,11 +690,11 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 			} else {
 				p.ensurePatternInit(list)
 				if tok == token.Var {
-					initializer = ast.ForLoopInitializerVarDeclList{
+					initializer = &ast.ForLoopInitializerVarDeclList{
 						List: list,
 					}
 				} else {
-					initializer = ast.ForLoopInitializerLexicalDecl{
+					initializer = &ast.ForLoopInitializerLexicalDecl{
 						LexicalDeclaration: ast.LexicalDeclaration{
 							Idx:   idx,
 							Token: tok,
@@ -748,7 +748,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 	return p.parseFor(idx, initializer)
 }
 
-func (p *parser) ensurePatternInit(list []ast.VariableDeclarator) {
+func (p *parser) ensurePatternInit(list []*ast.VariableDeclarator) {
 	for _, item := range list {
 		if _, ok := item.Target.(ast.Pattern); ok {
 			if item.Initializer == nil {
@@ -759,14 +759,14 @@ func (p *parser) ensurePatternInit(list []ast.VariableDeclarator) {
 	}
 }
 
-func (p *parser) parseVariableStatement() ast.VariableStatement {
+func (p *parser) parseVariableStatement() *ast.VariableStatement {
 	idx := p.expect(token.Var)
 
 	list := p.parseVariableDeclarationList()
 	p.ensurePatternInit(list)
 	p.semicolon()
 
-	return ast.VariableStatement{
+	return &ast.VariableStatement{
 		Var:  idx,
 		List: list,
 	}
@@ -797,7 +797,7 @@ func (p *parser) parseDoWhileStatement() ast.Stmt {
 	}()
 
 	p.expect(token.Do)
-	node := ast.DoWhileStatement{}
+	node := &ast.DoWhileStatement{}
 	if p.token == token.LeftBrace {
 		node.Body = refStmt(p.parseBlockStatement())
 	} else {
@@ -819,7 +819,7 @@ func (p *parser) parseDoWhileStatement() ast.Stmt {
 func (p *parser) parseWhileStatement() ast.Stmt {
 	p.expect(token.While)
 	p.expect(token.LeftParenthesis)
-	node := ast.WhileStatement{
+	node := &ast.WhileStatement{
 		Test: ptrExpr(p.parseExpression()),
 	}
 	p.expect(token.RightParenthesis)

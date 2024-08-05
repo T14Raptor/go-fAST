@@ -234,7 +234,7 @@ type (
 
 	ParameterList struct {
 		Opening Idx
-		List    []VariableDeclarator
+		List    []*VariableDeclarator
 		Rest    Expr
 		Closing Idx
 	}
@@ -484,13 +484,13 @@ type (
 
 	VariableStatement struct {
 		Var  Idx
-		List []VariableDeclarator
+		List []*VariableDeclarator
 	}
 
 	LexicalDeclaration struct {
 		Idx     Idx
 		Token   token.Token
-		List    []VariableDeclarator
+		List    []*VariableDeclarator
 		Comment string
 	}
 
@@ -587,7 +587,7 @@ type (
 	}
 
 	ForLoopInitializerVarDeclList struct {
-		List []VariableDeclarator
+		List []*VariableDeclarator
 	}
 
 	ForLoopInitializerLexicalDecl struct {
@@ -600,7 +600,7 @@ type (
 	}
 
 	ForIntoVar struct {
-		Binding VariableDeclarator
+		Binding *VariableDeclarator
 	}
 
 	ForDeclaration struct {
