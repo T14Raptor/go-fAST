@@ -30,10 +30,7 @@ type (
 	Statements  []Statement
 	// Expression is a struct to allow defining methods on it.
 	Expression struct {
-		Expr interface {
-			Node
-			_expr()
-		}
+		Expr
 	}
 	Statement struct {
 		Stmt
@@ -44,6 +41,7 @@ type (
 	// All expression nodes implement the Expr interface.
 	Expr interface {
 		Node
+		VisitableNode
 		_expr()
 	}
 
@@ -51,6 +49,8 @@ type (
 		Expr
 		_bindingTarget()
 	}
+
+	VariableDeclarators []*VariableDeclarator
 
 	VariableDeclarator struct {
 		Target      BindingTarget
@@ -234,7 +234,7 @@ type (
 
 	ParameterList struct {
 		Opening Idx
-		List    []*VariableDeclarator
+		List    VariableDeclarators
 		Rest    Expr
 		Closing Idx
 	}
@@ -372,6 +372,7 @@ type (
 	// All statement nodes implement the Stmt interface.
 	Stmt interface {
 		Node
+		VisitableNode
 		_statementNode()
 	}
 
@@ -484,13 +485,13 @@ type (
 
 	VariableStatement struct {
 		Var  Idx
-		List []*VariableDeclarator
+		List VariableDeclarators
 	}
 
 	LexicalDeclaration struct {
 		Idx     Idx
 		Token   token.Token
-		List    []*VariableDeclarator
+		List    VariableDeclarators
 		Comment string
 	}
 
@@ -511,7 +512,7 @@ type (
 	}
 
 	ClassDeclaration struct {
-		Class ClassLiteral
+		Class *ClassLiteral
 	}
 )
 
@@ -587,7 +588,7 @@ type (
 	}
 
 	ForLoopInitializerVarDeclList struct {
-		List []*VariableDeclarator
+		List VariableDeclarators
 	}
 
 	ForLoopInitializerLexicalDecl struct {

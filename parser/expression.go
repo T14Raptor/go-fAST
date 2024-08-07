@@ -146,7 +146,7 @@ func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.
 	firstRestIdx := -1
 	params := make([]*ast.VariableDeclarator, 0, len(list))
 	for i, item := range list {
-		if _, ok := item.Expr.(ast.SpreadElement); ok {
+		if _, ok := item.Expr.(*ast.SpreadElement); ok {
 			if firstRestIdx == -1 {
 				firstRestIdx = i
 				continue
@@ -179,7 +179,7 @@ func (p *parser) parseParenthesisedExpression() ast.Expr {
 				p.errorUnexpectedToken(token.Ellipsis)
 				p.next()
 				expr := p.parseAssignmentExpression()
-				list = append(list, ast.Expression{Expr: ast.InvalidExpression{
+				list = append(list, ast.Expression{Expr: &ast.InvalidExpression{
 					From: start,
 					To:   expr.Idx1(),
 				}})
@@ -202,7 +202,7 @@ func (p *parser) parseParenthesisedExpression() ast.Expr {
 	}
 	if len(list) == 0 {
 		p.errorUnexpectedToken(token.RightParenthesis)
-		return ast.InvalidExpression{
+		return &ast.InvalidExpression{
 			From: opening,
 			To:   p.idx,
 		}
@@ -289,7 +289,7 @@ func (p *parser) parseBindingTarget() (target ast.BindingTarget) {
 	default:
 		idx := p.expect(token.Identifier)
 		p.nextStatement()
-		target = ast.InvalidExpression{From: idx, To: p.idx}
+		target = &ast.InvalidExpression{From: idx, To: p.idx}
 	}
 
 	return
@@ -352,7 +352,7 @@ func (p *parser) parseObjectPropertyKey() (string, unistring.String, ast.Expr, t
 			}
 		}
 	case token.PrivateIdentifier:
-		value = ast.PrivateIdentifier{
+		value = &ast.PrivateIdentifier{
 			Identifier: &ast.Identifier{
 				Idx:  idx,
 				Name: parsedLiteral,
@@ -376,7 +376,7 @@ func (p *parser) parseObjectPropertyKey() (string, unistring.String, ast.Expr, t
 func (p *parser) parseObjectProperty() ast.Property {
 	if p.token == token.Ellipsis {
 		p.next()
-		return ast.SpreadElement{
+		return &ast.SpreadElement{
 			Expression: ast.Expression{Expr: p.parseAssignmentExpression()},
 		}
 	}
@@ -416,7 +416,7 @@ func (p *parser) parseObjectProperty() ast.Property {
 					p.next()
 					initializer = p.parseAssignmentExpression()
 				}
-				return ast.PropertyShort{
+				return &ast.PropertyShort{
 					Name: &ast.Identifier{
 						Name: parsedLiteral,
 						Idx:  value.Idx0(),
@@ -530,7 +530,7 @@ func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 		}
 		if p.token == token.Ellipsis {
 			p.next()
-			value = append(value, ast.Expression{Expr: ast.SpreadElement{
+			value = append(value, ast.Expression{Expr: &ast.SpreadElement{
 				Expression: ast.Expression{Expr: p.parseAssignmentExpression()},
 			}})
 		} else {
@@ -549,8 +549,8 @@ func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 	}
 }
 
-func (p *parser) parseTemplateLiteral(tagged bool) ast.TemplateLiteral {
-	res := ast.TemplateLiteral{
+func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
+	res := &ast.TemplateLiteral{
 		OpenQuote: p.idx,
 	}
 	for {
@@ -583,7 +583,7 @@ func (p *parser) parseTemplateLiteral(tagged bool) ast.TemplateLiteral {
 	return res
 }
 
-func (p *parser) parseTaggedTemplateLiteral(tag ast.Expr) ast.TemplateLiteral {
+func (p *parser) parseTaggedTemplateLiteral(tag ast.Expr) *ast.TemplateLiteral {
 	l := p.parseTemplateLiteral(true)
 	l.Tag = ptrExpr(tag)
 	return l
@@ -595,7 +595,7 @@ func (p *parser) parseArgumentList() (argumentList ast.Expressions, idx0, idx1 a
 		var item ast.Expr
 		if p.token == token.Ellipsis {
 			p.next()
-			item = ast.SpreadElement{
+			item = &ast.SpreadElement{
 				Expression: ast.Expression{Expr: p.parseAssignmentExpression()},
 			}
 		} else {
@@ -630,7 +630,7 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 
 	if p.token == token.PrivateIdentifier {
 		p.next()
-		return ast.PrivateDotExpression{
+		return &ast.PrivateDotExpression{
 			Left: ptrExpr(left),
 			Identifier: ast.PrivateIdentifier{
 				Identifier: &ast.Identifier{
@@ -644,7 +644,7 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 	if !token.ID(p.token) {
 		p.expect(token.Identifier)
 		p.nextStatement()
-		return ast.InvalidExpression{From: period, To: p.idx}
+		return &ast.InvalidExpression{From: period, To: p.idx}
 	}
 
 	p.next()
@@ -673,7 +673,7 @@ func (p *parser) parseNewExpression() ast.Expr {
 	if p.token == token.Period {
 		p.next()
 		if p.literal == "target" {
-			return ast.MetaProperty{
+			return &ast.MetaProperty{
 				Meta: &ast.Identifier{
 					Name: unistring.String(token.New.String()),
 					Idx:  idx,
@@ -684,7 +684,7 @@ func (p *parser) parseNewExpression() ast.Expr {
 		p.errorUnexpectedToken(token.Identifier)
 	}
 	callee := p.parseLeftHandSideExpression()
-	if bad, ok := callee.(ast.InvalidExpression); ok {
+	if bad, ok := callee.(*ast.InvalidExpression); ok {
 		bad.From = idx
 		return bad
 	}
@@ -759,7 +759,7 @@ L:
 			left = p.parseTaggedTemplateLiteral(left)
 		case token.QuestionDot:
 			optionalChain = true
-			left = ast.Optional{Expr: ptrExpr(left)}
+			left = &ast.Optional{Expr: ptrExpr(left)}
 
 			switch p.peek() {
 			case token.LeftBracket, token.LeftParenthesis, token.Backtick:
@@ -773,7 +773,7 @@ L:
 	}
 
 	if optionalChain {
-		left = ast.OptionalChain{Base: ptrExpr(left)}
+		left = &ast.OptionalChain{Base: ptrExpr(left)}
 	}
 	return left
 }
@@ -790,7 +790,7 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 		default:
 			p.error("Invalid left-hand side in assignment")
 			p.nextStatement()
-			return ast.InvalidExpression{From: idx, To: p.idx}
+			return &ast.InvalidExpression{From: idx, To: p.idx}
 		}
 		return &ast.UnaryExpression{
 			Operator: tkn,
@@ -844,7 +844,7 @@ func (p *parser) parseUnaryExpression() ast.Expr {
 			p.next()
 			if !p.scope.inAsync {
 				p.errorUnexpectedToken(token.Await)
-				return ast.InvalidExpression{
+				return &ast.InvalidExpression{
 					From: idx,
 					To:   p.idx,
 				}
@@ -852,7 +852,7 @@ func (p *parser) parseUnaryExpression() ast.Expr {
 			if p.scope.inFuncParams {
 				p.error("Illegal await-expression in formal parameters of async function")
 			}
-			return ast.AwaitExpression{
+			return &ast.AwaitExpression{
 				Await:    idx,
 				Argument: ptrExpr(p.parseUnaryExpression()),
 			}
@@ -1083,7 +1083,7 @@ func (p *parser) parseLogicalAndExpression() ast.Expr {
 }
 
 func isLogicalAndExpr(expr ast.Expr) bool {
-	if bexp, ok := expr.(ast.BinaryExpression); ok && bexp.Operator == token.LogicalAnd {
+	if bexp, ok := expr.(*ast.BinaryExpression); ok && bexp.Operator == token.LogicalAnd {
 		return true
 	}
 	return false
@@ -1293,7 +1293,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 		}
 		if paramList == nil {
 			p.error("Malformed arrow function parameter list")
-			return ast.InvalidExpression{From: left.Idx0(), To: left.Idx1()}
+			return &ast.InvalidExpression{From: left.Idx0(), To: left.Idx1()}
 		}
 		return p.parseArrowFunction(start, *paramList, async)
 	}
@@ -1338,7 +1338,7 @@ func (p *parser) parseYieldExpression() ast.Expr {
 		p.error("Yield expression not allowed in formal parameter")
 	}
 
-	node := ast.YieldExpression{
+	node := &ast.YieldExpression{
 		Yield: idx,
 	}
 
@@ -1391,10 +1391,10 @@ func (p *parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) ast
 	value := left.Value
 	var rest ast.Expr
 	for i, item := range value {
-		if spread, ok := item.Expr.(ast.SpreadElement); ok {
+		if spread, ok := item.Expr.(*ast.SpreadElement); ok {
 			if i != len(value)-1 {
 				p.error("Rest element must be last element")
-				return ast.InvalidExpression{From: left.Idx0(), To: left.Idx1()}
+				return &ast.InvalidExpression{From: left.Idx0(), To: left.Idx1()}
 			}
 			p.checkComma(spread.Idx1(), left.RightBracket)
 			rest = p.reinterpretAsDestructAssignTarget(spread.Expression.Expr)
@@ -1403,7 +1403,7 @@ func (p *parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) ast
 			value[i] = ast.Expression{Expr: p.reinterpretAsAssignmentElement(item.Expr)}
 		}
 	}
-	return ast.ArrayPattern{
+	return &ast.ArrayPattern{
 		LeftBracket:  left.LeftBracket,
 		RightBracket: left.RightBracket,
 		Elements:     value,
@@ -1425,7 +1425,7 @@ func (p *parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) ast.Bi
 	value := left.Value
 	var rest ast.Expr
 	for i, item := range value {
-		if spread, ok := item.Expr.(ast.SpreadElement); ok {
+		if spread, ok := item.Expr.(*ast.SpreadElement); ok {
 			if i != len(value)-1 {
 				p.error("Rest element must be last element")
 				return &ast.InvalidExpression{From: left.Idx0(), To: left.Idx1()}
@@ -1455,7 +1455,7 @@ func (p *parser) parseObjectBindingPattern() ast.BindingTarget {
 
 func (p *parser) reinterpretArrayObjectPatternAsBinding(pattern *ast.ObjectPattern) *ast.ObjectPattern {
 	for _, prop := range pattern.Properties {
-		if keyed, ok := prop.(ast.PropertyKeyed); ok {
+		if keyed, ok := prop.(*ast.PropertyKeyed); ok {
 			keyed.Value = ptrExpr(p.reinterpretAsBindingElement(keyed.Value.Expr))
 		}
 	}
@@ -1471,14 +1471,14 @@ func (p *parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) ast.
 	for i, prop := range value {
 		ok := false
 		switch prop := prop.(type) {
-		case ast.PropertyKeyed:
+		case *ast.PropertyKeyed:
 			if prop.Kind == ast.PropertyKindValue {
 				prop.Value = ptrExpr(p.reinterpretAsBindingElement(prop.Value.Expr))
 				ok = true
 			}
-		case ast.PropertyShort:
+		case *ast.PropertyShort:
 			ok = true
-		case ast.SpreadElement:
+		case *ast.SpreadElement:
 			if i != len(expr.Value)-1 {
 				p.error("Rest element must be last element")
 				return &ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()}
@@ -1507,17 +1507,17 @@ func (p *parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) ast.
 	for i, prop := range value {
 		ok := false
 		switch prop := prop.(type) {
-		case ast.PropertyKeyed:
+		case *ast.PropertyKeyed:
 			if prop.Kind == ast.PropertyKindValue {
 				prop.Value = ptrExpr(p.reinterpretAsAssignmentElement(prop.Value.Expr))
 				ok = true
 			}
-		case ast.PropertyShort:
+		case *ast.PropertyShort:
 			ok = true
-		case ast.SpreadElement:
+		case *ast.SpreadElement:
 			if i != len(l.Value)-1 {
 				p.error("Rest element must be last element")
-				return ast.InvalidExpression{From: l.Idx0(), To: l.Idx1()}
+				return &ast.InvalidExpression{From: l.Idx0(), To: l.Idx1()}
 			}
 			// TODO make sure there is no trailing comma
 			rest = prop.Expression.Expr
@@ -1526,7 +1526,7 @@ func (p *parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) ast.
 		}
 		if !ok {
 			p.error("Invalid destructuring assignment target")
-			return ast.InvalidExpression{From: l.Idx0(), To: l.Idx1()}
+			return &ast.InvalidExpression{From: l.Idx0(), To: l.Idx1()}
 		}
 	}
 	return &ast.ObjectPattern{
@@ -1569,7 +1569,7 @@ func (p *parser) reinterpretAsBindingElement(expr ast.Expr) ast.Expr {
 
 func (p *parser) reinterpretAsBinding(expr ast.Expr) *ast.VariableDeclarator {
 	switch expr := expr.(type) {
-	case ast.AssignExpression:
+	case *ast.AssignExpression:
 		if expr.Operator == token.Assign {
 			return &ast.VariableDeclarator{
 				Target:      p.reinterpretAsDestructBindingTarget(expr.Left.Expr),
@@ -1621,7 +1621,7 @@ func (p *parser) reinterpretAsDestructBindingTarget(item ast.Expr) ast.BindingTa
 		}
 	}
 	p.error("Invalid destructuring binding target")
-	return ast.InvalidExpression{From: item.Idx0(), To: item.Idx1()}
+	return &ast.InvalidExpression{From: item.Idx0(), To: item.Idx1()}
 }
 
 func (p *parser) reinterpretAsBindingRestElement(expr ast.Expr) ast.Expr {
@@ -1629,7 +1629,7 @@ func (p *parser) reinterpretAsBindingRestElement(expr ast.Expr) ast.Expr {
 		return expr
 	}
 	p.error("Invalid binding rest")
-	return ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()}
+	return &ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()}
 }
 
 func ptrExpr(expr ast.Expr) *ast.Expression {

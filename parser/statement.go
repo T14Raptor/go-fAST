@@ -31,7 +31,7 @@ func (p *parser) parseStatementList() (list ast.Statements) {
 func (p *parser) parseStatement() ast.Stmt {
 	if p.token == token.Eof {
 		p.errorUnexpectedToken(p.token)
-		return ast.BadStatement{From: p.idx, To: p.idx + 1}
+		return &ast.BadStatement{From: p.idx, To: p.idx + 1}
 	}
 
 	switch p.token {
@@ -148,7 +148,7 @@ func (p *parser) parseTryStatement() ast.Stmt {
 
 	if node.Catch == nil && node.Finally == nil {
 		p.error("Missing catch or finally after try")
-		return ast.BadStatement{From: node.Try, To: node.Body.Idx1()}
+		return &ast.BadStatement{From: node.Try, To: node.Body.Idx1()}
 	}
 
 	return node
@@ -288,12 +288,12 @@ func (p *parser) parseArrowFunctionBody(async bool) ast.ConciseBody {
 	}
 }
 
-func (p *parser) parseClass(declaration bool) ast.ClassLiteral {
+func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 	if !p.scope.allowLet && p.token == token.Class {
 		p.errorUnexpectedToken(token.Class)
 	}
 
-	node := ast.ClassLiteral{
+	node := &ast.ClassLiteral{
 		Class: p.expect(token.Class),
 	}
 
@@ -372,7 +372,7 @@ func (p *parser) parseClass(declaration bool) ast.ClassLiteral {
 			continue
 		}
 		computed := tkn == token.Illegal
-		_, private := value.(ast.PrivateIdentifier)
+		_, private := value.(*ast.PrivateIdentifier)
 
 		if static && !private && keyName == "prototype" {
 			p.error("Classes may not have a static property named 'prototype'")
@@ -446,7 +446,7 @@ func (p *parser) parseClass(declaration bool) ast.ClassLiteral {
 func (p *parser) parseDebuggerStatement() ast.Stmt {
 	idx := p.expect(token.Debugger)
 
-	node := ast.DebuggerStatement{
+	node := &ast.DebuggerStatement{
 		Debugger: idx,
 	}
 
@@ -461,7 +461,7 @@ func (p *parser) parseReturnStatement() ast.Stmt {
 	if !p.scope.inFunction {
 		p.error("Illegal return statement")
 		p.nextStatement()
-		return ast.BadStatement{From: idx, To: p.idx}
+		return &ast.BadStatement{From: idx, To: p.idx}
 	}
 
 	node := &ast.ReturnStatement{
@@ -487,7 +487,7 @@ func (p *parser) parseThrowStatement() ast.Stmt {
 			p.error("Illegal newline after throw")
 		}
 		p.nextStatement()
-		return ast.BadStatement{From: idx, To: p.idx}
+		return &ast.BadStatement{From: idx, To: p.idx}
 	}
 
 	node := &ast.ThrowStatement{
@@ -772,7 +772,7 @@ func (p *parser) parseVariableStatement() *ast.VariableStatement {
 	}
 }
 
-func (p *parser) parseLexicalDeclaration(tok token.Token) ast.LexicalDeclaration {
+func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.LexicalDeclaration {
 	idx := p.expect(tok)
 	if !p.scope.allowLet {
 		p.error("Lexical declaration cannot appear in a single-statement context")
@@ -782,7 +782,7 @@ func (p *parser) parseLexicalDeclaration(tok token.Token) ast.LexicalDeclaration
 	p.ensurePatternInit(list)
 	p.semicolon()
 
-	return ast.LexicalDeclaration{
+	return &ast.LexicalDeclaration{
 		Idx:   idx,
 		Token: tok,
 		List:  list,
@@ -891,7 +891,7 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 		identifier := p.parseIdentifier()
 		if !p.scope.hasLabel(identifier.Name) {
 			p.error(identifier.Name.String())
-			return ast.BadStatement{From: idx, To: identifier.Idx1()}
+			return &ast.BadStatement{From: idx, To: identifier.Idx1()}
 		}
 		p.semicolon()
 		return &ast.BranchStatement{
@@ -906,7 +906,7 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 illegal:
 	p.error("Illegal break statement")
 	p.nextStatement()
-	return ast.BadStatement{From: idx, To: p.idx}
+	return &ast.BadStatement{From: idx, To: p.idx}
 }
 
 func (p *parser) parseContinueStatement() ast.Stmt {
@@ -933,7 +933,7 @@ func (p *parser) parseContinueStatement() ast.Stmt {
 		identifier := p.parseIdentifier()
 		if !p.scope.hasLabel(identifier.Name) {
 			p.error(identifier.Name.String())
-			return ast.BadStatement{From: idx, To: identifier.Idx1()}
+			return &ast.BadStatement{From: idx, To: identifier.Idx1()}
 		}
 		if !p.scope.inIteration {
 			goto illegal
@@ -951,7 +951,7 @@ func (p *parser) parseContinueStatement() ast.Stmt {
 illegal:
 	p.error("Illegal continue statement")
 	p.nextStatement()
-	return ast.BadStatement{From: idx, To: p.idx}
+	return &ast.BadStatement{From: idx, To: p.idx}
 }
 
 // Find the next statement after an error (recover)

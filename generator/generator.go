@@ -413,7 +413,10 @@ func gen(s *state) {
 }
 
 func valid(s string) bool {
-	for _, r := range s {
+	for i, r := range s {
+		if i == 0 && unicode.IsDigit(r) {
+			return false
+		}
 		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
 			return false
 		}
