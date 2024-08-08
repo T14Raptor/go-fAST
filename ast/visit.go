@@ -79,6 +79,8 @@ type Visitor interface {
 	VisitForIntoVar(node *ForIntoVar)
 	VisitForDeclaration(node *ForDeclaration)
 	VisitForIntoExpression(node *ForIntoExpression)
+	VisitForLoopInitializerLexicalDecl(node *ForLoopInitializerLexicalDecl)
+	VisitForLoopInitializerVarDeclList(node *ForLoopInitializerVarDeclList)
 }
 
 type NoopVisitor struct {
@@ -373,6 +375,14 @@ func (nv *NoopVisitor) VisitForIntoExpression(node *ForIntoExpression) {
 	node.VisitChildrenWith(nv.V)
 }
 
+func (nv *NoopVisitor) VisitForLoopInitializerVarDeclList(node *ForLoopInitializerVarDeclList) {
+	node.VisitChildrenWith(nv.V)
+}
+
+func (nv *NoopVisitor) VisitForLoopInitializerLexicalDecl(node *ForLoopInitializerLexicalDecl) {
+	node.VisitChildrenWith(nv.V)
+}
+
 func (n *ForIntoVar) VisitWith(v Visitor) {
 	v.VisitForIntoVar(n)
 }
@@ -617,9 +627,10 @@ func (n *Expression) VisitWith(v Visitor) {
 }
 
 func (n *Expression) VisitChildrenWith(v Visitor) {
-	if n != nil && n.Expr != nil {
-		n.Expr.VisitWith(v)
+	if n == nil || n.Expr == nil {
+		return
 	}
+	n.Expr.VisitWith(v)
 }
 
 func (n *Statement) VisitWith(v Visitor) {
@@ -980,4 +991,18 @@ func (n *LexicalDeclaration) VisitChildrenWith(v Visitor) {
 	n.List.VisitWith(v)
 }
 
-func (n *ForLoopInitializerLexicalDecl) VisitChildrenWith(v Visitor) {}
+func (n *ForLoopInitializerVarDeclList) VisitWith(v Visitor) {
+	v.VisitForLoopInitializerVarDeclList(n)
+}
+
+func (n *ForLoopInitializerVarDeclList) VisitChildrenWith(v Visitor) {
+	n.List.VisitWith(v)
+}
+
+func (n *ForLoopInitializerLexicalDecl) VisitWith(v Visitor) {
+	v.VisitForLoopInitializerLexicalDecl(n)
+}
+
+func (n *ForLoopInitializerLexicalDecl) VisitChildrenWith(v Visitor) {
+	n.LexicalDeclaration.VisitWith(v)
+}
