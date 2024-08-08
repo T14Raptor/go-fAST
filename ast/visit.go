@@ -76,6 +76,9 @@ type Visitor interface {
 	VisitClassDeclaration(node *ClassDeclaration)
 	VisitForInStatement(node *ForInStatement)
 	VisitForOfStatement(node *ForOfStatement)
+	VisitForIntoVar(node *ForIntoVar)
+	VisitForDeclaration(node *ForDeclaration)
+	VisitForIntoExpression(node *ForIntoExpression)
 }
 
 type NoopVisitor struct {
@@ -358,11 +361,49 @@ func (nv *NoopVisitor) VisitForOfStatement(node *ForOfStatement) {
 	node.VisitChildrenWith(nv.V)
 }
 
+func (nv *NoopVisitor) VisitForIntoVar(node *ForIntoVar) {
+	node.VisitChildrenWith(nv.V)
+}
+
+func (nv *NoopVisitor) VisitForDeclaration(node *ForDeclaration) {
+	node.VisitChildrenWith(nv.V)
+}
+
+func (nv *NoopVisitor) VisitForIntoExpression(node *ForIntoExpression) {
+	node.VisitChildrenWith(nv.V)
+}
+
+func (n *ForIntoVar) VisitWith(v Visitor) {
+	v.VisitForIntoVar(n)
+}
+
+func (n *ForIntoVar) VisitChildrenWith(v Visitor) {
+	n.Binding.VisitWith(v)
+}
+
+func (n *ForDeclaration) VisitWith(v Visitor) {
+	v.VisitForDeclaration(n)
+}
+
+func (n *ForDeclaration) VisitChildrenWith(v Visitor) {
+	n.Target.VisitWith(v)
+}
+
+func (n *ForIntoExpression) VisitWith(v Visitor) {
+	v.VisitForIntoExpression(n)
+}
+
+func (n *ForIntoExpression) VisitChildrenWith(v Visitor) {
+	n.Expression.VisitWith(v)
+}
+
 func (n *ClassDeclaration) VisitWith(v Visitor) {
 	v.VisitClassDeclaration(n)
 }
 
-func (n *ClassDeclaration) VisitChildrenWith(v Visitor) {}
+func (n *ClassDeclaration) VisitChildrenWith(v Visitor) {
+	n.Class.VisitWith(v)
+}
 
 func (n *BadStatement) VisitWith(v Visitor) {
 	v.VisitBadStatement(n)
@@ -375,8 +416,8 @@ func (n *MetaProperty) VisitWith(v Visitor) {
 }
 
 func (n *MetaProperty) VisitChildrenWith(v Visitor) {
-	n.Meta.VisitChildrenWith(v)
-	n.Property.VisitChildrenWith(v)
+	n.Meta.VisitWith(v)
+	n.Property.VisitWith(v)
 }
 
 func (n *TemplateLiteral) VisitWith(v Visitor) {
@@ -384,8 +425,8 @@ func (n *TemplateLiteral) VisitWith(v Visitor) {
 }
 
 func (n *TemplateLiteral) VisitChildrenWith(v Visitor) {
-	n.Tag.VisitChildrenWith(v)
-	n.Expressions.VisitChildrenWith(v)
+	n.Tag.VisitWith(v)
+	n.Expressions.VisitWith(v)
 }
 
 func (n *SuperExpression) VisitWith(v Visitor) {
