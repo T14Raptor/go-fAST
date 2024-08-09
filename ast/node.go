@@ -579,7 +579,7 @@ type (
 
 type (
 	ForLoopInitializer interface {
-		Node
+		VisitableNode
 		_forLoopInitializer()
 	}
 
@@ -596,7 +596,7 @@ type (
 	}
 
 	ForInto interface {
-		Node
+		VisitableNode
 		_forInto()
 	}
 
