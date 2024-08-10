@@ -8,10 +8,7 @@ import (
 )
 
 func Generate(node ast.VisitableNode) string {
-	g := &GenVisitor{
-		out: &strings.Builder{},
-		s:   &state{},
-	}
+	g := &GenVisitor{}
 	g.gen(node)
 	return g.out.String()
 }
@@ -19,26 +16,27 @@ func Generate(node ast.VisitableNode) string {
 type GenVisitor struct {
 	ast.NoopVisitor
 
-	out *strings.Builder
+	out strings.Builder
 
-	s *state
+	p state
+	s state
 }
 
 type state struct {
 	node   ast.VisitableNode
-	parent *state
 	indent int
 }
 
 func (v *GenVisitor) gen(node ast.VisitableNode) {
-	old := v.s
-	v.s = &state{
+	old := v.p
+	v.p = v.s
+	v.s = state{
 		node:   node,
-		parent: old,
 		indent: old.indent,
 	}
 	node.VisitWith(v)
-	v.s = old
+	v.s = v.p
+	v.p = old
 }
 
 func (v *GenVisitor) line() {
@@ -68,7 +66,7 @@ func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 }
 
 func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
-	if _, ok := g.s.parent.node.(*ast.BinaryExpression); ok {
+	if _, ok := g.p.node.(*ast.BinaryExpression); ok {
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -85,7 +83,7 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 }
 
 func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
-	if pn, ok := g.s.parent.node.(*ast.BinaryExpression); ok {
+	if pn, ok := g.p.node.(*ast.BinaryExpression); ok {
 		operatorPrecedence := n.Operator.Precedence(true)
 		parentOperatorPrecedence := pn.Operator.Precedence(true)
 		if operatorPrecedence < parentOperatorPrecedence || operatorPrecedence == parentOperatorPrecedence && pn.Right.Expr == n {
@@ -165,7 +163,7 @@ func (g *GenVisitor) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 }
 
 func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
-	if _, ok := g.s.parent.node.(*ast.BinaryExpression); ok {
+	if _, ok := g.p.node.(*ast.BinaryExpression); ok {
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -380,7 +378,7 @@ func (g *GenVisitor) VisitReturnStatement(n *ast.ReturnStatement) {
 }
 
 func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
-	switch g.s.parent.node.(type) {
+	switch g.p.node.(type) {
 	case *ast.PropertyKeyed, *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
