@@ -174,7 +174,8 @@ func (g *GenVisitor) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 }
 
 func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
-	if _, ok := g.p.(*ast.BinaryExpression); ok {
+	switch g.p.(type) {
+	case *ast.BinaryExpression, *ast.NewExpression:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -411,7 +412,7 @@ func (g *GenVisitor) VisitReturnStatement(n *ast.ReturnStatement) {
 
 func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
 	switch g.p.(type) {
-	case *ast.PropertyKeyed, *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression:
+	case *ast.VariableDeclarator, *ast.VariableStatement, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -467,6 +468,7 @@ func (g *GenVisitor) VisitTryStatement(n *ast.TryStatement) {
 		g.gen(n.Catch.Body)
 	}
 	if n.Finally != nil {
+		g.out.WriteString(" finally ")
 		g.gen(n.Finally)
 	}
 }
