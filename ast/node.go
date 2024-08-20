@@ -40,7 +40,6 @@ type (
 type (
 	// All expression nodes implement the Expr interface.
 	Expr interface {
-		Node
 		VisitableNode
 		_expr()
 	}
@@ -105,9 +104,8 @@ type (
 	}
 
 	BooleanLiteral struct {
-		Idx     Idx
-		Literal string
-		Value   bool
+		Idx   Idx
+		Value bool
 	}
 
 	// DEPRECATED: use MemberExpression
@@ -160,7 +158,6 @@ type (
 		Name          *Identifier
 		ParameterList ParameterList
 		Body          *BlockStatement
-		Source        string
 
 		Async, Generator bool
 	}
@@ -171,12 +168,13 @@ type (
 		Name       *Identifier
 		SuperClass *Expression
 		Body       []ClassElement
-		Source     string
 	}
 
-	ConciseBody interface {
-		Node
-		_conciseBody()
+	ConciseBody struct {
+		Body interface {
+			VisitableNode
+			_conciseBody()
+		}
 	}
 
 	ExpressionBody struct {
@@ -186,8 +184,7 @@ type (
 	ArrowFunctionLiteral struct {
 		Start         Idx
 		ParameterList ParameterList
-		Body          ConciseBody
-		Source        string
+		Body          *ConciseBody
 		Async         bool
 	}
 
@@ -209,8 +206,7 @@ type (
 	}
 
 	NullLiteral struct {
-		Idx     Idx
-		Literal string
+		Idx Idx
 	}
 
 	NumberLiteral struct {
@@ -573,7 +569,6 @@ type (
 	ClassStaticBlock struct {
 		Static Idx
 		Block  *BlockStatement
-		Source string
 	}
 )
 
@@ -747,7 +742,7 @@ func (self AssignExpression) Idx1() Idx      { return (*self.Right).Expr.Idx1() 
 func (self AwaitExpression) Idx1() Idx       { return (*self.Argument).Expr.Idx1() }
 func (self InvalidExpression) Idx1() Idx     { return self.To }
 func (self BinaryExpression) Idx1() Idx      { return (*self.Right).Expr.Idx1() }
-func (self BooleanLiteral) Idx1() Idx        { return Idx(int(self.Idx) + len(self.Literal)) }
+func (self BooleanLiteral) Idx1() Idx        { return Idx(int(self.Idx) + 4) }
 func (self BracketExpression) Idx1() Idx     { return self.RightBracket + 1 }
 func (self CallExpression) Idx1() Idx        { return self.RightParenthesis + 1 }
 func (self ConditionalExpression) Idx1() Idx { return (*self.Test).Expr.Idx1() }
@@ -755,7 +750,7 @@ func (self DotExpression) Idx1() Idx         { return self.Identifier.Idx1() }
 func (self PrivateDotExpression) Idx1() Idx  { return self.Identifier.Idx1() }
 func (self FunctionLiteral) Idx1() Idx       { return self.Body.Idx1() }
 func (self ClassLiteral) Idx1() Idx          { return self.RightBrace + 1 }
-func (self ArrowFunctionLiteral) Idx1() Idx  { return self.Body.Idx1() }
+func (self ArrowFunctionLiteral) Idx1() Idx  { return self.Body.Body.Idx1() }
 func (self Identifier) Idx1() Idx            { return Idx(int(self.Idx) + len(self.Name)) }
 func (self NewExpression) Idx1() Idx {
 	if self.ArgumentList != nil {
@@ -873,3 +868,5 @@ func (self YieldExpression) Idx1() Idx {
 func (self ForDeclaration) Idx1() Idx    { return self.Target.Idx1() }
 func (self ForIntoVar) Idx1() Idx        { return self.Binding.Idx1() }
 func (self ForIntoExpression) Idx1() Idx { return (*self.Expression).Expr.Idx1() }
+func (self ConciseBody) Idx0() Idx       { return self.Body.Idx0() }
+func (self ConciseBody) Idx1() Idx       { return self.Body.Idx1() }

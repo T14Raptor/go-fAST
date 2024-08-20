@@ -31,8 +31,7 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 	case token.Null:
 		p.next()
 		return &ast.NullLiteral{
-			Idx:     idx,
-			Literal: literal,
+			Idx: idx,
 		}
 	case token.Boolean:
 		p.next()
@@ -46,9 +45,8 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 			p.error("Illegal boolean literal")
 		}
 		return &ast.BooleanLiteral{
-			Idx:     idx,
-			Literal: literal,
-			Value:   value,
+			Idx:   idx,
+			Value: value,
 		}
 	case token.String:
 		p.next()
@@ -492,7 +490,6 @@ func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKin
 		Async:         async,
 	}
 	node.Body = p.parseFunctionBlock(async, async, generator)
-	node.Source = p.slice(keyStartIdx, node.Body.Idx1())
 	return node
 }
 
@@ -1167,7 +1164,6 @@ func (p *parser) parseArrowFunction(start ast.Idx, paramList ast.ParameterList, 
 		Async:         async,
 	}
 	node.Body = p.parseArrowFunctionBody(async)
-	node.Source = p.slice(start, node.Body.Idx1())
 	return node
 }
 

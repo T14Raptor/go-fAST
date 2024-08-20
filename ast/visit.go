@@ -81,6 +81,7 @@ type Visitor interface {
 	VisitForIntoExpression(node *ForIntoExpression)
 	VisitForLoopInitializerLexicalDecl(node *ForLoopInitializerLexicalDecl)
 	VisitForLoopInitializerVarDeclList(node *ForLoopInitializerVarDeclList)
+	VisitConciseBody(node *ConciseBody)
 }
 
 type NoopVisitor struct {
@@ -381,6 +382,18 @@ func (nv *NoopVisitor) VisitForLoopInitializerVarDeclList(node *ForLoopInitializ
 
 func (nv *NoopVisitor) VisitForLoopInitializerLexicalDecl(node *ForLoopInitializerLexicalDecl) {
 	node.VisitChildrenWith(nv.V)
+}
+
+func (nv *NoopVisitor) VisitConciseBody(node *ConciseBody) {
+	node.VisitChildrenWith(nv.V)
+}
+
+func (n *ConciseBody) VisitWith(v Visitor) {
+	v.VisitConciseBody(n)
+}
+
+func (n *ConciseBody) VisitChildrenWith(v Visitor) {
+	n.Body.VisitWith(v)
 }
 
 func (n *ForIntoVar) VisitWith(v Visitor) {

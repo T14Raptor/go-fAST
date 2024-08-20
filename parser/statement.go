@@ -249,7 +249,6 @@ func (p *parser) parseFunction(declaration, async bool, start ast.Idx) *ast.Func
 
 	node.ParameterList = p.parseFunctionParameterList()
 	node.Body = p.parseFunctionBlock(async, async, p.scope.allowYield)
-	node.Source = p.slice(node.Idx0(), node.Idx1())
 
 	return node
 }
@@ -265,9 +264,9 @@ func (p *parser) parseFunctionBlock(async, allowAwait, allowYield bool) (body *a
 	return
 }
 
-func (p *parser) parseArrowFunctionBody(async bool) ast.ConciseBody {
+func (p *parser) parseArrowFunctionBody(async bool) *ast.ConciseBody {
 	if p.token == token.LeftBrace {
-		return p.parseFunctionBlock(async, async, false)
+		return &ast.ConciseBody{p.parseFunctionBlock(async, async, false)}
 	}
 	if async != p.scope.inAsync || async != p.scope.allowAwait {
 		inAsync := p.scope.inAsync
@@ -283,9 +282,9 @@ func (p *parser) parseArrowFunctionBody(async bool) ast.ConciseBody {
 		}()
 	}
 
-	return ast.ExpressionBody{
+	return &ast.ConciseBody{&ast.ExpressionBody{
 		Expression: ast.Expression{Expr: p.parseAssignmentExpression()},
-	}
+	}}
 }
 
 func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
@@ -333,7 +332,6 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 						Static: start,
 					}
 					b.Block = p.parseFunctionBlock(false, true, false)
-					b.Source = p.slice(b.Block.LeftBrace, b.Block.Idx1())
 					node.Body = append(node.Body, b)
 					continue
 				}
@@ -438,7 +436,6 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 	}
 
 	node.RightBrace = p.expect(token.RightBrace)
-	node.Source = p.slice(node.Class, node.RightBrace+1)
 
 	return node
 }
