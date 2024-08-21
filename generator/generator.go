@@ -59,9 +59,9 @@ func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 	for i, ex := range n.Value {
 		if ex.Expr != nil {
 			g.gen(ex.Expr)
-			if i < len(n.Value)-1 {
-				g.out.WriteString(", ")
-			}
+		}
+		if i < len(n.Value)-1 {
+			g.out.WriteString(", ")
 		}
 	}
 	g.out.WriteString("]")
@@ -92,6 +92,9 @@ func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
 			g.out.WriteString("(")
 			defer g.out.WriteString(")")
 		}
+	} else if _, ok = g.p.(*ast.MemberExpression); ok {
+		g.out.WriteString("(")
+		defer g.out.WriteString(")")
 	}
 	g.gen(n.Left.Expr)
 	g.out.WriteString(" " + n.Operator.String() + " ")
@@ -130,7 +133,13 @@ func (g *GenVisitor) VisitBranchStatement(n *ast.BranchStatement) {
 }
 
 func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
-	g.gen(n.Callee.Expr)
+	if _, ok := n.Callee.Expr.(*ast.FunctionLiteral); ok {
+		g.out.WriteString("(")
+		g.gen(n.Callee.Expr)
+		g.out.WriteString(")")
+	} else {
+		g.gen(n.Callee.Expr)
+	}
 	g.out.WriteString("(")
 	for i, a := range n.ArgumentList {
 		g.gen(a.Expr)
@@ -173,7 +182,14 @@ func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
-	g.gen(n.Test.Expr)
+	switch n.Test.Expr.(type) {
+	case *ast.AssignExpression:
+		g.out.WriteString("(")
+		g.gen(n.Test.Expr)
+		g.out.WriteString(")")
+	default:
+		g.gen(n.Test.Expr)
+	}
 	g.out.WriteString(" ? ")
 	g.gen(n.Consequent.Expr)
 	g.out.WriteString(" : ")
@@ -193,11 +209,12 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 }
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
-	if _, ok := n.Object.Expr.(*ast.AssignExpression); ok {
+	switch n.Object.Expr.(type) {
+	case *ast.AssignExpression, *ast.SequenceExpression:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
 		g.out.WriteString(")")
-	} else {
+	default:
 		g.gen(n.Object.Expr)
 	}
 	if st, ok := n.Property.Expr.(*ast.StringLiteral); ok && valid(st.Value.String()) {
@@ -340,7 +357,14 @@ func (g *GenVisitor) VisitLabelledStatement(n *ast.LabelledStatement) {
 
 func (g *GenVisitor) VisitNewExpression(n *ast.NewExpression) {
 	g.out.WriteString("new ")
-	g.gen(n.Callee.Expr)
+	switch n.Callee.Expr.(type) {
+	case *ast.BinaryExpression:
+		g.out.WriteString("(")
+		g.gen(n.Callee.Expr)
+		g.out.WriteString(")")
+	default:
+		g.gen(n.Callee.Expr)
+	}
 	g.out.WriteString("(")
 	for i, a := range n.ArgumentList {
 		g.gen(a.Expr)
