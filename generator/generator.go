@@ -133,11 +133,12 @@ func (g *GenVisitor) VisitBranchStatement(n *ast.BranchStatement) {
 }
 
 func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
-	if _, ok := n.Callee.Expr.(*ast.FunctionLiteral); ok {
+	switch n.Callee.Expr.(type) {
+	case *ast.FunctionLiteral, *ast.AssignExpression:
 		g.out.WriteString("(")
 		g.gen(n.Callee.Expr)
 		g.out.WriteString(")")
-	} else {
+	default:
 		g.gen(n.Callee.Expr)
 	}
 	g.out.WriteString("(")
