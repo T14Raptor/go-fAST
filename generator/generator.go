@@ -130,13 +130,7 @@ func (g *GenVisitor) VisitBranchStatement(n *ast.BranchStatement) {
 }
 
 func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
-	if _, ok := n.Callee.Expr.(*ast.FunctionLiteral); ok {
-		g.out.WriteString("(")
-		g.gen(n.Callee.Expr)
-		g.out.WriteString(")")
-	} else {
-		g.gen(n.Callee.Expr)
-	}
+	g.gen(n.Callee.Expr)
 	g.out.WriteString("(")
 	for i, a := range n.ArgumentList {
 		g.gen(a.Expr)
