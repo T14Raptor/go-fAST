@@ -260,9 +260,8 @@ func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 	g.out.WriteString("for (")
 	if *n.Initializer != nil {
 		g.gen(*n.Initializer)
-	} else {
-		g.out.WriteString("; ")
 	}
+	g.out.WriteString("; ")
 	if n.Test.Expr != nil {
 		g.gen(n.Test.Expr)
 	}
