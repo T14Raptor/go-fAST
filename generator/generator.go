@@ -403,8 +403,10 @@ func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 }
 
 func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
-	g.out.WriteString(string(n.Kind))
-	g.out.WriteString(" ")
+	if n.Kind != ast.PropertyKindValue {
+		g.out.WriteString(string(n.Kind))
+		g.out.WriteString(" ")
+	}
 	g.gen(n.Key.Expr)
 	g.out.WriteString(": ")
 	g.gen(n.Value.Expr)
