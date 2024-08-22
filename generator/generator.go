@@ -407,7 +407,6 @@ func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 		g.out.WriteString(string(n.Kind))
 		g.out.WriteString(" ")
 		g.gen(n.Key.Expr)
-		g.out.WriteString(" ")
 		f := n.Value.Expr.(*ast.FunctionLiteral)
 		g.gen(&f.ParameterList)
 		g.out.WriteString(" ")
@@ -569,6 +568,17 @@ func (g *GenVisitor) VisitForLoopInitializerVarDeclList(n *ast.ForLoopInitialize
 	for i, decl := range n.List {
 		g.gen(decl)
 		if i < len(n.List)-1 {
+			g.out.WriteString(", ")
+		}
+	}
+}
+
+func (g *GenVisitor) VisitForLoopInitializerLexicalDecl(n *ast.ForLoopInitializerLexicalDecl) {
+	g.out.WriteString(n.LexicalDeclaration.Token.String())
+	g.out.WriteString(" ")
+	for i, decl := range n.LexicalDeclaration.List {
+		g.gen(decl)
+		if i < len(n.LexicalDeclaration.List)-1 {
 			g.out.WriteString(", ")
 		}
 	}
