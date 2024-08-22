@@ -27,11 +27,10 @@ type GenVisitor struct {
 
 func (g *GenVisitor) gen(node ast.VisitableNode) {
 	old := g.p
-	g.p = g.s
-	g.s = node
+
+	g.p, g.s = g.s, node
 	node.VisitWith(g)
-	g.s = g.p
-	g.p = old
+	g.s, g.p = g.p, old
 }
 
 func (g *GenVisitor) line() {
@@ -404,6 +403,8 @@ func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 }
 
 func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
+	g.out.WriteString(string(n.Kind))
+	g.out.WriteString(" ")
 	g.gen(n.Key.Expr)
 	g.out.WriteString(": ")
 	g.gen(n.Value.Expr)
