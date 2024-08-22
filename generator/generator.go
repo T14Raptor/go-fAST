@@ -584,6 +584,19 @@ func (g *GenVisitor) VisitForLoopInitializerLexicalDecl(n *ast.ForLoopInitialize
 	}
 }
 
+func (g *GenVisitor) VisitTemplateLiteral(n *ast.TemplateLiteral) {
+	g.out.WriteString("`")
+	for i, e := range n.Elements {
+		g.out.WriteString(e.Parsed.String())
+		if i < len(n.Expressions) {
+			g.out.WriteString("${")
+			g.gen(n.Expressions[i].Expr)
+			g.out.WriteString("}")
+		}
+	}
+	g.out.WriteString("`")
+}
+
 func (g *GenVisitor) VisitLexicalDeclaration(n *ast.LexicalDeclaration) {
 	g.out.WriteString(n.Token.String())
 	g.out.WriteString(" ")
