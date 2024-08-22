@@ -403,9 +403,15 @@ func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 }
 
 func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
-	if n.Kind != ast.PropertyKindValue {
+	if n.Kind == ast.PropertyKindGet || n.Kind == ast.PropertyKindSet {
 		g.out.WriteString(string(n.Kind))
 		g.out.WriteString(" ")
+		g.gen(n.Key.Expr)
+		g.out.WriteString(" ")
+		g.gen(&ast.BlockStatement{List: []ast.Statement{{
+			&ast.ExpressionStatement{Expression: n.Value},
+		}}})
+		return
 	}
 	g.gen(n.Key.Expr)
 	g.out.WriteString(": ")
