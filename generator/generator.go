@@ -408,9 +408,10 @@ func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 		g.out.WriteString(" ")
 		g.gen(n.Key.Expr)
 		g.out.WriteString(" ")
-		g.gen(&ast.BlockStatement{List: []ast.Statement{{
-			&ast.ExpressionStatement{Expression: n.Value},
-		}}})
+		f := n.Value.Expr.(*ast.FunctionLiteral)
+		g.gen(&f.ParameterList)
+		g.out.WriteString(" ")
+		g.gen(f.Body)
 		return
 	}
 	g.gen(n.Key.Expr)
