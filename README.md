@@ -13,7 +13,7 @@
 To use `go-fAST` in your Go project, you need to install it using `go get`:
 
 ```sh
-go get github.com/T14Raptor/go-fAST
+go get github.com/t14raptor/go-fast
 ```
 
 ## Contributing
