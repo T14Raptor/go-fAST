@@ -964,7 +964,9 @@ func (n *TryStatement) VisitWith(v Visitor) {
 
 func (n *TryStatement) VisitChildrenWith(v Visitor) {
 	n.Body.VisitWith(v)
-	n.Catch.VisitWith(v)
+	if n.Catch != nil {
+		n.Catch.VisitWith(v)
+	}
 	if n.Finally != nil {
 		n.Finally.VisitWith(v)
 	}
