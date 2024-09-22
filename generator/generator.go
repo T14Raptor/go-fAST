@@ -252,6 +252,15 @@ func (g *GenVisitor) VisitForInStatement(n *ast.ForInStatement) {
 	g.gen(n.Body.Stmt)
 }
 
+func (g *GenVisitor) VisitForOfStatement(n *ast.ForOfStatement) {
+	g.out.WriteString("for (")
+	g.gen(*n.Into)
+	g.out.WriteString(" of ")
+	g.gen(n.Source.Expr)
+	g.out.WriteString(") ")
+	g.gen(n.Body.Stmt)
+}
+
 func (g *GenVisitor) VisitForIntoExpression(n *ast.ForIntoExpression) {
 	g.gen(n.Expression.Expr)
 }
