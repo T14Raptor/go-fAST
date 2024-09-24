@@ -3,7 +3,6 @@ package parser
 import (
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"github.com/t14raptor/go-fast/unistring"
 )
 
 // parser ...
@@ -18,7 +17,7 @@ type parser struct {
 	idx           ast.Idx     // The index of token
 	token         token.Token // The token
 	literal       string      // The literal of the token, if any
-	parsedLiteral unistring.String
+	parsedLiteral string
 
 	scope             *scope
 	insertSemicolon   bool // If we see a newline, then insert an implicit semicolon

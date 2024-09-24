@@ -5,7 +5,6 @@ import (
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"github.com/t14raptor/go-fast/unistring"
 )
 
 func (p *parser) parseIdentifier() *ast.Identifier {
@@ -321,7 +320,7 @@ func (p *parser) parseVariableDeclarationList() (declarationList []*ast.Variable
 	return
 }
 
-func (p *parser) parseObjectPropertyKey() (string, unistring.String, ast.Expr, token.Token) {
+func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token) {
 	if p.token == token.LeftBracket {
 		p.next()
 		expr := p.parseAssignmentExpression()
@@ -362,7 +361,7 @@ func (p *parser) parseObjectPropertyKey() (string, unistring.String, ast.Expr, t
 			value = &ast.StringLiteral{
 				Idx:     idx,
 				Literal: literal,
-				Value:   unistring.String(literal),
+				Value:   string(literal),
 			}
 		} else {
 			p.errorUnexpectedToken(tkn)
@@ -672,7 +671,7 @@ func (p *parser) parseNewExpression() ast.Expr {
 		if p.literal == "target" {
 			return &ast.MetaProperty{
 				Meta: &ast.Identifier{
-					Name: unistring.String(token.New.String()),
+					Name: string(token.New.String()),
 					Idx:  idx,
 				},
 				Property: p.parseIdentifier(),

@@ -11,7 +11,6 @@ import (
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"github.com/t14raptor/go-fast/unistring"
 	"golang.org/x/text/unicode/rangetable"
 )
 
@@ -62,7 +61,7 @@ func isIdentifierPart(chr rune) bool {
 		chr >= utf8.RuneSelf && isIdPartUnicode(chr)
 }
 
-func (p *parser) scanIdentifier() (string, unistring.String, bool, string) {
+func (p *parser) scanIdentifier() (string, string, bool, string) {
 	offset := p.chrOffset
 	hasEscape := false
 	isUnicode := false
@@ -132,7 +131,7 @@ func (p *parser) scanIdentifier() (string, unistring.String, bool, string) {
 	}
 
 	literal := p.str[offset:p.chrOffset]
-	var parsed unistring.String
+	var parsed string
 	if hasEscape || isUnicode {
 		var err string
 		// TODO strict
@@ -141,7 +140,7 @@ func (p *parser) scanIdentifier() (string, unistring.String, bool, string) {
 			return "", "", false, err
 		}
 	} else {
-		parsed = unistring.String(literal)
+		parsed = string(literal)
 	}
 
 	return literal, parsed, hasEscape, ""
@@ -173,7 +172,7 @@ type parserState struct {
 	idx                                ast.Idx
 	tok                                token.Token
 	literal                            string
-	parsedLiteral                      unistring.String
+	parsedLiteral                      string
 	implicitSemicolon, insertSemicolon bool
 	chr                                rune
 	chrOffset, offset                  int
@@ -204,7 +203,7 @@ func (p *parser) peek() token.Token {
 	return tok
 }
 
-func (p *parser) scan() (tkn token.Token, literal string, parsedLiteral unistring.String, idx ast.Idx) {
+func (p *parser) scan() (tkn token.Token, literal string, parsedLiteral string, idx ast.Idx) {
 	p.implicitSemicolon = false
 
 	for {
@@ -691,7 +690,7 @@ func (p *parser) scanEscape(quote rune) (int, bool) {
 	return 1, false
 }
 
-func (p *parser) scanString(offset int, parse bool) (literal string, parsed unistring.String, err string) {
+func (p *parser) scanString(offset int, parse bool) (literal string, parsed string, err string) {
 	// " ' /
 	quote := rune(p.str[offset])
 	length := 0
@@ -768,7 +767,7 @@ func (p *parser) scanNewline() {
 	p.read()
 }
 
-func (p *parser) parseTemplateCharacters() (literal string, parsed unistring.String, finished bool, parseErr, err string) {
+func (p *parser) parseTemplateCharacters() (literal string, parsed string, finished bool, parseErr, err string) {
 	offset := p.chrOffset
 	var end int
 	length := 0
@@ -908,12 +907,13 @@ error:
 	return nil, errors.New("Illegal numeric literal")
 }
 
-func parseStringLiteral(literal string, length int, unicode, strict bool) (unistring.String, string) {
+func parseStringLiteral(literal string, length int, unicode, strict bool) (string, string) {
 	var sb strings.Builder
 	var chars []uint16
 	if unicode {
 		chars = make([]uint16, 1, length+1)
-		chars[0] = unistring.BOM
+		// BOM
+		chars[0] = 0xFEFF
 	} else {
 		sb.Grow(length)
 	}
@@ -1085,12 +1085,12 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (unist
 		if len(chars) != length+1 {
 			panic(fmt.Errorf("unexpected unicode length while parsing '%s'", literal))
 		}
-		return unistring.FromUtf16(chars), ""
+		return string(utf16.Decode(chars)), ""
 	}
 	if sb.Len() != length {
 		panic(fmt.Errorf("unexpected length while parsing '%s'", literal))
 	}
-	return unistring.String(sb.String()), ""
+	return sb.String(), ""
 }
 
 func (p *parser) scanNumericLiteral(decimalPoint bool) (token.Token, string) {

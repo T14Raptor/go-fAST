@@ -217,9 +217,9 @@ func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	default:
 		g.gen(n.Object.Expr)
 	}
-	if st, ok := n.Property.Expr.(*ast.StringLiteral); ok && valid(st.Value.String()) {
+	if st, ok := n.Property.Expr.(*ast.StringLiteral); ok && valid(st.Value) {
 		g.out.WriteString(".")
-		g.out.WriteString(st.Value.String())
+		g.out.WriteString(st.Value)
 	} else {
 		g.out.WriteString("[")
 		g.gen(n.Property.Expr)
@@ -325,7 +325,7 @@ func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 
 func (g *GenVisitor) VisitIdentifier(n *ast.Identifier) {
 	if n != nil {
-		g.out.WriteString(n.Name.String())
+		g.out.WriteString(n.Name)
 	}
 }
 
@@ -596,7 +596,7 @@ func (g *GenVisitor) VisitForLoopInitializerLexicalDecl(n *ast.ForLoopInitialize
 func (g *GenVisitor) VisitTemplateLiteral(n *ast.TemplateLiteral) {
 	g.out.WriteString("`")
 	for i, e := range n.Elements {
-		g.out.WriteString(e.Parsed.String())
+		g.out.WriteString(e.Parsed)
 		if i < len(n.Expressions) {
 			g.out.WriteString("${")
 			g.gen(n.Expressions[i].Expr)

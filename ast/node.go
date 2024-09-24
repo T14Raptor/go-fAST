@@ -2,7 +2,6 @@ package ast
 
 import (
 	"github.com/t14raptor/go-fast/token"
-	"github.com/t14raptor/go-fast/unistring"
 )
 
 type PropertyKind string
@@ -188,11 +187,6 @@ type (
 		Async         bool
 	}
 
-	Identifier struct {
-		Idx  Idx
-		Name unistring.String
-	}
-
 	PrivateIdentifier struct {
 		*Identifier
 	}
@@ -270,13 +264,13 @@ type (
 	StringLiteral struct {
 		Idx     Idx
 		Literal string
-		Value   unistring.String
+		Value   string
 	}
 
 	TemplateElement struct {
 		Idx     Idx
 		Literal string
-		Parsed  unistring.String
+		Parsed  string
 		Valid   bool
 	}
 

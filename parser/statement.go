@@ -98,7 +98,7 @@ func (p *parser) parseStatement() ast.Stmt {
 		label := identifier.Name
 		for _, value := range p.scope.labels {
 			if label == value {
-				p.error(label.String())
+				p.error(label)
 			}
 		}
 		p.scope.labels = append(p.scope.labels, label) // Push the label
@@ -887,7 +887,7 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 	if p.token == token.Identifier {
 		identifier := p.parseIdentifier()
 		if !p.scope.hasLabel(identifier.Name) {
-			p.error(identifier.Name.String())
+			p.error(identifier.Name)
 			return &ast.BadStatement{From: idx, To: identifier.Idx1()}
 		}
 		p.semicolon()
@@ -929,7 +929,7 @@ func (p *parser) parseContinueStatement() ast.Stmt {
 	if p.token == token.Identifier {
 		identifier := p.parseIdentifier()
 		if !p.scope.hasLabel(identifier.Name) {
-			p.error(identifier.Name.String())
+			p.error(identifier.Name)
 			return &ast.BadStatement{From: idx, To: identifier.Idx1()}
 		}
 		if !p.scope.inIteration {
