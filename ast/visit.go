@@ -592,6 +592,12 @@ func (f *FunctionLiteral) VisitWith(v Visitor) {
 
 func (c *ClassLiteral) VisitWith(v Visitor) {
 	v.VisitClassLiteral(c)
+	for _, element := range c.Body {
+		if i, ok := (element).(MethodDefinition); ok {
+			i.Key.VisitWith(v)
+			i.Body.VisitWith(v)
+		}
+	}
 }
 
 func (c *ClassLiteral) VisitChildrenWith(v Visitor) {
