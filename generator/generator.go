@@ -621,6 +621,44 @@ func (g *GenVisitor) VisitLexicalDeclaration(n *ast.LexicalDeclaration) {
 	}
 }
 
+func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
+	g.out.WriteString("class ")
+	if n.Name != nil {
+		g.gen(n.Name)
+	}
+	g.out.WriteString(" {")
+
+	g.indent++
+	for _, element := range n.Body {
+		g.lineAndPad()
+		switch e := element.(type) {
+		case ast.MethodDefinition:
+			if e.Static {
+				g.out.WriteString("static ")
+			}
+			if e.Kind == ast.PropertyKindGet {
+				g.out.WriteString("get ")
+			} else if e.Kind == ast.PropertyKindSet {
+				g.out.WriteString("set ")
+			}
+			if e.Computed {
+				g.out.WriteString("[")
+				g.gen(e.Key)
+				g.out.WriteString("]")
+			} else {
+				g.gen(e.Key)
+			}
+			g.gen(&e.Body.ParameterList)
+			g.out.WriteString(" ")
+			g.gen(e.Body.Body)
+		}
+		g.indent--
+
+		g.lineAndPad()
+		g.out.WriteString("}")
+	}
+}
+
 func valid(s string) bool {
 	for i, r := range s {
 		if i == 0 && unicode.IsDigit(r) {
