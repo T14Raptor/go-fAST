@@ -56,7 +56,7 @@ func (p *parser) parseStatement() ast.Stmt {
 	case token.With:
 		return p.parseWithStatement()
 	case token.Var:
-		return p.parseVariableStatement()
+		return p.parseLexicalDeclaration(p.token)
 	case token.Let:
 		tok := p.peek()
 		if tok == token.LeftBracket || p.scope.allowLet && (token.ID(tok) || tok == token.LeftBrace) {
@@ -266,7 +266,7 @@ func (p *parser) parseFunctionBlock(async, allowAwait, allowYield bool) (body *a
 
 func (p *parser) parseArrowFunctionBody(async bool) *ast.ConciseBody {
 	if p.token == token.LeftBrace {
-		return &ast.ConciseBody{p.parseFunctionBlock(async, async, false)}
+		return &ast.ConciseBody{Body: p.parseFunctionBlock(async, async, false)}
 	}
 	if async != p.scope.inAsync || async != p.scope.allowAwait {
 		inAsync := p.scope.inAsync
@@ -282,9 +282,9 @@ func (p *parser) parseArrowFunctionBody(async bool) *ast.ConciseBody {
 		}()
 	}
 
-	return &ast.ConciseBody{&ast.ExpressionBody{
-		Expression: ast.Expression{Expr: p.parseAssignmentExpression()},
-	}}
+	return &ast.ConciseBody{
+		Body: &ast.Expression{Expr: p.parseAssignmentExpression()},
+	}
 }
 
 func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
@@ -328,7 +328,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			default:
 				p.next()
 				if p.token == token.LeftBrace {
-					b := ast.ClassStaticBlock{
+					b := &ast.ClassStaticBlock{
 						Static: start,
 					}
 					b.Block = p.parseFunctionBlock(false, true, false)
@@ -395,7 +395,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 					p.error("Class constructor may not be a private method")
 				}
 			}
-			md := ast.MethodDefinition{
+			md := &ast.MethodDefinition{
 				Idx:      start,
 				Key:      ptrExpr(value),
 				Kind:     kind,
@@ -425,7 +425,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 				p.errorUnexpectedToken(p.token)
 				break
 			}
-			node.Body = append(node.Body, ast.FieldDefinition{
+			node.Body = append(node.Body, &ast.FieldDefinition{
 				Idx:         start,
 				Key:         ptrExpr(value),
 				Initializer: ptrExpr(initializer),
@@ -610,7 +610,7 @@ func (p *parser) parseForOf(idx ast.Idx, into ast.ForInto) *ast.ForOfStatement {
 	}
 }
 
-func (p *parser) parseFor(idx ast.Idx, initializer ast.ForLoopInitializer) *ast.ForStatement {
+func (p *parser) parseFor(idx ast.Idx, initializer *ast.ForLoopInitializer) *ast.ForStatement {
 	// Already have consumed "<initializer> ;"
 
 	var test, update ast.Expr
@@ -627,7 +627,7 @@ func (p *parser) parseFor(idx ast.Idx, initializer ast.ForLoopInitializer) *ast.
 
 	return &ast.ForStatement{
 		For:         idx,
-		Initializer: &initializer,
+		Initializer: initializer,
 		Test:        ptrExpr(test),
 		Update:      ptrExpr(update),
 		Body:        refStmt(p.parseIterationStatement()),
@@ -638,7 +638,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 	idx := p.expect(token.For)
 	p.expect(token.LeftParenthesis)
 
-	var initializer ast.ForLoopInitializer
+	var initializer *ast.ForLoopInitializer
 
 	forIn := false
 	forOf := false
@@ -686,18 +686,11 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 				}
 			} else {
 				p.ensurePatternInit(list)
-				if tok == token.Var {
-					initializer = &ast.ForLoopInitializerVarDeclList{
-						List: list,
-					}
-				} else {
-					initializer = &ast.ForLoopInitializerLexicalDecl{
-						LexicalDeclaration: &ast.LexicalDeclaration{
-							Idx:   idx,
-							Token: tok,
-							List:  list,
-						},
-					}
+
+				initializer.Initializer = &ast.VariableDeclaration{
+					Idx:   idx,
+					Token: tok,
+					List:  list,
 				}
 			}
 		} else {
@@ -726,9 +719,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 					Expression: ptrExpr(expr),
 				}
 			} else {
-				initializer = &ast.ForLoopInitializerExpression{
-					Expression: ptrExpr(expr),
-				}
+				initializer.Initializer = ptrExpr(expr)
 			}
 		}
 		p.scope.allowIn = allowIn
@@ -756,22 +747,9 @@ func (p *parser) ensurePatternInit(list []*ast.VariableDeclarator) {
 	}
 }
 
-func (p *parser) parseVariableStatement() *ast.VariableStatement {
-	idx := p.expect(token.Var)
-
-	list := p.parseVariableDeclarationList()
-	p.ensurePatternInit(list)
-	p.semicolon()
-
-	return &ast.VariableStatement{
-		Var:  idx,
-		List: list,
-	}
-}
-
-func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.LexicalDeclaration {
+func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.VariableDeclaration {
 	idx := p.expect(tok)
-	if !p.scope.allowLet {
+	if !p.scope.allowLet && (tok != token.Var) {
 		p.error("Lexical declaration cannot appear in a single-statement context")
 	}
 
@@ -779,7 +757,7 @@ func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.LexicalDeclaratio
 	p.ensurePatternInit(list)
 	p.semicolon()
 
-	return &ast.LexicalDeclaration{
+	return &ast.VariableDeclaration{
 		Idx:   idx,
 		Token: tok,
 		List:  list,
@@ -877,9 +855,8 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 		if !p.scope.inIteration && !p.scope.inSwitch {
 			goto illegal
 		}
-		return &ast.BranchStatement{
-			Idx:   idx,
-			Token: token.Break,
+		return &ast.BreakStatement{
+			Idx: idx,
 		}
 	}
 
@@ -891,9 +868,8 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 			return &ast.BadStatement{From: idx, To: identifier.Idx1()}
 		}
 		p.semicolon()
-		return &ast.BranchStatement{
+		return &ast.BreakStatement{
 			Idx:   idx,
-			Token: token.Break,
 			Label: identifier,
 		}
 	}
@@ -919,9 +895,8 @@ func (p *parser) parseContinueStatement() ast.Stmt {
 		if !p.scope.inIteration {
 			goto illegal
 		}
-		return &ast.BranchStatement{
-			Idx:   idx,
-			Token: token.Continue,
+		return &ast.ContinueStatement{
+			Idx: idx,
 		}
 	}
 
@@ -936,9 +911,8 @@ func (p *parser) parseContinueStatement() ast.Stmt {
 			goto illegal
 		}
 		p.semicolon()
-		return &ast.BranchStatement{
+		return &ast.ContinueStatement{
 			Idx:   idx,
-			Token: token.Continue,
 			Label: identifier,
 		}
 	}

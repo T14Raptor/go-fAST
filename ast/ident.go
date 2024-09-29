@@ -18,3 +18,5 @@ type (
 func (i *Identifier) ToId() Id {
 	return Id{Name: i.Name, ScopeContext: i.ScopeContext}
 }
+
+func (*Identifier) _expr() {}

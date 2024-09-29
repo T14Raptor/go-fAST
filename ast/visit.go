@@ -1,7 +1,6 @@
 package ast
 
 type VisitableNode interface {
-	Node
 	VisitWith(v Visitor)
 	VisitChildrenWith(v Visitor)
 }
@@ -26,7 +25,6 @@ type Visitor interface {
 	VisitOptional(node *Optional)
 	VisitFunctionLiteral(node *FunctionLiteral)
 	VisitClassLiteral(node *ClassLiteral)
-	VisitExpressionBody(node *ExpressionBody)
 	VisitArrowFunctionLiteral(node *ArrowFunctionLiteral)
 	VisitIdentifier(node *Identifier)
 	VisitPrivateIdentifier(node *PrivateIdentifier)
@@ -45,7 +43,8 @@ type Visitor interface {
 	VisitStatement(node *Statement)
 	VisitBlockStatement(node *BlockStatement)
 	VisitCaseStatement(node *CaseStatement)
-	VisitBranchStatement(node *BranchStatement)
+	VisitBreakStatement(node *BreakStatement)
+	VisitContinueStatement(node *ContinueStatement)
 	VisitCatchStatement(node *CatchStatement)
 	VisitSwitchStatement(node *SwitchStatement)
 	VisitWithStatement(node *WithStatement)
@@ -54,13 +53,11 @@ type Visitor interface {
 	VisitWhileStatement(node *WhileStatement)
 	VisitTryStatement(node *TryStatement)
 	VisitForStatement(node *ForStatement)
-	VisitVariableStatement(node *VariableStatement)
 	VisitReturnStatement(node *ReturnStatement)
 	VisitThisExpression(node *ThisExpression)
 	VisitSequenceExpression(node *SequenceExpression)
 	VisitExpressionStatement(node *ExpressionStatement)
 	VisitUnaryExpression(node *UnaryExpression)
-	VisitForLoopInitializerExpression(node *ForLoopInitializerExpression)
 	VisitEmptyStatement(node *EmptyStatement)
 	VisitRegExpLiteral(node *RegExpLiteral)
 	VisitFunctionDeclaration(node *FunctionDeclaration)
@@ -68,7 +65,7 @@ type Visitor interface {
 	VisitInvalidExpression(node *InvalidExpression)
 	VisitTemplateLiteral(node *TemplateLiteral)
 	VisitMetaProperty(node *MetaProperty)
-	VisitLexicalDeclaration(node *LexicalDeclaration)
+	VisitVariableDeclaration(node *VariableDeclaration)
 	VisitBadStatement(node *BadStatement)
 	VisitDebuggerStatement(node *DebuggerStatement)
 	VisitDoWhileStatement(node *DoWhileStatement)
@@ -79,8 +76,7 @@ type Visitor interface {
 	VisitForIntoVar(node *ForIntoVar)
 	VisitForDeclaration(node *ForDeclaration)
 	VisitForIntoExpression(node *ForIntoExpression)
-	VisitForLoopInitializerLexicalDecl(node *ForLoopInitializerLexicalDecl)
-	VisitForLoopInitializerVarDeclList(node *ForLoopInitializerVarDeclList)
+	VisitForLoopInitializer(node *ForLoopInitializer)
 	VisitConciseBody(node *ConciseBody)
 }
 
@@ -164,11 +160,11 @@ func (nv *NoopVisitor) VisitClassLiteral(node *ClassLiteral) {
 	node.VisitChildrenWith(nv.V)
 }
 
-func (nv *NoopVisitor) VisitExpressionBody(node *ExpressionBody) {
+func (nv *NoopVisitor) VisitBreakStatement(node *BreakStatement) {
 	node.VisitChildrenWith(nv.V)
 }
 
-func (nv *NoopVisitor) VisitBranchStatement(node *BranchStatement) {
+func (nv *NoopVisitor) VisitContinueStatement(node *ContinueStatement) {
 	node.VisitChildrenWith(nv.V)
 }
 
@@ -276,10 +272,6 @@ func (nv *NoopVisitor) VisitForStatement(node *ForStatement) {
 	node.VisitChildrenWith(nv.V)
 }
 
-func (nv *NoopVisitor) VisitVariableStatement(node *VariableStatement) {
-	node.VisitChildrenWith(nv.V)
-}
-
 func (nv *NoopVisitor) VisitReturnStatement(node *ReturnStatement) {
 	node.VisitChildrenWith(nv.V)
 }
@@ -297,10 +289,6 @@ func (nv *NoopVisitor) VisitExpressionStatement(node *ExpressionStatement) {
 }
 
 func (nv *NoopVisitor) VisitUnaryExpression(node *UnaryExpression) {
-	node.VisitChildrenWith(nv.V)
-}
-
-func (nv *NoopVisitor) VisitForLoopInitializerExpression(node *ForLoopInitializerExpression) {
 	node.VisitChildrenWith(nv.V)
 }
 
@@ -332,7 +320,7 @@ func (nv *NoopVisitor) VisitMetaProperty(node *MetaProperty) {
 	node.VisitChildrenWith(nv.V)
 }
 
-func (nv *NoopVisitor) VisitLexicalDeclaration(node *LexicalDeclaration) {
+func (nv *NoopVisitor) VisitVariableDeclaration(node *VariableDeclaration) {
 	node.VisitChildrenWith(nv.V)
 }
 
@@ -376,11 +364,7 @@ func (nv *NoopVisitor) VisitForIntoExpression(node *ForIntoExpression) {
 	node.VisitChildrenWith(nv.V)
 }
 
-func (nv *NoopVisitor) VisitForLoopInitializerVarDeclList(node *ForLoopInitializerVarDeclList) {
-	node.VisitChildrenWith(nv.V)
-}
-
-func (nv *NoopVisitor) VisitForLoopInitializerLexicalDecl(node *ForLoopInitializerLexicalDecl) {
+func (nv *NoopVisitor) VisitForLoopInitializer(node *ForLoopInitializer) {
 	node.VisitChildrenWith(nv.V)
 }
 
@@ -394,6 +378,14 @@ func (n *ConciseBody) VisitWith(v Visitor) {
 
 func (n *ConciseBody) VisitChildrenWith(v Visitor) {
 	n.Body.VisitWith(v)
+}
+
+func (n *ForLoopInitializer) VisitWith(v Visitor) {
+	v.VisitForLoopInitializer(n)
+}
+
+func (n *ForLoopInitializer) VisitChildrenWith(v Visitor) {
+	n.Initializer.VisitWith(v)
 }
 
 func (n *ForIntoVar) VisitWith(v Visitor) {
@@ -605,14 +597,6 @@ func (c *ClassLiteral) VisitChildrenWith(v Visitor) {
 	c.SuperClass.VisitWith(v)
 }
 
-func (e *ExpressionBody) VisitWith(v Visitor) {
-	v.VisitExpressionBody(e)
-}
-
-func (e *ExpressionBody) VisitChildrenWith(v Visitor) {
-	e.Expression.VisitWith(v)
-}
-
 func (a *ArrowFunctionLiteral) VisitWith(v Visitor) {
 	v.VisitArrowFunctionLiteral(a)
 }
@@ -783,11 +767,21 @@ func (n *ArrowFunctionLiteral) VisitChildrenWith(v Visitor) {}
 
 func (n *BooleanLiteral) VisitChildrenWith(v Visitor) {}
 
-func (n *BranchStatement) VisitWith(v Visitor) {
-	v.VisitBranchStatement(n)
+func (n *BreakStatement) VisitWith(v Visitor) {
+	v.VisitBreakStatement(n)
 }
 
-func (n *BranchStatement) VisitChildrenWith(v Visitor) {
+func (n *BreakStatement) VisitChildrenWith(v Visitor) {
+	if n.Label != nil {
+		n.Label.VisitWith(v)
+	}
+}
+
+func (n *ContinueStatement) VisitWith(v Visitor) {
+	v.VisitContinueStatement(n)
+}
+
+func (n *ContinueStatement) VisitChildrenWith(v Visitor) {
 	if n.Label != nil {
 		n.Label.VisitWith(v)
 	}
@@ -866,21 +860,13 @@ func (n *ForOfStatement) VisitChildrenWith(v Visitor) {
 	n.Body.VisitWith(v)
 }
 
-func (n *ForLoopInitializerExpression) VisitWith(v Visitor) {
-	v.VisitForLoopInitializerExpression(n)
-}
-
-func (n *ForLoopInitializerExpression) VisitChildrenWith(v Visitor) {
-	n.Expression.VisitWith(v)
-}
-
 func (n *ForStatement) VisitWith(v Visitor) {
 	v.VisitForStatement(n)
 }
 
 func (n *ForStatement) VisitChildrenWith(v Visitor) {
-	if *n.Initializer != nil {
-		(*n.Initializer).(VisitableNode).VisitWith(v)
+	if n.Initializer != nil {
+		n.Initializer.Initializer.VisitWith(v)
 	}
 	n.Update.VisitWith(v)
 	n.Test.VisitWith(v)
@@ -978,14 +964,6 @@ func (n *TryStatement) VisitChildrenWith(v Visitor) {
 	}
 }
 
-func (n *VariableStatement) VisitWith(v Visitor) {
-	v.VisitVariableStatement(n)
-}
-
-func (n *VariableStatement) VisitChildrenWith(v Visitor) {
-	n.List.VisitWith(v)
-}
-
 func (n *WhileStatement) VisitWith(v Visitor) {
 	v.VisitWhileStatement(n)
 }
@@ -1004,26 +982,10 @@ func (n *WithStatement) VisitChildrenWith(v Visitor) {
 	n.Body.VisitWith(v)
 }
 
-func (n *LexicalDeclaration) VisitWith(v Visitor) {
-	v.VisitLexicalDeclaration(n)
+func (n *VariableDeclaration) VisitWith(v Visitor) {
+	v.VisitVariableDeclaration(n)
 }
 
-func (n *LexicalDeclaration) VisitChildrenWith(v Visitor) {
+func (n *VariableDeclaration) VisitChildrenWith(v Visitor) {
 	n.List.VisitWith(v)
-}
-
-func (n *ForLoopInitializerVarDeclList) VisitWith(v Visitor) {
-	v.VisitForLoopInitializerVarDeclList(n)
-}
-
-func (n *ForLoopInitializerVarDeclList) VisitChildrenWith(v Visitor) {
-	n.List.VisitWith(v)
-}
-
-func (n *ForLoopInitializerLexicalDecl) VisitWith(v Visitor) {
-	v.VisitForLoopInitializerLexicalDecl(n)
-}
-
-func (n *ForLoopInitializerLexicalDecl) VisitChildrenWith(v Visitor) {
-	n.LexicalDeclaration.VisitWith(v)
 }

@@ -361,7 +361,7 @@ func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token
 			value = &ast.StringLiteral{
 				Idx:     idx,
 				Literal: literal,
-				Value:   string(literal),
+				Value:   literal,
 			}
 		} else {
 			p.errorUnexpectedToken(tkn)
@@ -963,16 +963,7 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 	}()
 
 	switch p.token {
-	case token.Less, token.LessOrEqual, token.Greater, token.GreaterOrEqual:
-		tkn := p.token
-		p.next()
-		return &ast.BinaryExpression{
-			Operator:   tkn,
-			Left:       ptrExpr(left),
-			Right:      ptrExpr(p.parseRelationalExpression()),
-			Comparison: true,
-		}
-	case token.InstanceOf:
+	case token.Less, token.LessOrEqual, token.Greater, token.GreaterOrEqual, token.InstanceOf:
 		tkn := p.token
 		p.next()
 		return &ast.BinaryExpression{
@@ -1004,10 +995,9 @@ func (p *parser) parseEqualityExpression() ast.Expr {
 		tkn := p.token
 		p.next()
 		left = &ast.BinaryExpression{
-			Operator:   tkn,
-			Left:       ptrExpr(left),
-			Right:      ptrExpr(p.parseRelationalExpression()),
-			Comparison: true,
+			Operator: tkn,
+			Left:     ptrExpr(left),
+			Right:    ptrExpr(p.parseRelationalExpression()),
 		}
 	}
 

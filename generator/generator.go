@@ -122,8 +122,17 @@ func (g *GenVisitor) VisitBooleanLiteral(n *ast.BooleanLiteral) {
 	}
 }
 
-func (g *GenVisitor) VisitBranchStatement(n *ast.BranchStatement) {
-	g.out.WriteString(n.Token.String())
+func (g *GenVisitor) VisitBreakStatement(n *ast.BreakStatement) {
+	g.out.WriteString("break")
+	if n.Label != nil {
+		g.out.WriteString(" ")
+		g.gen(n.Label)
+	}
+	g.out.WriteString(";")
+}
+
+func (g *GenVisitor) VisitContinueStatement(n *ast.ContinueStatement) {
+	g.out.WriteString("continue")
 	if n.Label != nil {
 		g.out.WriteString(" ")
 		g.gen(n.Label)
@@ -239,10 +248,6 @@ func (g *GenVisitor) VisitExpressionStatement(n *ast.ExpressionStatement) {
 	}
 }
 
-func (g *GenVisitor) VisitExpressionBody(n *ast.ExpressionBody) {
-	g.gen(n.Expression.Expr)
-}
-
 func (g *GenVisitor) VisitForInStatement(n *ast.ForInStatement) {
 	g.out.WriteString("for (")
 	g.gen(*n.Into)
@@ -267,8 +272,8 @@ func (g *GenVisitor) VisitForIntoExpression(n *ast.ForIntoExpression) {
 
 func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 	g.out.WriteString("for (")
-	if *n.Initializer != nil {
-		g.gen(*n.Initializer)
+	if n.Initializer != nil {
+		g.gen(n.Initializer.Initializer)
 	}
 	g.out.WriteString("; ")
 	if n.Test.Expr != nil {
@@ -289,10 +294,6 @@ func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 		g.indent--
 		g.lineAndPad()
 	}
-}
-
-func (g *GenVisitor) VisitForLoopInitializerExpression(n *ast.ForLoopInitializerExpression) {
-	g.gen(n.Expression.Expr)
 }
 
 func (g *GenVisitor) VisitForIntoVar(n *ast.ForIntoVar) {
@@ -449,7 +450,7 @@ func (g *GenVisitor) VisitReturnStatement(n *ast.ReturnStatement) {
 
 func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
 	switch g.p.(type) {
-	case *ast.VariableDeclarator, *ast.VariableStatement, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.ArrayLiteral:
+	case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.ArrayLiteral:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -511,6 +512,27 @@ func (g *GenVisitor) VisitTryStatement(n *ast.TryStatement) {
 }
 
 func (g *GenVisitor) VisitUnaryExpression(n *ast.UnaryExpression) {
+	g.out.WriteString(n.Operator.String())
+	if len(n.Operator.String()) > 2 {
+		g.out.WriteString(" ")
+	}
+
+	wrap := false
+	switch n.Operand.Expr.(type) {
+	case *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression:
+		wrap = true
+	}
+
+	if wrap {
+		g.out.WriteString("(")
+	}
+	g.gen(n.Operand.Expr)
+	if wrap {
+		g.out.WriteString(")")
+	}
+}
+
+func (g *GenVisitor) VisitUpdateExpression(n *ast.UpdateExpression) {
 	if !n.Postfix {
 		g.out.WriteString(n.Operator.String())
 		if len(n.Operator.String()) > 2 {
@@ -537,21 +559,6 @@ func (g *GenVisitor) VisitUnaryExpression(n *ast.UnaryExpression) {
 	}
 }
 
-func (g *GenVisitor) VisitVariableStatement(n *ast.VariableStatement) {
-	g.out.WriteString("var ")
-	for i, v := range n.List {
-		g.gen(v.Target)
-		if v.Initializer != nil {
-			g.out.WriteString(" = ")
-			g.gen(v.Initializer.Expr)
-		}
-		if i < len(n.List)-1 {
-			g.out.WriteString(",")
-		}
-	}
-	g.out.WriteString(";")
-}
-
 func (g *GenVisitor) VisitWhileStatement(n *ast.WhileStatement) {
 	g.out.WriteString("while (")
 	g.gen(n.Test.Expr)
@@ -572,27 +579,6 @@ func (g *GenVisitor) VisitVariableDeclarator(n *ast.VariableDeclarator) {
 	}
 }
 
-func (g *GenVisitor) VisitForLoopInitializerVarDeclList(n *ast.ForLoopInitializerVarDeclList) {
-	g.out.WriteString("var ")
-	for i, decl := range n.List {
-		g.gen(decl)
-		if i < len(n.List)-1 {
-			g.out.WriteString(", ")
-		}
-	}
-}
-
-func (g *GenVisitor) VisitForLoopInitializerLexicalDecl(n *ast.ForLoopInitializerLexicalDecl) {
-	g.out.WriteString(n.LexicalDeclaration.Token.String())
-	g.out.WriteString(" ")
-	for i, decl := range n.LexicalDeclaration.List {
-		g.gen(decl)
-		if i < len(n.LexicalDeclaration.List)-1 {
-			g.out.WriteString(", ")
-		}
-	}
-}
-
 func (g *GenVisitor) VisitTemplateLiteral(n *ast.TemplateLiteral) {
 	g.out.WriteString("`")
 	for i, e := range n.Elements {
@@ -606,7 +592,7 @@ func (g *GenVisitor) VisitTemplateLiteral(n *ast.TemplateLiteral) {
 	g.out.WriteString("`")
 }
 
-func (g *GenVisitor) VisitLexicalDeclaration(n *ast.LexicalDeclaration) {
+func (g *GenVisitor) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	g.out.WriteString(n.Token.String())
 	g.out.WriteString(" ")
 	for i, b := range n.List {
