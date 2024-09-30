@@ -274,8 +274,14 @@ func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 	g.out.WriteString("for (")
 	if n.Initializer != nil {
 		g.gen(n.Initializer.Initializer)
+
+		if _, ok := n.Initializer.Initializer.(*ast.VariableDeclaration); !ok {
+			g.out.WriteString("; ")
+		}
+	} else {
+		g.out.WriteString("; ")
 	}
-	g.out.WriteString("; ")
+
 	if n.Test.Expr != nil {
 		g.gen(n.Test.Expr)
 	}
@@ -601,6 +607,7 @@ func (g *GenVisitor) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 			g.out.WriteString(", ")
 		}
 	}
+
 	g.out.WriteString(";")
 	if len(n.Comment) > 0 {
 		g.out.WriteString(" // " + n.Comment)

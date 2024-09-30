@@ -540,8 +540,8 @@ func (m *MemberExpression) VisitWith(v Visitor) {
 	v.VisitMemberExpression(m)
 }
 
-func (c *CallExpression) VisitWith(v Visitor) {
-	v.VisitCallExpression(c)
+func (n *CallExpression) VisitWith(v Visitor) {
+	v.VisitCallExpression(n)
 }
 
 func (n *CallExpression) VisitChildrenWith(v Visitor) {
@@ -584,12 +584,6 @@ func (f *FunctionLiteral) VisitWith(v Visitor) {
 
 func (c *ClassLiteral) VisitWith(v Visitor) {
 	v.VisitClassLiteral(c)
-	for _, element := range c.Body {
-		if i, ok := (element).(*MethodDefinition); ok {
-			i.Key.VisitWith(v)
-			i.Body.VisitWith(v)
-		}
-	}
 }
 
 func (c *ClassLiteral) VisitChildrenWith(v Visitor) {
@@ -676,26 +670,26 @@ func (n *VariableDeclarators) VisitChildrenWith(v Visitor) {
 	}
 }
 
-func (n *MemberExpression) VisitChildrenWith(v Visitor) {
-	n.Object.VisitWith(v)
-	n.Property.VisitWith(v)
+func (m *MemberExpression) VisitChildrenWith(v Visitor) {
+	m.Object.VisitWith(v)
+	m.Property.VisitWith(v)
 }
 
-func (n *AssignExpression) VisitChildrenWith(v Visitor) {
-	n.Left.VisitWith(v)
-	n.Right.VisitWith(v)
+func (a *AssignExpression) VisitChildrenWith(v Visitor) {
+	a.Left.VisitWith(v)
+	a.Right.VisitWith(v)
 }
 
-func (n *VariableDeclarator) VisitChildrenWith(v Visitor) {
-	if n.Initializer != nil {
-		n.Initializer.VisitWith(v)
+func (b *VariableDeclarator) VisitChildrenWith(v Visitor) {
+	if b.Initializer != nil {
+		b.Initializer.VisitWith(v)
 	}
-	n.Target.VisitWith(v)
+	b.Target.VisitWith(v)
 }
 
-func (n *BinaryExpression) VisitChildrenWith(v Visitor) {
-	n.Left.VisitWith(v)
-	n.Right.VisitWith(v)
+func (b *BinaryExpression) VisitChildrenWith(v Visitor) {
+	b.Left.VisitWith(v)
+	b.Right.VisitWith(v)
 }
 
 func (n *ThisExpression) VisitWith(v Visitor) {
@@ -704,9 +698,9 @@ func (n *ThisExpression) VisitWith(v Visitor) {
 
 func (n *ThisExpression) VisitChildrenWith(v Visitor) {}
 
-func (n *ArrayLiteral) VisitChildrenWith(v Visitor) {
-	for i := range n.Value {
-		n.Value[i].VisitWith(v)
+func (a *ArrayLiteral) VisitChildrenWith(v Visitor) {
+	for i := range a.Value {
+		a.Value[i].VisitWith(v)
 	}
 }
 
@@ -718,10 +712,10 @@ func (n *BlockStatement) VisitChildrenWith(v Visitor) {
 	n.List.VisitWith(v)
 }
 
-func (n *FunctionLiteral) VisitChildrenWith(v Visitor) {
-	n.Name.VisitWith(v)
-	n.ParameterList.List.VisitWith(v)
-	n.Body.VisitWith(v)
+func (f *FunctionLiteral) VisitChildrenWith(v Visitor) {
+	f.Name.VisitWith(v)
+	f.ParameterList.List.VisitWith(v)
+	f.Body.VisitWith(v)
 }
 
 func (n *StringLiteral) VisitWith(v Visitor) {
@@ -763,9 +757,9 @@ func (n *UnaryExpression) VisitChildrenWith(v Visitor) {
 	n.Operand.VisitWith(v)
 }
 
-func (n *ArrowFunctionLiteral) VisitChildrenWith(v Visitor) {}
+func (a *ArrowFunctionLiteral) VisitChildrenWith(v Visitor) {}
 
-func (n *BooleanLiteral) VisitChildrenWith(v Visitor) {}
+func (b *BooleanLiteral) VisitChildrenWith(v Visitor) {}
 
 func (n *BreakStatement) VisitWith(v Visitor) {
 	v.VisitBreakStatement(n)

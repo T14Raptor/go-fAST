@@ -14,24 +14,24 @@ type Program struct {
 	Body Statements
 }
 
-func (n *Optional) Idx0() Idx              { return (*n.Expr).Expr.Idx0() }
+func (o *Optional) Idx0() Idx              { return (*o.Expr).Expr.Idx0() }
 func (n *OptionalChain) Idx0() Idx         { return (*n.Base).Expr.Idx0() }
 func (n *ObjectPattern) Idx0() Idx         { return n.LeftBrace }
 func (n *ParameterList) Idx0() Idx         { return n.Opening }
-func (n *ArrayLiteral) Idx0() Idx          { return n.LeftBracket }
-func (n *ArrayPattern) Idx0() Idx          { return n.LeftBracket }
-func (n *YieldExpression) Idx0() Idx       { return n.Yield }
-func (n *AwaitExpression) Idx0() Idx       { return n.Await }
-func (n *AssignExpression) Idx0() Idx      { return (*n.Left).Expr.Idx0() }
-func (n *BinaryExpression) Idx0() Idx      { return (*n.Left).Expr.Idx0() }
-func (n *BooleanLiteral) Idx0() Idx        { return n.Idx }
+func (a *ArrayLiteral) Idx0() Idx          { return a.LeftBracket }
+func (a *ArrayPattern) Idx0() Idx          { return a.LeftBracket }
+func (y *YieldExpression) Idx0() Idx       { return y.Yield }
+func (a *AwaitExpression) Idx0() Idx       { return a.Await }
+func (a *AssignExpression) Idx0() Idx      { return (*a.Left).Expr.Idx0() }
+func (b *BinaryExpression) Idx0() Idx      { return (*b.Left).Expr.Idx0() }
+func (b *BooleanLiteral) Idx0() Idx        { return b.Idx }
 func (n *CallExpression) Idx0() Idx        { return (*n.Callee).Expr.Idx0() }
 func (n *ConditionalExpression) Idx0() Idx { return (*n.Test).Expr.Idx0() }
-func (n *PrivateDotExpression) Idx0() Idx  { return (*n.Left).Expr.Idx0() }
-func (n *FunctionLiteral) Idx0() Idx       { return n.Function }
-func (n *ClassLiteral) Idx0() Idx          { return n.Class }
-func (n *ArrowFunctionLiteral) Idx0() Idx  { return n.Start }
-func (n *Identifier) Idx0() Idx            { return n.Idx }
+func (p *PrivateDotExpression) Idx0() Idx  { return (*p.Left).Expr.Idx0() }
+func (f *FunctionLiteral) Idx0() Idx       { return f.Function }
+func (c *ClassLiteral) Idx0() Idx          { return c.Class }
+func (a *ArrowFunctionLiteral) Idx0() Idx  { return a.Start }
+func (i *Identifier) Idx0() Idx            { return i.Idx }
 func (n *InvalidExpression) Idx0() Idx     { return n.From }
 func (n *NewExpression) Idx0() Idx         { return n.New }
 func (n *NullLiteral) Idx0() Idx           { return n.Idx }
@@ -47,8 +47,8 @@ func (n *SuperExpression) Idx0() Idx       { return n.Idx }
 func (n *UnaryExpression) Idx0() Idx       { return n.Idx }
 func (n *UpdateExpression) Idx0() Idx      { return n.Idx }
 func (n *MetaProperty) Idx0() Idx          { return n.Idx }
-func (n *MemberExpression) Idx0() Idx      { return 0 }
-func (n *MemberExpression) Idx1() Idx      { return 0 }
+func (m *MemberExpression) Idx0() Idx      { return 0 }
+func (m *MemberExpression) Idx1() Idx      { return 0 }
 func (n *SpreadElement) Idx0() Idx {
 	return n.Expression.Expr.Idx0()
 }
@@ -81,7 +81,7 @@ func (n *WithStatement) Idx0() Idx       { return n.With }
 func (n *VariableDeclaration) Idx0() Idx { return n.Idx }
 func (n *FunctionDeclaration) Idx0() Idx { return n.Function.Idx0() }
 func (n *ClassDeclaration) Idx0() Idx    { return n.Class.Idx0() }
-func (n *VariableDeclarator) Idx0() Idx  { return n.Target.Idx0() }
+func (b *VariableDeclarator) Idx0() Idx  { return b.Target.Idx0() }
 
 func (n *PropertyShort) Idx0() Idx { return n.Name.Idx }
 func (n *PropertyKeyed) Idx0() Idx { return (*n.Key).Expr.Idx0() }
@@ -96,22 +96,22 @@ func (n *ForIntoExpression) Idx0() Idx { return (*n.Expression).Expr.Idx0() }
 
 func (n *ForLoopInitializer) Idx0() Idx { return 0 }
 
-func (n *Optional) Idx1() Idx              { return (*n.Expr).Expr.Idx1() }
+func (o *Optional) Idx1() Idx              { return (*o.Expr).Expr.Idx1() }
 func (n *OptionalChain) Idx1() Idx         { return (*n.Base).Expr.Idx1() }
-func (n *ArrayLiteral) Idx1() Idx          { return n.RightBracket + 1 }
-func (n *ArrayPattern) Idx1() Idx          { return n.RightBracket + 1 }
-func (n *AssignExpression) Idx1() Idx      { return (*n.Right).Expr.Idx1() }
-func (n *AwaitExpression) Idx1() Idx       { return (*n.Argument).Expr.Idx1() }
+func (a *ArrayLiteral) Idx1() Idx          { return a.RightBracket + 1 }
+func (a *ArrayPattern) Idx1() Idx          { return a.RightBracket + 1 }
+func (a *AssignExpression) Idx1() Idx      { return (*a.Right).Expr.Idx1() }
+func (a *AwaitExpression) Idx1() Idx       { return (*a.Argument).Expr.Idx1() }
 func (n *InvalidExpression) Idx1() Idx     { return n.To }
-func (n *BinaryExpression) Idx1() Idx      { return (*n.Right).Expr.Idx1() }
-func (n *BooleanLiteral) Idx1() Idx        { return Idx(int(n.Idx) + 4) }
+func (b *BinaryExpression) Idx1() Idx      { return (*b.Right).Expr.Idx1() }
+func (b *BooleanLiteral) Idx1() Idx        { return Idx(int(b.Idx) + 4) }
 func (n *CallExpression) Idx1() Idx        { return n.RightParenthesis + 1 }
 func (n *ConditionalExpression) Idx1() Idx { return (*n.Test).Expr.Idx1() }
-func (n *PrivateDotExpression) Idx1() Idx  { return n.Identifier.Idx1() }
-func (n *FunctionLiteral) Idx1() Idx       { return n.Body.Idx1() }
-func (n *ClassLiteral) Idx1() Idx          { return n.RightBrace + 1 }
-func (n *ArrowFunctionLiteral) Idx1() Idx  { return n.Body.Body.Idx1() }
-func (n *Identifier) Idx1() Idx            { return Idx(int(n.Idx) + len(n.Name)) }
+func (p *PrivateDotExpression) Idx1() Idx  { return p.Identifier.Idx1() }
+func (f *FunctionLiteral) Idx1() Idx       { return f.Body.Idx1() }
+func (c *ClassLiteral) Idx1() Idx          { return c.RightBrace + 1 }
+func (a *ArrowFunctionLiteral) Idx1() Idx  { return a.Body.Body.Idx1() }
+func (i *Identifier) Idx1() Idx            { return Idx(int(i.Idx) + len(i.Name)) }
 func (n *NewExpression) Idx1() Idx {
 	if n.ArgumentList != nil {
 		return n.RightParenthesis + 1
@@ -182,11 +182,11 @@ func (n *WithStatement) Idx1() Idx       { return (*n.Body).Idx1() }
 func (n *VariableDeclaration) Idx1() Idx { return n.List[len(n.List)-1].Idx1() }
 func (n *FunctionDeclaration) Idx1() Idx { return n.Function.Idx1() }
 func (n *ClassDeclaration) Idx1() Idx    { return n.Class.Idx1() }
-func (n *VariableDeclarator) Idx1() Idx {
-	if n.Initializer != nil {
-		return (*n.Initializer).Expr.Idx1()
+func (b *VariableDeclarator) Idx1() Idx {
+	if b.Initializer != nil {
+		return (*b.Initializer).Expr.Idx1()
 	}
-	return n.Target.Idx1()
+	return b.Target.Idx1()
 }
 
 func (n *PropertyShort) Idx1() Idx {
@@ -213,11 +213,11 @@ func (n *ClassStaticBlock) Idx1() Idx {
 	return n.Block.Idx1()
 }
 
-func (n *YieldExpression) Idx1() Idx {
-	if n.Argument != nil {
-		return (*n.Argument).Expr.Idx1()
+func (y *YieldExpression) Idx1() Idx {
+	if y.Argument != nil {
+		return (*y.Argument).Expr.Idx1()
 	}
-	return n.Yield + 5
+	return y.Yield + 5
 }
 
 func (n *ForDeclaration) Idx1() Idx     { return n.Target.Idx1() }
