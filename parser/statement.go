@@ -687,11 +687,11 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 			} else {
 				p.ensurePatternInit(list)
 
-				initializer.Initializer = &ast.VariableDeclaration{
+				initializer = &ast.ForLoopInitializer{&ast.VariableDeclaration{
 					Idx:   idx,
 					Token: tok,
 					List:  list,
-				}
+				}}
 			}
 		} else {
 			expr := p.parseExpression()
@@ -719,7 +719,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 					Expression: ptrExpr(expr),
 				}
 			} else {
-				initializer.Initializer = ptrExpr(expr)
+				initializer = &ast.ForLoopInitializer{ptrExpr(expr)}
 			}
 		}
 		p.scope.allowIn = allowIn
