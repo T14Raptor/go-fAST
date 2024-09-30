@@ -276,8 +276,9 @@ func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 		g.gen(n.Initializer.Initializer)
 
 		if _, ok := n.Initializer.Initializer.(*ast.VariableDeclaration); !ok {
-			g.out.WriteString("; ")
+			g.out.WriteString(";")
 		}
+		g.out.WriteString(" ")
 	} else {
 		g.out.WriteString("; ")
 	}
@@ -456,7 +457,7 @@ func (g *GenVisitor) VisitReturnStatement(n *ast.ReturnStatement) {
 
 func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
 	switch g.p.(type) {
-	case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.ArrayLiteral:
+	case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.UpdateExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.ArrayLiteral:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -525,7 +526,7 @@ func (g *GenVisitor) VisitUnaryExpression(n *ast.UnaryExpression) {
 
 	wrap := false
 	switch n.Operand.Expr.(type) {
-	case *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression:
+	case *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.UpdateExpression:
 		wrap = true
 	}
 
@@ -548,7 +549,7 @@ func (g *GenVisitor) VisitUpdateExpression(n *ast.UpdateExpression) {
 
 	wrap := false
 	switch n.Operand.Expr.(type) {
-	case *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression:
+	case *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.UpdateExpression:
 		wrap = true
 	}
 

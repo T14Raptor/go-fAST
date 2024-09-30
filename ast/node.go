@@ -136,7 +136,7 @@ func (n *UnaryExpression) Idx1() Idx {
 }
 func (n *UpdateExpression) Idx1() Idx {
 	if n.Postfix {
-		return (*n.Operand).Expr.Idx1() + 2 // ++ --
+		return (*n.Operand).Expr.Idx1() + 2 // x++ x--
 	}
 	return (*n.Operand).Expr.Idx1()
 }

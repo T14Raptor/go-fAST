@@ -174,9 +174,8 @@ type (
 
 	UnaryExpression struct {
 		Operator token.Token
-		Idx      Idx // If a prefix operation
+		Idx      Idx
 		Operand  *Expression
-		Postfix  bool
 	}
 
 	UpdateExpression struct {

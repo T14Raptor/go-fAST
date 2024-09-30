@@ -15,8 +15,8 @@ type (
 	}
 )
 
-func (i *Identifier) ToId() Id {
-	return Id{Name: i.Name, ScopeContext: i.ScopeContext}
+func (n *Identifier) ToId() Id {
+	return Id{Name: n.Name, ScopeContext: n.ScopeContext}
 }
 
 func (*Identifier) _expr() {}

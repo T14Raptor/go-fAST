@@ -788,7 +788,7 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 			p.nextStatement()
 			return &ast.InvalidExpression{From: idx, To: p.idx}
 		}
-		return &ast.UnaryExpression{
+		return &ast.UpdateExpression{
 			Operator: tkn,
 			Idx:      idx,
 			Operand:  ptrExpr(operand),
@@ -810,7 +810,7 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 				p.nextStatement()
 				return &ast.InvalidExpression{From: idx, To: p.idx}
 			}
-			return &ast.UnaryExpression{
+			return &ast.UpdateExpression{
 				Operator: tkn,
 				Idx:      idx,
 				Operand:  ptrExpr(operand),
@@ -865,7 +865,7 @@ func (p *parser) parseExponentiationExpression() ast.Expr {
 
 	if p.token == token.Exponent {
 		if !parenthesis {
-			if u, isUnary := left.(*ast.UnaryExpression); isUnary && u.Operator != token.Increment && u.Operator != token.Decrement {
+			if _, isUnary := left.(*ast.UnaryExpression); isUnary {
 				p.error("Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence")
 			}
 		}

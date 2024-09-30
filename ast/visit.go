@@ -58,6 +58,7 @@ type Visitor interface {
 	VisitSequenceExpression(node *SequenceExpression)
 	VisitExpressionStatement(node *ExpressionStatement)
 	VisitUnaryExpression(node *UnaryExpression)
+	VisitUpdateExpression(node *UpdateExpression)
 	VisitEmptyStatement(node *EmptyStatement)
 	VisitRegExpLiteral(node *RegExpLiteral)
 	VisitFunctionDeclaration(node *FunctionDeclaration)
@@ -289,6 +290,10 @@ func (nv *NoopVisitor) VisitExpressionStatement(node *ExpressionStatement) {
 }
 
 func (nv *NoopVisitor) VisitUnaryExpression(node *UnaryExpression) {
+	node.VisitChildrenWith(nv.V)
+}
+
+func (nv *NoopVisitor) VisitUpdateExpression(node *UpdateExpression) {
 	node.VisitChildrenWith(nv.V)
 }
 
@@ -754,6 +759,14 @@ func (n *UnaryExpression) VisitWith(v Visitor) {
 }
 
 func (n *UnaryExpression) VisitChildrenWith(v Visitor) {
+	n.Operand.VisitWith(v)
+}
+
+func (n *UpdateExpression) VisitWith(v Visitor) {
+	v.VisitUpdateExpression(n)
+}
+
+func (n *UpdateExpression) VisitChildrenWith(v Visitor) {
 	n.Operand.VisitWith(v)
 }
 
