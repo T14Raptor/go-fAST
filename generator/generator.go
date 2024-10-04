@@ -653,6 +653,11 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 	}
 }
 
+func (g *GenVisitor) VisitSpreadElement(n *ast.SpreadElement) {
+	g.out.WriteString("...")
+	g.gen(n.Expression.Expr)
+}
+
 func valid(s string) bool {
 	for i, r := range s {
 		if i == 0 && unicode.IsDigit(r) {
