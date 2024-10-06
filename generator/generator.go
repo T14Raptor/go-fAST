@@ -625,7 +625,7 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 	g.indent++
 	for _, element := range n.Body {
 		g.lineAndPad()
-		switch e := element.(type) {
+		switch e := element.Element.(type) {
 		case *ast.MethodDefinition:
 			if e.Static {
 				g.out.WriteString("static ")

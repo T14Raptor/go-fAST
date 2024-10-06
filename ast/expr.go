@@ -7,7 +7,7 @@ type (
 
 	// Expression is a struct to allow defining methods on it.
 	Expression struct {
-		Expr
+		Expr `optional:"true"`
 	}
 
 	// All expression nodes implement the Expr interface.
@@ -117,7 +117,7 @@ type (
 	}
 
 	PrivateIdentifier struct {
-		*Identifier
+		Identifier *Identifier
 	}
 
 	NewExpression struct {
@@ -149,6 +149,8 @@ type (
 		Sequence Expressions
 	}
 
+	TemplateElements []TemplateElement
+
 	TemplateElement struct {
 		Idx     Idx
 		Literal string
@@ -160,7 +162,7 @@ type (
 		OpenQuote   Idx
 		CloseQuote  Idx
 		Tag         *Expression
-		Elements    []TemplateElement
+		Elements    TemplateElements
 		Expressions Expressions
 	}
 

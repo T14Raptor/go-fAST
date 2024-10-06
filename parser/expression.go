@@ -292,7 +292,7 @@ func (p *parser) parseBindingTarget() (target ast.BindingTarget) {
 	return
 }
 
-func (p *parser) parseVariableDeclaration(declarationList *[]*ast.VariableDeclarator) *ast.VariableDeclarator {
+func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarators) *ast.VariableDeclarator {
 	node := &ast.VariableDeclarator{
 		Target: p.parseBindingTarget(),
 	}
@@ -309,7 +309,7 @@ func (p *parser) parseVariableDeclaration(declarationList *[]*ast.VariableDeclar
 	return node
 }
 
-func (p *parser) parseVariableDeclarationList() (declarationList []*ast.VariableDeclarator) {
+func (p *parser) parseVariableDeclarationList() (declarationList ast.VariableDeclarators) {
 	for {
 		p.parseVariableDeclaration(&declarationList)
 		if p.token != token.Comma {

@@ -22,7 +22,7 @@ type (
 
 	VariableDeclarator struct {
 		Target      BindingTarget
-		Initializer *Expression
+		Initializer *Expression `optional:"true"`
 	}
 )
 

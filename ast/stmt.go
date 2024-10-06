@@ -4,7 +4,7 @@ type (
 	Statements []Statement
 
 	Statement struct {
-		Stmt
+		Stmt `optional:"true"`
 	}
 
 	// All statement nodes implement the Stmt interface.
@@ -27,17 +27,17 @@ type (
 
 	BreakStatement struct {
 		Idx   Idx
-		Label *Identifier
+		Label *Identifier `optional:"true"`
 	}
 
 	ContinueStatement struct {
 		Idx   Idx
-		Label *Identifier
+		Label *Identifier `optional:"true"`
 	}
 
 	CaseStatement struct {
 		Case       Idx
-		Test       *Expression
+		Test       *Expression `optional:"true"`
 		Consequent Statements
 	}
 
@@ -70,7 +70,7 @@ type (
 		If         Idx
 		Test       *Expression
 		Consequent *Statement
-		Alternate  *Statement
+		Alternate  *Statement `optional:"true"`
 	}
 
 	LabelledStatement struct {
@@ -99,8 +99,8 @@ type (
 	TryStatement struct {
 		Try     Idx
 		Body    *BlockStatement
-		Catch   *CatchStatement
-		Finally *BlockStatement
+		Catch   *CatchStatement `optional:"true"`
+		Finally *BlockStatement `optional:"true"`
 	}
 
 	WhileStatement struct {
@@ -131,7 +131,7 @@ type (
 
 	ForStatement struct {
 		For         Idx
-		Initializer *ForLoopInitializer
+		Initializer *ForLoopInitializer `optional:"true"`
 		Update      *Expression
 		Test        *Expression
 		Body        *Statement

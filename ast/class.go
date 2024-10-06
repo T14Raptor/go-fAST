@@ -13,9 +13,9 @@ type (
 	ClassLiteral struct {
 		Class      Idx
 		RightBrace Idx
-		Name       *Identifier
+		Name       *Identifier `optional:"true"`
 		SuperClass *Expression
-		Body       []ClassElement
+		Body       ClassElements
 	}
 
 	Property interface {
@@ -35,14 +35,21 @@ type (
 		Computed bool
 	}
 
-	ClassElement interface {
+	ClassElements []ClassElement
+
+	ClassElement struct {
+		Element
+	}
+
+	Element interface {
+		VisitableNode
 		_classElement()
 	}
 
 	FieldDefinition struct {
 		Idx         Idx
 		Key         *Expression
-		Initializer *Expression
+		Initializer *Expression `optional:"true"`
 		Computed    bool
 		Static      bool
 	}

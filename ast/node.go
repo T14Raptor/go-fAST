@@ -1,5 +1,7 @@
 package ast
 
+//go:generate go run ast/gen_visit.go
+
 // Idx is a compact encoding of a source position within JS code.
 type Idx int
 
@@ -8,6 +10,11 @@ type Node interface {
 	Idx0() Idx
 	// Idx1 returns the index of the first character immediately after the node.
 	Idx1() Idx
+}
+
+type VisitableNode interface {
+	VisitWith(v Visitor)
+	VisitChildrenWith(v Visitor)
 }
 
 type Program struct {
@@ -107,7 +114,7 @@ func (b *BinaryExpression) Idx1() Idx      { return (*b.Right).Expr.Idx1() }
 func (b *BooleanLiteral) Idx1() Idx        { return Idx(int(b.Idx) + 4) }
 func (n *CallExpression) Idx1() Idx        { return n.RightParenthesis + 1 }
 func (n *ConditionalExpression) Idx1() Idx { return (*n.Test).Expr.Idx1() }
-func (p *PrivateDotExpression) Idx1() Idx  { return p.Identifier.Idx1() }
+func (p *PrivateDotExpression) Idx1() Idx  { return p.Idx1() }
 func (f *FunctionLiteral) Idx1() Idx       { return f.Body.Idx1() }
 func (c *ClassLiteral) Idx1() Idx          { return c.RightBrace + 1 }
 func (a *ArrowFunctionLiteral) Idx1() Idx  { return a.Body.Body.Idx1() }

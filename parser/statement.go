@@ -156,7 +156,7 @@ func (p *parser) parseTryStatement() ast.Stmt {
 
 func (p *parser) parseFunctionParameterList() ast.ParameterList {
 	opening := p.expect(token.LeftParenthesis)
-	var list []*ast.VariableDeclarator
+	var list ast.VariableDeclarators
 	var rest ast.Expr
 	if !p.scope.inFuncParams {
 		p.scope.inFuncParams = true
@@ -332,7 +332,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 						Static: start,
 					}
 					b.Block = p.parseFunctionBlock(false, true, false)
-					node.Body = append(node.Body, b)
+					node.Body = append(node.Body, ast.ClassElement{Element: b})
 					continue
 				}
 				static = true
@@ -403,7 +403,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 				Static:   static,
 				Computed: computed,
 			}
-			node.Body = append(node.Body, md)
+			node.Body = append(node.Body, ast.ClassElement{Element: md})
 		} else {
 			// field
 			isCtor := !computed && keyName == "constructor"
@@ -425,13 +425,13 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 				p.errorUnexpectedToken(p.token)
 				break
 			}
-			node.Body = append(node.Body, &ast.FieldDefinition{
+			node.Body = append(node.Body, ast.ClassElement{Element: &ast.FieldDefinition{
 				Idx:         start,
 				Key:         ptrExpr(value),
 				Initializer: ptrExpr(initializer),
 				Static:      static,
 				Computed:    computed,
-			})
+			}})
 		}
 	}
 
@@ -690,7 +690,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 				initializer = &ast.ForLoopInitializer{&ast.VariableDeclaration{
 					Idx:   idx,
 					Token: tok,
-					List:  list,
+					List:  &list,
 				}}
 			}
 		} else {
@@ -760,7 +760,7 @@ func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.VariableDeclarati
 	return &ast.VariableDeclaration{
 		Idx:   idx,
 		Token: tok,
-		List:  list,
+		List:  &list,
 	}
 }
 
