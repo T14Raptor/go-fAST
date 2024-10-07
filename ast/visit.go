@@ -79,6 +79,9 @@ type Visitor interface {
 	VisitForIntoExpression(node *ForIntoExpression)
 	VisitForLoopInitializer(node *ForLoopInitializer)
 	VisitConciseBody(node *ConciseBody)
+	VisitFieldDefinition(node *FieldDefinition)
+	VisitMethodDefinition(node *MethodDefinition)
+	VisitClassStaticBlock(node *ClassStaticBlock)
 }
 
 type NoopVisitor struct {
@@ -377,6 +380,18 @@ func (nv *NoopVisitor) VisitConciseBody(node *ConciseBody) {
 	node.VisitChildrenWith(nv.V)
 }
 
+func (nv *NoopVisitor) VisitFieldDefinition(node *FieldDefinition) {
+	node.VisitChildrenWith(nv.V)
+}
+
+func (nv *NoopVisitor) VisitMethodDefinition(node *MethodDefinition) {
+	node.VisitChildrenWith(nv.V)
+}
+
+func (nv *NoopVisitor) VisitClassStaticBlock(node *ClassStaticBlock) {
+	node.VisitChildrenWith(nv.V)
+}
+
 func (n *ConciseBody) VisitWith(v Visitor) {
 	v.VisitConciseBody(n)
 }
@@ -592,8 +607,15 @@ func (c *ClassLiteral) VisitWith(v Visitor) {
 }
 
 func (c *ClassLiteral) VisitChildrenWith(v Visitor) {
-	c.Name.VisitWith(v)
-	c.SuperClass.VisitWith(v)
+	if c.Name != nil {
+		c.Name.VisitWith(v)
+	}
+	if c.SuperClass != nil {
+		c.SuperClass.VisitWith(v)
+	}
+	for _, element := range c.Body {
+		element.(VisitableNode).VisitWith(v)
+	}
 }
 
 func (a *ArrowFunctionLiteral) VisitWith(v Visitor) {
@@ -995,4 +1017,32 @@ func (n *VariableDeclaration) VisitWith(v Visitor) {
 
 func (n *VariableDeclaration) VisitChildrenWith(v Visitor) {
 	n.List.VisitWith(v)
+}
+
+func (n *FieldDefinition) VisitWith(v Visitor) {
+	v.VisitFieldDefinition(n)
+}
+
+func (n *FieldDefinition) VisitChildrenWith(v Visitor) {
+	n.Key.VisitWith(v)
+	if n.Initializer != nil {
+		n.Initializer.VisitWith(v)
+	}
+}
+
+func (n *MethodDefinition) VisitWith(v Visitor) {
+	v.VisitMethodDefinition(n)
+}
+
+func (n *MethodDefinition) VisitChildrenWith(v Visitor) {
+	n.Key.VisitWith(v)
+	n.Body.VisitWith(v)
+}
+
+func (n *ClassStaticBlock) VisitWith(v Visitor) {
+	v.VisitClassStaticBlock(n)
+}
+
+func (n *ClassStaticBlock) VisitChildrenWith(v Visitor) {
+	n.Block.VisitWith(v)
 }
