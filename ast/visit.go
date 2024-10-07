@@ -15,6 +15,7 @@ type Visitor interface {
 	VisitBreakStatement(n *BreakStatement)
 	VisitCallExpression(n *CallExpression)
 	VisitCaseStatement(n *CaseStatement)
+	VisitCaseStatements(n *CaseStatements)
 	VisitCatchStatement(n *CatchStatement)
 	VisitClassDeclaration(n *ClassDeclaration)
 	VisitClassElement(n *ClassElement)
@@ -125,6 +126,9 @@ func (nv *NoopVisitor) VisitCallExpression(n *CallExpression) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitCaseStatement(n *CaseStatement) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitCaseStatements(n *CaseStatements) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitCatchStatement(n *CatchStatement) {
@@ -417,6 +421,14 @@ func (n *CaseStatement) VisitChildrenWith(v Visitor) {
 	}
 	n.Consequent.VisitWith(v)
 }
+func (n *CaseStatements) VisitWith(v Visitor) {
+	v.VisitCaseStatements(n)
+}
+func (n *CaseStatements) VisitChildrenWith(v Visitor) {
+	for i := range *n {
+		(*n)[i].VisitWith(v)
+	}
+}
 func (n *CatchStatement) VisitWith(v Visitor) {
 	v.VisitCatchStatement(n)
 }
@@ -679,7 +691,9 @@ func (n *ParameterList) VisitWith(v Visitor) {
 }
 func (n *ParameterList) VisitChildrenWith(v Visitor) {
 	n.List.VisitWith(v)
-	n.Rest.VisitWith(v)
+	if n.Rest != nil {
+		n.Rest.VisitWith(v)
+	}
 }
 func (n *PrivateDotExpression) VisitWith(v Visitor) {
 	v.VisitPrivateDotExpression(n)
@@ -782,6 +796,7 @@ func (n *SwitchStatement) VisitWith(v Visitor) {
 }
 func (n *SwitchStatement) VisitChildrenWith(v Visitor) {
 	n.Discriminant.VisitWith(v)
+	n.Body.VisitWith(v)
 }
 func (n *TemplateElement) VisitWith(v Visitor) {
 	v.VisitTemplateElement(n)
