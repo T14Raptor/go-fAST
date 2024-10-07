@@ -165,7 +165,7 @@ type (
 	TemplateLiteral struct {
 		OpenQuote   Idx
 		CloseQuote  Idx
-		Tag         *Expression
+		Tag         *Expression `optional:"true"`
 		Elements    TemplateElements
 		Expressions Expressions
 	}

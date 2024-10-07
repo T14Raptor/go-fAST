@@ -817,7 +817,9 @@ func (n *TemplateLiteral) VisitWith(v Visitor) {
 	v.VisitTemplateLiteral(n)
 }
 func (n *TemplateLiteral) VisitChildrenWith(v Visitor) {
-	n.Tag.VisitWith(v)
+	if n.Tag != nil {
+		n.Tag.VisitWith(v)
+	}
 	n.Elements.VisitWith(v)
 	n.Expressions.VisitWith(v)
 }
