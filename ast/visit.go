@@ -611,7 +611,7 @@ func (c *ClassLiteral) VisitChildrenWith(v Visitor) {
 		c.Name.VisitWith(v)
 	}
 	if c.SuperClass != nil {
-		(*c.SuperClass).VisitWith(v)
+		c.SuperClass.VisitWith(v)
 	}
 	for _, element := range c.Body {
 		element.(VisitableNode).VisitWith(v)
