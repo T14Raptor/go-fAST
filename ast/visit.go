@@ -751,7 +751,9 @@ func (n *ReturnStatement) VisitWith(v Visitor) {
 	v.VisitReturnStatement(n)
 }
 func (n *ReturnStatement) VisitChildrenWith(v Visitor) {
-	n.Argument.VisitWith(v)
+	if n.Argument != nil {
+		n.Argument.VisitWith(v)
+	}
 }
 func (n *SequenceExpression) VisitWith(v Visitor) {
 	v.VisitSequenceExpression(n)

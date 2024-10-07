@@ -83,7 +83,7 @@ type (
 
 	ReturnStatement struct {
 		Return   Idx
-		Argument *Expression
+		Argument *Expression `optional:"true"`
 	}
 
 	SwitchStatement struct {
