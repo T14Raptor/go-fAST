@@ -9,6 +9,7 @@ type Visitor interface {
 	VisitAwaitExpression(n *AwaitExpression)
 	VisitBadStatement(n *BadStatement)
 	VisitBinaryExpression(n *BinaryExpression)
+	VisitBindingTarget(n *BindingTarget)
 	VisitBlockStatement(n *BlockStatement)
 	VisitBooleanLiteral(n *BooleanLiteral)
 	VisitBreakStatement(n *BreakStatement)
@@ -30,10 +31,8 @@ type Visitor interface {
 	VisitExpressionStatement(n *ExpressionStatement)
 	VisitExpressions(n *Expressions)
 	VisitFieldDefinition(n *FieldDefinition)
-	VisitForDeclaration(n *ForDeclaration)
 	VisitForInStatement(n *ForInStatement)
-	VisitForIntoExpression(n *ForIntoExpression)
-	VisitForIntoVar(n *ForIntoVar)
+	VisitForInto(n *ForInto)
 	VisitForLoopInitializer(n *ForLoopInitializer)
 	VisitForOfStatement(n *ForOfStatement)
 	VisitForStatement(n *ForStatement)
@@ -57,6 +56,8 @@ type Visitor interface {
 	VisitPrivateDotExpression(n *PrivateDotExpression)
 	VisitPrivateIdentifier(n *PrivateIdentifier)
 	VisitProgram(n *Program)
+	VisitProperties(n *Properties)
+	VisitProperty(n *Property)
 	VisitPropertyKeyed(n *PropertyKeyed)
 	VisitPropertyShort(n *PropertyShort)
 	VisitRegExpLiteral(n *RegExpLiteral)
@@ -106,6 +107,9 @@ func (nv *NoopVisitor) VisitBadStatement(n *BadStatement) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBinaryExpression(n *BinaryExpression) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitBindingTarget(n *BindingTarget) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBlockStatement(n *BlockStatement) {
@@ -171,16 +175,10 @@ func (nv *NoopVisitor) VisitExpressions(n *Expressions) {
 func (nv *NoopVisitor) VisitFieldDefinition(n *FieldDefinition) {
 	n.VisitChildrenWith(nv.V)
 }
-func (nv *NoopVisitor) VisitForDeclaration(n *ForDeclaration) {
-	n.VisitChildrenWith(nv.V)
-}
 func (nv *NoopVisitor) VisitForInStatement(n *ForInStatement) {
 	n.VisitChildrenWith(nv.V)
 }
-func (nv *NoopVisitor) VisitForIntoExpression(n *ForIntoExpression) {
-	n.VisitChildrenWith(nv.V)
-}
-func (nv *NoopVisitor) VisitForIntoVar(n *ForIntoVar) {
+func (nv *NoopVisitor) VisitForInto(n *ForInto) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitForLoopInitializer(n *ForLoopInitializer) {
@@ -250,6 +248,12 @@ func (nv *NoopVisitor) VisitPrivateIdentifier(n *PrivateIdentifier) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitProgram(n *Program) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitProperties(n *Properties) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitProperty(n *Property) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitPropertyKeyed(n *PropertyKeyed) {
@@ -372,6 +376,12 @@ func (n *BinaryExpression) VisitChildrenWith(v Visitor) {
 	n.Left.VisitWith(v)
 	n.Right.VisitWith(v)
 }
+func (n *BindingTarget) VisitWith(v Visitor) {
+	v.VisitBindingTarget(n)
+}
+func (n *BindingTarget) VisitChildrenWith(v Visitor) {
+	n.Target.VisitWith(v)
+}
 func (n *BlockStatement) VisitWith(v Visitor) {
 	v.VisitBlockStatement(n)
 }
@@ -411,7 +421,9 @@ func (n *CatchStatement) VisitWith(v Visitor) {
 	v.VisitCatchStatement(n)
 }
 func (n *CatchStatement) VisitChildrenWith(v Visitor) {
-	n.Parameter.VisitWith(v)
+	if n.Parameter != nil {
+		n.Parameter.VisitWith(v)
+	}
 	n.Body.VisitWith(v)
 }
 func (n *ClassDeclaration) VisitWith(v Visitor) {
@@ -520,12 +532,6 @@ func (n *FieldDefinition) VisitChildrenWith(v Visitor) {
 		n.Initializer.VisitWith(v)
 	}
 }
-func (n *ForDeclaration) VisitWith(v Visitor) {
-	v.VisitForDeclaration(n)
-}
-func (n *ForDeclaration) VisitChildrenWith(v Visitor) {
-	n.Target.VisitWith(v)
-}
 func (n *ForInStatement) VisitWith(v Visitor) {
 	v.VisitForInStatement(n)
 }
@@ -534,17 +540,11 @@ func (n *ForInStatement) VisitChildrenWith(v Visitor) {
 	n.Source.VisitWith(v)
 	n.Body.VisitWith(v)
 }
-func (n *ForIntoExpression) VisitWith(v Visitor) {
-	v.VisitForIntoExpression(n)
+func (n *ForInto) VisitWith(v Visitor) {
+	v.VisitForInto(n)
 }
-func (n *ForIntoExpression) VisitChildrenWith(v Visitor) {
-	n.Expression.VisitWith(v)
-}
-func (n *ForIntoVar) VisitWith(v Visitor) {
-	v.VisitForIntoVar(n)
-}
-func (n *ForIntoVar) VisitChildrenWith(v Visitor) {
-	n.Binding.VisitWith(v)
+func (n *ForInto) VisitChildrenWith(v Visitor) {
+	n.Into.VisitWith(v)
 }
 func (n *ForLoopInitializer) VisitWith(v Visitor) {
 	v.VisitForLoopInitializer(n)
@@ -653,11 +653,13 @@ func (n *ObjectLiteral) VisitWith(v Visitor) {
 	v.VisitObjectLiteral(n)
 }
 func (n *ObjectLiteral) VisitChildrenWith(v Visitor) {
+	n.Value.VisitWith(v)
 }
 func (n *ObjectPattern) VisitWith(v Visitor) {
 	v.VisitObjectPattern(n)
 }
 func (n *ObjectPattern) VisitChildrenWith(v Visitor) {
+	n.Properties.VisitWith(v)
 	n.Rest.VisitWith(v)
 }
 func (n *Optional) VisitWith(v Visitor) {
@@ -697,6 +699,20 @@ func (n *Program) VisitWith(v Visitor) {
 }
 func (n *Program) VisitChildrenWith(v Visitor) {
 	n.Body.VisitWith(v)
+}
+func (n *Properties) VisitWith(v Visitor) {
+	v.VisitProperties(n)
+}
+func (n *Properties) VisitChildrenWith(v Visitor) {
+	for i := range *n {
+		(*n)[i].VisitWith(v)
+	}
+}
+func (n *Property) VisitWith(v Visitor) {
+	v.VisitProperty(n)
+}
+func (n *Property) VisitChildrenWith(v Visitor) {
+	n.Prop.VisitWith(v)
 }
 func (n *PropertyKeyed) VisitWith(v Visitor) {
 	v.VisitPropertyKeyed(n)

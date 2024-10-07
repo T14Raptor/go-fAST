@@ -1,14 +1,5 @@
 package ast
 
-type PropertyKind string
-
-const (
-	PropertyKindValue  PropertyKind = "value"
-	PropertyKindGet    PropertyKind = "get"
-	PropertyKindSet    PropertyKind = "set"
-	PropertyKindMethod PropertyKind = "method"
-)
-
 type (
 	ClassLiteral struct {
 		Class      Idx
@@ -16,23 +7,6 @@ type (
 		Name       *Identifier `optional:"true"`
 		SuperClass *Expression
 		Body       ClassElements
-	}
-
-	Property interface {
-		Expr
-		_property()
-	}
-
-	PropertyShort struct {
-		Name        *Identifier
-		Initializer *Expression
-	}
-
-	PropertyKeyed struct {
-		Key      *Expression
-		Kind     PropertyKind
-		Value    *Expression
-		Computed bool
 	}
 
 	ClassElements []ClassElement
@@ -72,10 +46,6 @@ type (
 func (*ClassLiteral) _expr()  {}
 func (*PropertyShort) _expr() {}
 func (*PropertyKeyed) _expr() {}
-
-func (*PropertyShort) _property() {}
-func (*PropertyKeyed) _property() {}
-func (*SpreadElement) _property() {}
 
 func (*FieldDefinition) _classElement()  {}
 func (*MethodDefinition) _classElement() {}

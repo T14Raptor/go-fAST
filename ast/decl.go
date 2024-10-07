@@ -21,7 +21,7 @@ type (
 	VariableDeclarators []*VariableDeclarator
 
 	VariableDeclarator struct {
-		Target      BindingTarget
+		Target      *BindingTarget
 		Initializer *Expression `optional:"true"`
 	}
 )

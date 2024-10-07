@@ -43,7 +43,7 @@ type (
 
 	CatchStatement struct {
 		Catch     Idx
-		Parameter *BindingTarget
+		Parameter *BindingTarget `optional:"true"`
 		Body      *BlockStatement
 	}
 
@@ -115,20 +115,6 @@ type (
 		Body   *Statement
 	}
 
-	ForInStatement struct {
-		For    Idx
-		Into   *ForInto
-		Source *Expression
-		Body   *Statement
-	}
-
-	ForOfStatement struct {
-		For    Idx
-		Into   *ForInto
-		Source *Expression
-		Body   *Statement
-	}
-
 	ForStatement struct {
 		For         Idx
 		Initializer *ForLoopInitializer `optional:"true"`
@@ -146,32 +132,35 @@ type (
 		_forLoopInitializer()
 	}
 
-	ForInto interface {
+	ForInStatement struct {
+		For    Idx
+		Into   *ForInto
+		Source *Expression
+		Body   *Statement
+	}
+
+	ForOfStatement struct {
+		For    Idx
+		Into   *ForInto
+		Source *Expression
+		Body   *Statement
+	}
+
+	ForInto struct {
+		Into
+	}
+
+	Into interface {
 		VisitableNode
 		_forInto()
-	}
-
-	ForIntoVar struct {
-		Binding *VariableDeclarator
-	}
-
-	ForDeclaration struct {
-		Idx     Idx
-		IsConst bool
-		Target  BindingTarget
-	}
-
-	ForIntoExpression struct {
-		Expression *Expression
 	}
 )
 
 func (*VariableDeclaration) _forLoopInitializer() {}
 func (*Expression) _forLoopInitializer()          {}
 
-func (*ForIntoVar) _forInto()        {}
-func (*ForDeclaration) _forInto()    {}
-func (*ForIntoExpression) _forInto() {}
+func (*VariableDeclaration) _forInto() {}
+func (*Expression) _forInto()          {}
 
 func (*BadStatement) _stmt()        {}
 func (*BlockStatement) _stmt()      {}

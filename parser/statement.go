@@ -128,7 +128,7 @@ func (p *parser) parseTryStatement() ast.Stmt {
 	if p.token == token.Catch {
 		catch := p.idx
 		p.next()
-		var parameter ast.BindingTarget
+		var parameter ast.Target
 		if p.token == token.LeftParenthesis {
 			p.next()
 			parameter = p.parseBindingTarget()
@@ -136,7 +136,7 @@ func (p *parser) parseTryStatement() ast.Stmt {
 		}
 		node.Catch = &ast.CatchStatement{
 			Catch:     catch,
-			Parameter: &parameter,
+			Parameter: &ast.BindingTarget{Target: parameter},
 			Body:      p.parseBlockStatement(),
 		}
 	}
@@ -409,7 +409,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			isCtor := !computed && keyName == "constructor"
 			if !isCtor {
 				if name, ok := value.(*ast.PrivateIdentifier); ok {
-					isCtor = name.Name == "constructor"
+					isCtor = name.Identifier.Name == "constructor"
 				}
 			}
 			if isCtor {
@@ -673,24 +673,17 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 				if list[0].Initializer != nil {
 					p.error("for-in loop variable declaration may not have an initializer")
 				}
-				if tok == token.Var {
-					into = &ast.ForIntoVar{
-						Binding: list[0],
-					}
-				} else {
-					into = &ast.ForDeclaration{
-						Idx:     idx,
-						IsConst: tok == token.Const,
-						Target:  list[0].Target,
-					}
-				}
+				into = ast.ForInto{Into: &ast.VariableDeclaration{
+					Token: tok,
+					List:  ast.VariableDeclarators{list[0]},
+				}}
 			} else {
 				p.ensurePatternInit(list)
 
-				initializer = &ast.ForLoopInitializer{&ast.VariableDeclaration{
+				initializer = &ast.ForLoopInitializer{Initializer: &ast.VariableDeclaration{
 					Idx:   idx,
 					Token: tok,
-					List:  &list,
+					List:  list,
 				}}
 			}
 		} else {
@@ -715,11 +708,9 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 					p.nextStatement()
 					return &ast.BadStatement{From: idx, To: p.idx}
 				}
-				into = &ast.ForIntoExpression{
-					Expression: ptrExpr(expr),
-				}
+				into = ast.ForInto{Into: ptrExpr(expr)}
 			} else {
-				initializer = &ast.ForLoopInitializer{ptrExpr(expr)}
+				initializer = &ast.ForLoopInitializer{Initializer: ptrExpr(expr)}
 			}
 		}
 		p.scope.allowIn = allowIn
@@ -738,7 +729,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 
 func (p *parser) ensurePatternInit(list []*ast.VariableDeclarator) {
 	for _, item := range list {
-		if _, ok := item.Target.(ast.Pattern); ok {
+		if _, ok := item.Target.Target.(ast.Pattern); ok {
 			if item.Initializer == nil {
 				p.error("Missing initializer in destructuring declaration")
 				break
@@ -749,7 +740,7 @@ func (p *parser) ensurePatternInit(list []*ast.VariableDeclarator) {
 
 func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.VariableDeclaration {
 	idx := p.expect(tok)
-	if !p.scope.allowLet && (tok != token.Var) {
+	if !p.scope.allowLet && tok != token.Var {
 		p.error("Lexical declaration cannot appear in a single-statement context")
 	}
 
@@ -760,7 +751,7 @@ func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.VariableDeclarati
 	return &ast.VariableDeclaration{
 		Idx:   idx,
 		Token: tok,
-		List:  &list,
+		List:  list,
 	}
 }
 

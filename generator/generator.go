@@ -176,7 +176,9 @@ func (g *GenVisitor) VisitCaseStatement(n *ast.CaseStatement) {
 }
 
 func (g *GenVisitor) VisitCatchStatement(n *ast.CatchStatement) {
-	g.gen(*n.Parameter)
+	if n.Parameter != nil {
+		g.gen(n.Parameter)
+	}
 	g.gen(n.Body)
 }
 
@@ -250,7 +252,7 @@ func (g *GenVisitor) VisitExpressionStatement(n *ast.ExpressionStatement) {
 
 func (g *GenVisitor) VisitForInStatement(n *ast.ForInStatement) {
 	g.out.WriteString("for (")
-	g.gen(*n.Into)
+	g.gen(n.Into)
 	g.out.WriteString(" in ")
 	g.gen(n.Source.Expr)
 	g.out.WriteString(") ")
@@ -259,15 +261,11 @@ func (g *GenVisitor) VisitForInStatement(n *ast.ForInStatement) {
 
 func (g *GenVisitor) VisitForOfStatement(n *ast.ForOfStatement) {
 	g.out.WriteString("for (")
-	g.gen(*n.Into)
+	g.gen(n.Into)
 	g.out.WriteString(" of ")
 	g.gen(n.Source.Expr)
 	g.out.WriteString(") ")
 	g.gen(n.Body.Stmt)
-}
-
-func (g *GenVisitor) VisitForIntoExpression(n *ast.ForIntoExpression) {
-	g.gen(n.Expression.Expr)
 }
 
 func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
@@ -303,9 +301,15 @@ func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 	}
 }
 
-func (g *GenVisitor) VisitForIntoVar(n *ast.ForIntoVar) {
-	g.out.WriteString("var ")
-	g.gen(n.Binding)
+func (g *GenVisitor) VisitForInto(n *ast.ForInto) {
+	switch into := n.Into.(type) {
+	case *ast.VariableDeclaration:
+		g.out.WriteString(into.Token.String())
+		g.out.WriteString(" ")
+		g.gen(&into.List)
+	case *ast.Expression:
+		g.gen(into)
+	}
 }
 
 func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
@@ -406,7 +410,7 @@ func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 	g.indent++
 	for i, p := range n.Value {
 		g.lineAndPad()
-		g.gen(p)
+		g.gen(p.Prop)
 		if i < len(n.Value)-1 {
 			g.out.WriteString(", ")
 		}
@@ -507,9 +511,12 @@ func (g *GenVisitor) VisitTryStatement(n *ast.TryStatement) {
 	g.gen(n.Body)
 
 	if n.Catch != nil {
-		g.out.WriteString(" catch (")
-		g.gen(*n.Catch.Parameter)
-		g.out.WriteString(") ")
+		g.out.WriteString(" catch ")
+		if n.Catch.Parameter != nil {
+			g.out.WriteString("(")
+			g.gen(n.Catch.Parameter)
+			g.out.WriteString(") ")
+		}
 		g.gen(n.Catch.Body)
 	}
 	if n.Finally != nil {

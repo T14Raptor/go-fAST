@@ -17,13 +17,17 @@ type (
 		_expr()
 	}
 
-	BindingTarget interface {
+	BindingTarget struct {
+		Target
+	}
+
+	Target interface {
 		Expr
 		_bindingTarget()
 	}
 
 	Pattern interface {
-		BindingTarget
+		Target
 		_pattern()
 	}
 
@@ -131,13 +135,13 @@ type (
 	ObjectLiteral struct {
 		LeftBrace  Idx
 		RightBrace Idx
-		Value      []Property
+		Value      Properties
 	}
 
 	ObjectPattern struct {
 		LeftBrace  Idx
 		RightBrace Idx
-		Properties []Property
+		Properties Properties
 		Rest       Expr
 	}
 
@@ -231,3 +235,4 @@ func (*VariableDeclarator) _expr()    {}
 func (*OptionalChain) _expr()         {}
 func (*Optional) _expr()              {}
 func (*SpreadElement) _expr()         {}
+func (*PrivateIdentifier) _expr()     {}

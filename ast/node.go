@@ -97,10 +97,6 @@ func (n *FieldDefinition) Idx0() Idx  { return n.Idx }
 func (n *MethodDefinition) Idx0() Idx { return n.Idx }
 func (n *ClassStaticBlock) Idx0() Idx { return n.Static }
 
-func (n *ForDeclaration) Idx0() Idx    { return n.Idx }
-func (n *ForIntoVar) Idx0() Idx        { return n.Binding.Idx0() }
-func (n *ForIntoExpression) Idx0() Idx { return (*n.Expression).Expr.Idx0() }
-
 func (n *ForLoopInitializer) Idx0() Idx { return 0 }
 
 func (o *Optional) Idx1() Idx              { return (*o.Expr).Expr.Idx1() }
@@ -149,6 +145,12 @@ func (n *UpdateExpression) Idx1() Idx {
 }
 func (n *MetaProperty) Idx1() Idx {
 	return n.Property.Idx1()
+}
+func (n *PrivateIdentifier) Idx0() Idx {
+	return n.Identifier.Idx0()
+}
+func (n *PrivateIdentifier) Idx1() Idx {
+	return n.Identifier.Idx1()
 }
 
 func (n *BadStatement) Idx1() Idx        { return n.To }
@@ -226,10 +228,6 @@ func (y *YieldExpression) Idx1() Idx {
 	}
 	return y.Yield + 5
 }
-
-func (n *ForDeclaration) Idx1() Idx     { return n.Target.Idx1() }
-func (n *ForIntoVar) Idx1() Idx         { return n.Binding.Idx1() }
-func (n *ForIntoExpression) Idx1() Idx  { return (*n.Expression).Expr.Idx1() }
 func (n *ForLoopInitializer) Idx1() Idx { return 0 }
 func (n *ConciseBody) Idx0() Idx        { return n.Body.Idx0() }
 func (n *ConciseBody) Idx1() Idx        { return n.Body.Idx1() }
