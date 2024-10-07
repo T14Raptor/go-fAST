@@ -221,7 +221,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Expr.(type) {
-	case *ast.AssignExpression, *ast.SequenceExpression:
+	case *ast.AssignExpression, *ast.UnaryExpression, *ast.SequenceExpression:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
 		g.out.WriteString(")")
