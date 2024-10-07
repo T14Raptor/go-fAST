@@ -1026,7 +1026,7 @@ func (n *FieldDefinition) VisitWith(v Visitor) {
 func (n *FieldDefinition) VisitChildrenWith(v Visitor) {
 	n.Key.VisitWith(v)
 	if n.Initializer != nil {
-		(*n.Initializer).VisitWith(v)
+		n.Initializer.VisitWith(v)
 	}
 }
 
