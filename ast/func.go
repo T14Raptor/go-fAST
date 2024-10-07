@@ -13,7 +13,7 @@ type (
 	ParameterList struct {
 		Opening Idx
 		List    VariableDeclarators
-		Rest    Expr
+		Rest    Expr `optional:"true"`
 		Closing Idx
 	}
 )

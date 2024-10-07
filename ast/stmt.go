@@ -35,6 +35,8 @@ type (
 		Label *Identifier `optional:"true"`
 	}
 
+	CaseStatements []CaseStatement
+
 	CaseStatement struct {
 		Case       Idx
 		Test       *Expression `optional:"true"`
@@ -88,7 +90,7 @@ type (
 		Switch       Idx
 		Discriminant *Expression
 		Default      int
-		Body         []CaseStatement
+		Body         CaseStatements
 	}
 
 	ThrowStatement struct {
