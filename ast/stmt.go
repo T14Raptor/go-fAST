@@ -88,7 +88,7 @@ type (
 		Switch       Idx
 		Discriminant *Expression
 		Default      int
-		Body         []CaseStatement
+		Body         []*CaseStatement
 	}
 
 	ThrowStatement struct {
