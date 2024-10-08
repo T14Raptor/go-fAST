@@ -194,7 +194,7 @@ func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
 		defer g.out.WriteString(")")
 	}
 	switch n.Test.Expr.(type) {
-	case *ast.AssignExpression:
+	case *ast.AssignExpression, *ast.ConditionalExpression:
 		g.out.WriteString("(")
 		g.gen(n.Test.Expr)
 		g.out.WriteString(")")
@@ -221,7 +221,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Expr.(type) {
-	case *ast.AssignExpression, *ast.UnaryExpression, *ast.SequenceExpression:
+	case *ast.AssignExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
 		g.out.WriteString(")")
