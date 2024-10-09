@@ -649,8 +649,8 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 		g.indent--
 
 		g.lineAndPad()
-		g.out.WriteString("}")
 	}
+	g.out.WriteString("}")
 }
 
 func (g *GenVisitor) VisitSpreadElement(n *ast.SpreadElement) {
