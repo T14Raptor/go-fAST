@@ -1,10 +1,11 @@
 package generator
 
 import (
-	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
 	"strings"
 	"unicode"
+
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
 )
 
 func Generate(node ast.VisitableNode) string {
@@ -485,7 +486,7 @@ func (g *GenVisitor) VisitSwitchStatement(n *ast.SwitchStatement) {
 	g.indent++
 	for _, c := range n.Body {
 		g.lineAndPad()
-		g.gen(&c)
+		g.gen(c)
 	}
 	g.indent--
 
@@ -653,11 +654,11 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			g.out.WriteString(" ")
 			g.gen(e.Body.Body)
 		}
-		g.indent--
-
-		g.lineAndPad()
-		g.out.WriteString("}")
 	}
+	g.indent--
+
+	g.lineAndPad()
+	g.out.WriteString("}")
 }
 
 func (g *GenVisitor) VisitSpreadElement(n *ast.SpreadElement) {
