@@ -672,7 +672,9 @@ func (n *ObjectPattern) VisitWith(v Visitor) {
 }
 func (n *ObjectPattern) VisitChildrenWith(v Visitor) {
 	n.Properties.VisitWith(v)
-	n.Rest.VisitWith(v)
+	if n.Rest != nil {
+		n.Rest.VisitWith(v)
+	}
 }
 func (n *Optional) VisitWith(v Visitor) {
 	v.VisitOptional(n)

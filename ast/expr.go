@@ -142,7 +142,7 @@ type (
 		LeftBrace  Idx
 		RightBrace Idx
 		Properties Properties
-		Rest       Expr
+		Rest       Expr `optional:"true"`
 	}
 
 	SpreadElement struct {
