@@ -901,31 +901,3 @@ func (n *YieldExpression) VisitWith(v Visitor) {
 func (n *YieldExpression) VisitChildrenWith(v Visitor) {
 	n.Argument.VisitWith(v)
 }
-
-func (n *FieldDefinition) VisitWith(v Visitor) {
-	v.VisitFieldDefinition(n)
-}
-
-func (n *FieldDefinition) VisitChildrenWith(v Visitor) {
-	n.Key.VisitWith(v)
-	if n.Initializer != nil {
-		n.Initializer.VisitWith(v)
-	}
-}
-
-func (n *MethodDefinition) VisitWith(v Visitor) {
-	v.VisitMethodDefinition(n)
-}
-
-func (n *MethodDefinition) VisitChildrenWith(v Visitor) {
-	n.Key.VisitWith(v)
-	n.Body.VisitWith(v)
-}
-
-func (n *ClassStaticBlock) VisitWith(v Visitor) {
-	v.VisitClassStaticBlock(n)
-}
-
-func (n *ClassStaticBlock) VisitChildrenWith(v Visitor) {
-	n.Block.VisitWith(v)
-}
