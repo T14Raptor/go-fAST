@@ -321,6 +321,11 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 			g.out.WriteString(", ")
 		}
 	}
+
+	if n.Rest != nil {
+		g.out.WriteString("...")
+		g.gen(n.Rest)
+	}
 	g.out.WriteString(") ")
 }
 
