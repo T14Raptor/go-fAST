@@ -1,5 +1,7 @@
 package ast
 
+//go:generate go run ast/gen_visit.go
+
 // Idx is a compact encoding of a source position within JS code.
 type Idx int
 
@@ -8,6 +10,11 @@ type Node interface {
 	Idx0() Idx
 	// Idx1 returns the index of the first character immediately after the node.
 	Idx1() Idx
+}
+
+type VisitableNode interface {
+	VisitWith(v Visitor)
+	VisitChildrenWith(v Visitor)
 }
 
 type Program struct {
@@ -90,10 +97,6 @@ func (n *FieldDefinition) Idx0() Idx  { return n.Idx }
 func (n *MethodDefinition) Idx0() Idx { return n.Idx }
 func (n *ClassStaticBlock) Idx0() Idx { return n.Static }
 
-func (n *ForDeclaration) Idx0() Idx    { return n.Idx }
-func (n *ForIntoVar) Idx0() Idx        { return n.Binding.Idx0() }
-func (n *ForIntoExpression) Idx0() Idx { return (*n.Expression).Expr.Idx0() }
-
 func (n *ForLoopInitializer) Idx0() Idx { return 0 }
 
 func (o *Optional) Idx1() Idx              { return (*o.Expr).Expr.Idx1() }
@@ -107,7 +110,7 @@ func (b *BinaryExpression) Idx1() Idx      { return (*b.Right).Expr.Idx1() }
 func (b *BooleanLiteral) Idx1() Idx        { return Idx(int(b.Idx) + 4) }
 func (n *CallExpression) Idx1() Idx        { return n.RightParenthesis + 1 }
 func (n *ConditionalExpression) Idx1() Idx { return (*n.Test).Expr.Idx1() }
-func (p *PrivateDotExpression) Idx1() Idx  { return p.Identifier.Idx1() }
+func (p *PrivateDotExpression) Idx1() Idx  { return p.Idx1() }
 func (f *FunctionLiteral) Idx1() Idx       { return f.Body.Idx1() }
 func (c *ClassLiteral) Idx1() Idx          { return c.RightBrace + 1 }
 func (a *ArrowFunctionLiteral) Idx1() Idx  { return a.Body.Body.Idx1() }
@@ -142,6 +145,12 @@ func (n *UpdateExpression) Idx1() Idx {
 }
 func (n *MetaProperty) Idx1() Idx {
 	return n.Property.Idx1()
+}
+func (n *PrivateIdentifier) Idx0() Idx {
+	return n.Identifier.Idx0()
+}
+func (n *PrivateIdentifier) Idx1() Idx {
+	return n.Identifier.Idx1()
 }
 
 func (n *BadStatement) Idx1() Idx        { return n.To }
@@ -219,10 +228,6 @@ func (y *YieldExpression) Idx1() Idx {
 	}
 	return y.Yield + 5
 }
-
-func (n *ForDeclaration) Idx1() Idx     { return n.Target.Idx1() }
-func (n *ForIntoVar) Idx1() Idx         { return n.Binding.Idx1() }
-func (n *ForIntoExpression) Idx1() Idx  { return (*n.Expression).Expr.Idx1() }
 func (n *ForLoopInitializer) Idx1() Idx { return 0 }
 func (n *ConciseBody) Idx0() Idx        { return n.Body.Idx0() }
 func (n *ConciseBody) Idx1() Idx        { return n.Body.Idx1() }

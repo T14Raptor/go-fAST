@@ -270,7 +270,7 @@ func (p *parser) tokenToBindingId() {
 	}
 }
 
-func (p *parser) parseBindingTarget() (target ast.BindingTarget) {
+func (p *parser) parseBindingTarget() (target ast.Target) {
 	p.tokenToBindingId()
 	switch p.token {
 	case token.Identifier:
@@ -292,9 +292,9 @@ func (p *parser) parseBindingTarget() (target ast.BindingTarget) {
 	return
 }
 
-func (p *parser) parseVariableDeclaration(declarationList *[]*ast.VariableDeclarator) *ast.VariableDeclarator {
+func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarators) *ast.VariableDeclarator {
 	node := &ast.VariableDeclarator{
-		Target: p.parseBindingTarget(),
+		Target: &ast.BindingTarget{Target: p.parseBindingTarget()},
 	}
 
 	if declarationList != nil {
@@ -309,7 +309,7 @@ func (p *parser) parseVariableDeclaration(declarationList *[]*ast.VariableDeclar
 	return node
 }
 
-func (p *parser) parseVariableDeclarationList() (declarationList []*ast.VariableDeclarator) {
+func (p *parser) parseVariableDeclarationList() (declarationList ast.VariableDeclarators) {
 	for {
 		p.parseVariableDeclaration(&declarationList)
 		if p.token != token.Comma {
@@ -370,7 +370,7 @@ func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token
 	return literal, parsedLiteral, value, tkn
 }
 
-func (p *parser) parseObjectProperty() ast.Property {
+func (p *parser) parseObjectProperty() ast.Prop {
 	if p.token == token.Ellipsis {
 		p.next()
 		return &ast.SpreadElement{
@@ -498,7 +498,7 @@ func (p *parser) parseObjectLiteral() *ast.ObjectLiteral {
 	for p.token != token.RightBrace && p.token != token.Eof {
 		property := p.parseObjectProperty()
 		if property != nil {
-			value = append(value, property)
+			value = append(value, ast.Property{Prop: property})
 		}
 		if p.token != token.RightBrace {
 			p.expect(token.Comma)
@@ -1179,7 +1179,7 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 		Opening: id.Idx,
 		Closing: id.Idx1(),
 		List: []*ast.VariableDeclarator{{
-			Target: id,
+			Target: &ast.BindingTarget{Target: id},
 		}},
 	}
 
@@ -1249,7 +1249,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 				Opening: id.Idx,
 				Closing: id.Idx1() - 1,
 				List: []*ast.VariableDeclarator{{
-					Target: id,
+					Target: &ast.BindingTarget{Target: id},
 				}},
 			}
 		} else if parenthesis {
@@ -1406,7 +1406,7 @@ func (p *parser) reinterpretArrayAssignPatternAsBinding(pattern *ast.ArrayPatter
 	return pattern
 }
 
-func (p *parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) ast.BindingTarget {
+func (p *parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) ast.Target {
 	value := left.Value
 	var rest ast.Expr
 	for i, item := range value {
@@ -1430,17 +1430,17 @@ func (p *parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) ast.Bi
 	}
 }
 
-func (p *parser) parseArrayBindingPattern() ast.BindingTarget {
+func (p *parser) parseArrayBindingPattern() ast.Target {
 	return p.reinterpretAsArrayBindingPattern(p.parseArrayLiteral())
 }
 
-func (p *parser) parseObjectBindingPattern() ast.BindingTarget {
+func (p *parser) parseObjectBindingPattern() ast.Target {
 	return p.reinterpretAsObjectBindingPattern(p.parseObjectLiteral())
 }
 
 func (p *parser) reinterpretArrayObjectPatternAsBinding(pattern *ast.ObjectPattern) *ast.ObjectPattern {
 	for _, prop := range pattern.Properties {
-		if keyed, ok := prop.(*ast.PropertyKeyed); ok {
+		if keyed, ok := prop.Prop.(*ast.PropertyKeyed); ok {
 			keyed.Value = ptrExpr(p.reinterpretAsBindingElement(keyed.Value.Expr))
 		}
 	}
@@ -1450,12 +1450,12 @@ func (p *parser) reinterpretArrayObjectPatternAsBinding(pattern *ast.ObjectPatte
 	return pattern
 }
 
-func (p *parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) ast.BindingTarget {
+func (p *parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) ast.Target {
 	var rest ast.Expr
 	value := expr.Value
 	for i, prop := range value {
 		ok := false
-		switch prop := prop.(type) {
+		switch prop := prop.Prop.(type) {
 		case *ast.PropertyKeyed:
 			if prop.Kind == ast.PropertyKindValue {
 				prop.Value = ptrExpr(p.reinterpretAsBindingElement(prop.Value.Expr))
@@ -1491,7 +1491,7 @@ func (p *parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) ast.
 	value := l.Value
 	for i, prop := range value {
 		ok := false
-		switch prop := prop.(type) {
+		switch prop := prop.Prop.(type) {
 		case *ast.PropertyKeyed:
 			if prop.Kind == ast.PropertyKindValue {
 				prop.Value = ptrExpr(p.reinterpretAsAssignmentElement(prop.Value.Expr))
@@ -1557,18 +1557,18 @@ func (p *parser) reinterpretAsBinding(expr ast.Expr) *ast.VariableDeclarator {
 	case *ast.AssignExpression:
 		if expr.Operator == token.Assign {
 			return &ast.VariableDeclarator{
-				Target:      p.reinterpretAsDestructBindingTarget(expr.Left.Expr),
+				Target:      &ast.BindingTarget{Target: p.reinterpretAsDestructBindingTarget(expr.Left.Expr)},
 				Initializer: expr.Right,
 			}
 		} else {
 			p.error("Invalid destructuring assignment target")
 			return &ast.VariableDeclarator{
-				Target: &ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()},
+				Target: &ast.BindingTarget{Target: &ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()}},
 			}
 		}
 	default:
 		return &ast.VariableDeclarator{
-			Target: p.reinterpretAsDestructBindingTarget(expr),
+			Target: &ast.BindingTarget{Target: p.reinterpretAsDestructBindingTarget(expr)},
 		}
 	}
 }
@@ -1588,7 +1588,7 @@ func (p *parser) reinterpretAsDestructAssignTarget(item ast.Expr) ast.Expr {
 	return &ast.InvalidExpression{From: item.Idx0(), To: item.Idx1()}
 }
 
-func (p *parser) reinterpretAsDestructBindingTarget(item ast.Expr) ast.BindingTarget {
+func (p *parser) reinterpretAsDestructBindingTarget(item ast.Expr) ast.Target {
 	switch item := item.(type) {
 	case nil:
 		return nil

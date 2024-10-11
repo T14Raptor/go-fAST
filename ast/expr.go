@@ -7,7 +7,7 @@ type (
 
 	// Expression is a struct to allow defining methods on it.
 	Expression struct {
-		Expr
+		Expr `optional:"true"`
 	}
 
 	// All expression nodes implement the Expr interface.
@@ -17,13 +17,17 @@ type (
 		_expr()
 	}
 
-	BindingTarget interface {
+	BindingTarget struct {
+		Target
+	}
+
+	Target interface {
 		Expr
 		_bindingTarget()
 	}
 
 	Pattern interface {
-		BindingTarget
+		Target
 		_pattern()
 	}
 
@@ -117,7 +121,7 @@ type (
 	}
 
 	PrivateIdentifier struct {
-		*Identifier
+		Identifier *Identifier
 	}
 
 	NewExpression struct {
@@ -131,13 +135,13 @@ type (
 	ObjectLiteral struct {
 		LeftBrace  Idx
 		RightBrace Idx
-		Value      []Property
+		Value      Properties
 	}
 
 	ObjectPattern struct {
 		LeftBrace  Idx
 		RightBrace Idx
-		Properties []Property
+		Properties Properties
 		Rest       Expr
 	}
 
@@ -149,6 +153,8 @@ type (
 		Sequence Expressions
 	}
 
+	TemplateElements []TemplateElement
+
 	TemplateElement struct {
 		Idx     Idx
 		Literal string
@@ -159,8 +165,8 @@ type (
 	TemplateLiteral struct {
 		OpenQuote   Idx
 		CloseQuote  Idx
-		Tag         *Expression
-		Elements    []TemplateElement
+		Tag         *Expression `optional:"true"`
+		Elements    TemplateElements
 		Expressions Expressions
 	}
 
@@ -229,3 +235,4 @@ func (*VariableDeclarator) _expr()    {}
 func (*OptionalChain) _expr()         {}
 func (*Optional) _expr()              {}
 func (*SpreadElement) _expr()         {}
+func (*PrivateIdentifier) _expr()     {}

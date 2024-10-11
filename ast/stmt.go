@@ -4,7 +4,7 @@ type (
 	Statements []Statement
 
 	Statement struct {
-		Stmt
+		Stmt `optional:"true"`
 	}
 
 	// All statement nodes implement the Stmt interface.
@@ -27,23 +27,25 @@ type (
 
 	BreakStatement struct {
 		Idx   Idx
-		Label *Identifier
+		Label *Identifier `optional:"true"`
 	}
 
 	ContinueStatement struct {
 		Idx   Idx
-		Label *Identifier
+		Label *Identifier `optional:"true"`
 	}
+
+	CaseStatements []CaseStatement
 
 	CaseStatement struct {
 		Case       Idx
-		Test       *Expression
+		Test       *Expression `optional:"true"`
 		Consequent Statements
 	}
 
 	CatchStatement struct {
 		Catch     Idx
-		Parameter *BindingTarget
+		Parameter *BindingTarget `optional:"true"`
 		Body      *BlockStatement
 	}
 
@@ -70,7 +72,7 @@ type (
 		If         Idx
 		Test       *Expression
 		Consequent *Statement
-		Alternate  *Statement
+		Alternate  *Statement `optional:"true"`
 	}
 
 	LabelledStatement struct {
@@ -81,14 +83,14 @@ type (
 
 	ReturnStatement struct {
 		Return   Idx
-		Argument *Expression
+		Argument *Expression `optional:"true"`
 	}
 
 	SwitchStatement struct {
 		Switch       Idx
 		Discriminant *Expression
 		Default      int
-		Body         []*CaseStatement
+		Body         CaseStatements
 	}
 
 	ThrowStatement struct {
@@ -99,8 +101,8 @@ type (
 	TryStatement struct {
 		Try     Idx
 		Body    *BlockStatement
-		Catch   *CatchStatement
-		Finally *BlockStatement
+		Catch   *CatchStatement `optional:"true"`
+		Finally *BlockStatement `optional:"true"`
 	}
 
 	WhileStatement struct {
@@ -113,6 +115,23 @@ type (
 		With   Idx
 		Object *Expression
 		Body   *Statement
+	}
+
+	ForStatement struct {
+		For         Idx
+		Initializer *ForLoopInitializer `optional:"true"`
+		Update      *Expression
+		Test        *Expression
+		Body        *Statement
+	}
+
+	ForLoopInitializer struct {
+		Initializer ForLoopInit
+	}
+
+	ForLoopInit interface {
+		VisitableNode
+		_forLoopInitializer()
 	}
 
 	ForInStatement struct {
@@ -129,49 +148,21 @@ type (
 		Body   *Statement
 	}
 
-	ForStatement struct {
-		For         Idx
-		Initializer *ForLoopInitializer
-		Update      *Expression
-		Test        *Expression
-		Body        *Statement
+	ForInto struct {
+		Into
 	}
 
-	ForLoopInitializer struct {
-		Initializer ForLoopInit
-	}
-
-	ForLoopInit interface {
-		VisitableNode
-		_forLoopInitializer()
-	}
-
-	ForInto interface {
+	Into interface {
 		VisitableNode
 		_forInto()
-	}
-
-	ForIntoVar struct {
-		Binding *VariableDeclarator
-	}
-
-	ForDeclaration struct {
-		Idx     Idx
-		IsConst bool
-		Target  BindingTarget
-	}
-
-	ForIntoExpression struct {
-		Expression *Expression
 	}
 )
 
 func (*VariableDeclaration) _forLoopInitializer() {}
 func (*Expression) _forLoopInitializer()          {}
 
-func (*ForIntoVar) _forInto()        {}
-func (*ForDeclaration) _forInto()    {}
-func (*ForIntoExpression) _forInto() {}
+func (*VariableDeclaration) _forInto() {}
+func (*Expression) _forInto()          {}
 
 func (*BadStatement) _stmt()        {}
 func (*BlockStatement) _stmt()      {}
