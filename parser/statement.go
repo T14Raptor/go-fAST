@@ -527,7 +527,7 @@ func (p *parser) parseSwitchStatement() ast.Stmt {
 			}
 			node.Default = index
 		}
-		node.Body = append(node.Body, &clause)
+		node.Body = append(node.Body, clause)
 	}
 
 	return node

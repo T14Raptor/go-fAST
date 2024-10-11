@@ -486,7 +486,7 @@ func (g *GenVisitor) VisitSwitchStatement(n *ast.SwitchStatement) {
 	g.indent++
 	for _, c := range n.Body {
 		g.lineAndPad()
-		g.gen(c)
+		g.gen(&c)
 	}
 	g.indent--
 
