@@ -32,7 +32,7 @@ func NewHoister(resolver *Resolver) *Hoister {
 func (h *Hoister) addIdent(id *ast.Identifier) {
 	if h.inCatchBody {
 		if _, ok := h.catchParamDecls[id.Name]; ok {
-			if r, _ := h.resolver.markForRef(id.Name); r != UnresolvedMark {
+			if r, _ := h.resolver.lookupContext(id.Name); r != UnresolvedMark {
 				return
 			}
 		}

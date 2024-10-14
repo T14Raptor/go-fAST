@@ -72,7 +72,7 @@ const (
 func NewResolver() *Resolver {
 	r := &Resolver{
 		identType: IdentTypeRef,
-		nextCtxt:  TopLevelMark + 1,
+		nextCtxt:  TopLevelMark,
 	}
 	r.V = r
 
@@ -116,7 +116,7 @@ func (r *Resolver) modify(id *ast.Identifier, kind DeclKind) {
 	id.ScopeContext = r.current.mark
 }
 
-func (r *Resolver) markForRef(sym string) (ast.ScopeContext, *Scope) {
+func (r *Resolver) lookupContext(sym string) (ast.ScopeContext, *Scope) {
 	for scope := r.current; scope != nil; scope = scope.parent {
 		if _, exists := scope.declaredSymbols[sym]; exists {
 			return scope.mark, scope
@@ -229,7 +229,9 @@ func (r *Resolver) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 		decl.Target.VisitWith(r)
 		r.identType = oldIdentType
 
-		decl.Initializer.VisitChildrenWith(r)
+		if decl.Initializer != nil {
+			decl.Initializer.VisitChildrenWith(r)
+		}
 	}
 
 	r.declKind = oldDeclKind
@@ -255,7 +257,7 @@ func (r *Resolver) VisitIdentifier(n *ast.Identifier) {
 	case IdentTypeBinding:
 		r.modify(n, r.declKind)
 	case IdentTypeRef:
-		if mark, _ := r.markForRef(n.Name); mark != UnresolvedMark {
+		if mark, _ := r.lookupContext(n.Name); mark != UnresolvedMark {
 			n.ScopeContext = mark
 		} else {
 			r.modify(n, r.declKind)
