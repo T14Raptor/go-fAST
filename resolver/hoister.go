@@ -1,16 +1,21 @@
 package resolver
 
-import "github.com/t14raptor/go-fast/ast"
+import (
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
+)
 
-/*
-	Loosely inspired from https://rustdoc.swc.rs/swc_ecma_transforms_base/fn.resolver.html
-*/
+// Loosely inspired from https://rustdoc.swc.rs/swc_ecma_transforms_base/fn.resolver.html
 
 type Hoister struct {
-	resolver          *Resolver
-	kind              DeclKind
-	inBlock           bool
-	inCatchBody       bool
+	ast.NoopVisitor
+
+	resolver *Resolver
+	kind     DeclKind
+	inBlock  bool
+
+	inCatchBody bool
+
 	excludedFromCatch map[string]struct{}
 	catchParamDecls   map[string]struct{}
 }
@@ -19,70 +24,73 @@ func NewHoister(resolver *Resolver) *Hoister {
 	return &Hoister{
 		resolver:          resolver,
 		kind:              DeclKindVar,
-		inBlock:           false,
-		inCatchBody:       false,
 		excludedFromCatch: make(map[string]struct{}),
 		catchParamDecls:   make(map[string]struct{}),
-	}
-}
-
-func (h *Hoister) addPatId(id *ast.Identifier) {
-	if h.inCatchBody {
-		if _, ok := h.catchParamDecls[id.Name]; ok {
-			r, _ := h.resolver.markForRef(id.Name)
-			if r != UnresolvedMark {
-				return
-			}
-		}
-		h.excludedFromCatch[id.Name] = struct{}{}
-	} else {
-		if _, ok := h.catchParamDecls[id.Name]; ok {
-			if _, excluded := h.excludedFromCatch[id.Name]; !excluded {
-				return
-			}
-		}
-	}
-	h.resolver.modify(id, h.kind)
-}
-
-func (h *Hoister) VisitVariableStatement(n *ast.VariableDeclaration) {
-	if h.inBlock {
-		//if n.Kind != ast.VarKind {
-		//	return
-		//}
-	}
-
-	oldKind := h.kind
-	h.kind = DeclKindVar
-	for _, decl := range n.List {
-		h.VisitVariableDeclarator(decl)
-	}
-	h.kind = oldKind
-}
-
-func (h *Hoister) VisitVariableDeclarator(n *ast.VariableDeclarator) {
-	if ident, ok := n.Target.Target.(*ast.Identifier); ok {
-		h.addIdent(ident)
 	}
 }
 
 func (h *Hoister) addIdent(id *ast.Identifier) {
 	if h.inCatchBody {
 		if _, ok := h.catchParamDecls[id.Name]; ok {
-			r, _ := h.resolver.markForRef(id.Name)
-			if r != UnresolvedMark {
+			if r, _ := h.resolver.markForRef(id.Name); r != UnresolvedMark {
 				return
 			}
 		}
+
 		h.excludedFromCatch[id.Name] = struct{}{}
-	} else {
-		if _, ok := h.catchParamDecls[id.Name]; ok {
-			if _, excluded := h.excludedFromCatch[id.Name]; !excluded {
-				return
-			}
+	} else if _, ok := h.catchParamDecls[id.Name]; ok {
+		if _, excluded := h.excludedFromCatch[id.Name]; !excluded {
+			return
 		}
 	}
+
 	h.resolver.modify(id, h.kind)
+}
+
+func (h *Hoister) VisitBlockStatement(n *ast.BlockStatement) {
+	old := h.inBlock
+	h.inBlock = true
+	n.VisitChildrenWith(h)
+	h.inBlock = old
+}
+
+func (h *Hoister) VisitStatements(n *ast.Statements) {
+	others := make(ast.Statements, 0, len(*n))
+	for i := range *n {
+		switch it := (*n)[i].Stmt.(type) {
+		case *ast.VariableDeclaration:
+			it.VisitWith(h)
+		case *ast.FunctionDeclaration:
+			it.VisitWith(h)
+		default:
+			others = append(others, (*n)[i])
+		}
+	}
+
+	for i := range others {
+		others[i].VisitWith(h)
+	}
+}
+
+func (h *Hoister) VisitVariableDeclaration(n *ast.VariableDeclaration) {
+	if h.inBlock {
+		if n.Token != token.Var {
+			return
+		}
+	}
+
+	oldKind := h.kind
+	h.kind = DeclKindVar
+	n.VisitChildrenWith(h)
+	h.kind = oldKind
+}
+
+func (h *Hoister) VisitBindingTarget(n *ast.BindingTarget) {
+	if ident, ok := n.Target.(*ast.Identifier); ok {
+		h.addIdent(ident)
+		return
+	}
+	n.VisitChildrenWith(h)
 }
 
 func (h *Hoister) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
@@ -92,11 +100,24 @@ func (h *Hoister) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 
 	if h.inBlock {
 		if symbol := h.resolver.current.findVarInfo(n.Function.Name.Name); symbol != nil {
-			//if symbol.DeclType == DeclKindLexical || symbol.DeclType == DeclKindParam {
-			//	return
-			//}
+			if symbol.DeclKind != DeclKindVar && symbol.DeclKind != DeclKindFunction {
+				return
+			}
 		}
 	}
 
 	h.resolver.modify(n.Function.Name, DeclKindFunction)
 }
+
+func (h *Hoister) VisitSwitchStatement(n *ast.SwitchStatement) {
+	n.Discriminant.VisitWith(h)
+
+	old := h.inBlock
+	h.inBlock = true
+	n.Body.VisitWith(h)
+	h.inBlock = old
+}
+
+func (h *Hoister) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {}
+func (h *Hoister) VisitExpression(n *ast.Expression)                     {}
+func (h *Hoister) VisitFunctionLiteral(n *ast.FunctionLiteral)           {}
