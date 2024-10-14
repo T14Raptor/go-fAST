@@ -465,7 +465,9 @@ func (n *ClassLiteral) VisitChildrenWith(v Visitor) {
 	if n.Name != nil {
 		n.Name.VisitWith(v)
 	}
-	n.SuperClass.VisitWith(v)
+	if n.SuperClass != nil {
+		n.SuperClass.VisitWith(v)
+	}
 	n.Body.VisitWith(v)
 }
 func (n *ClassStaticBlock) VisitWith(v Visitor) {

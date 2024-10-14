@@ -5,7 +5,7 @@ type (
 		Class      Idx
 		RightBrace Idx
 		Name       *Identifier `optional:"true"`
-		SuperClass *Expression
+		SuperClass *Expression `optional:"true"`
 		Body       ClassElements
 	}
 
