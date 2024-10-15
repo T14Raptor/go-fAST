@@ -3,6 +3,7 @@ package resolver
 import (
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
+	"maps"
 )
 
 // Loosely inspired from https://rustdoc.swc.rs/swc_ecma_transforms_base/fn.resolver.html
@@ -54,6 +55,27 @@ func (h *Hoister) VisitBlockStatement(n *ast.BlockStatement) {
 	h.inBlock = old
 }
 
+func (h *Hoister) VisitCatchStatement(n *ast.CatchStatement) {
+	oldExclude := h.excludedFromCatch
+	h.excludedFromCatch = make(map[string]struct{})
+	oldInCatchBody := h.inCatchBody
+
+	if params := findIds(n.Parameter); len(params) == 1 {
+		h.catchParamDecls[params[0].Name] = struct{}{}
+	}
+
+	old := maps.Clone(h.catchParamDecls)
+
+	h.inCatchBody = true
+	n.Body.VisitWith(h)
+	h.inCatchBody = false
+	n.Parameter.VisitWith(h)
+
+	h.catchParamDecls = old
+	h.inCatchBody = oldInCatchBody
+	h.excludedFromCatch = oldExclude
+}
+
 func (h *Hoister) VisitStatements(n *ast.Statements) {
 	others := make(ast.Statements, 0, len(*n))
 	for i := range *n {
@@ -73,10 +95,8 @@ func (h *Hoister) VisitStatements(n *ast.Statements) {
 }
 
 func (h *Hoister) VisitVariableDeclaration(n *ast.VariableDeclaration) {
-	if h.inBlock {
-		if n.Token != token.Var {
-			return
-		}
+	if h.inBlock && n.Token != token.Var {
+		return
 	}
 
 	oldKind := h.kind
@@ -99,8 +119,8 @@ func (h *Hoister) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 	}
 
 	if h.inBlock {
-		if symbol := h.resolver.current.findVarInfo(n.Function.Name.Name); symbol != nil {
-			if symbol.DeclKind != DeclKindVar && symbol.DeclKind != DeclKindFunction {
+		if kind, declared := h.resolver.current.isDeclared(n.Function.Name.Name); declared {
+			if kind != DeclKindVar && kind != DeclKindFunction {
 				return
 			}
 		}
@@ -121,3 +141,23 @@ func (h *Hoister) VisitSwitchStatement(n *ast.SwitchStatement) {
 func (h *Hoister) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {}
 func (h *Hoister) VisitExpression(n *ast.Expression)                     {}
 func (h *Hoister) VisitFunctionLiteral(n *ast.FunctionLiteral)           {}
+
+type idsFinder struct {
+	ast.NoopVisitor
+
+	found []ast.Id
+}
+
+func findIds(n ast.VisitableNode) []ast.Id {
+	v := &idsFinder{}
+	v.V = v
+	n.VisitWith(v)
+
+	return v.found
+}
+
+func (v *idsFinder) VisitExpression(n *ast.Expression) {}
+
+func (v *idsFinder) VisitIdentifier(n *ast.Identifier) {
+	v.found = append(v.found, n.ToId())
+}

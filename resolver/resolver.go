@@ -26,31 +26,23 @@ const (
 	ScopeKindFunction
 )
 
-type VarInfo struct {
-	DeclKind   DeclKind
-	Identifier *ast.Identifier
-	Value      *ast.Expression
-}
-
 type Scope struct {
 	parent *Scope
 
 	kind ScopeKind
 
-	mark ast.ScopeContext
+	ctx ast.ScopeContext
 
 	declaredSymbols map[string]DeclKind
-	vars            map[string]*VarInfo
 }
 
-func (s *Scope) findVarInfo(id string) *VarInfo {
-	if v, ok := s.vars[id]; ok {
-		return v
+func (s *Scope) isDeclared(id string) (DeclKind, bool) {
+	for scope := s; scope != nil; scope = scope.parent {
+		if declKind, exists := scope.declaredSymbols[id]; exists {
+			return declKind, true
+		}
 	}
-	if s.parent != nil {
-		return s.parent.findVarInfo(id)
-	}
-	return nil
+	return 0, false
 }
 
 type Resolver struct {
@@ -85,18 +77,15 @@ func Resolve(p *ast.Program) *Resolver {
 	return resolver
 }
 
-func (r *Resolver) newCtxt() ast.ScopeContext {
-	ctxt := r.nextCtxt
-	r.nextCtxt++
-	return ctxt
-}
-
 func (r *Resolver) pushScope(kind ScopeKind) {
+	ctx := r.nextCtxt
+	r.nextCtxt++
+
 	r.current = &Scope{
 		parent:          r.current,
 		kind:            kind,
 		declaredSymbols: make(map[string]DeclKind),
-		mark:            r.newCtxt(),
+		ctx:             ctx,
 	}
 }
 
@@ -113,16 +102,20 @@ func (r *Resolver) modify(id *ast.Identifier, kind DeclKind) {
 
 	r.current.declaredSymbols[id.Name] = kind
 
-	id.ScopeContext = r.current.mark
+	id.ScopeContext = r.current.ctx
 }
 
 func (r *Resolver) lookupContext(sym string) (ast.ScopeContext, *Scope) {
 	for scope := r.current; scope != nil; scope = scope.parent {
 		if _, exists := scope.declaredSymbols[sym]; exists {
-			return scope.mark, scope
+			return scope.ctx, scope
 		}
 	}
 	return UnresolvedMark, nil
+}
+
+func (r *Resolver) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
+	n.VisitChildrenWith(r)
 }
 
 func (r *Resolver) VisitBlockStatement(n *ast.BlockStatement) {
@@ -143,9 +136,9 @@ func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
 	// Handle the 'Source' part (right-hand side of for...of)
 	n.Source.VisitWith(r)
 
-	//if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
-	//	//r.markBlock(&blockStmt.ScopeContext)
-	//}
+	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
+		blockStmt.ScopeContext = r.current.ctx
+	}
 	n.Body.VisitWith(r)
 
 	r.identType = oldIdentType
