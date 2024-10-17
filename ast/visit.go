@@ -384,9 +384,7 @@ func (n *BindingTarget) VisitWith(v Visitor) {
 	v.VisitBindingTarget(n)
 }
 func (n *BindingTarget) VisitChildrenWith(v Visitor) {
-	if n.Target != nil {
-		n.Target.VisitWith(v)
-	}
+	n.Target.VisitWith(v)
 }
 func (n *BlockStatement) VisitWith(v Visitor) {
 	v.VisitBlockStatement(n)
