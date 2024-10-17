@@ -118,6 +118,8 @@ type (
 		ParameterList ParameterList
 		Body          *ConciseBody
 		Async         bool
+
+		ScopeContext ScopeContext
 	}
 
 	PrivateIdentifier struct {

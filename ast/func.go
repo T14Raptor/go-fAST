@@ -8,6 +8,8 @@ type (
 		Body          *BlockStatement
 
 		Async, Generator bool
+
+		ScopeContext ScopeContext
 	}
 
 	ParameterList struct {
