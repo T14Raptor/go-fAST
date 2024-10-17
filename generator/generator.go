@@ -53,7 +53,6 @@ func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 	g.out.WriteString(" => ")
 	g.gen(n.Body)
 }
-
 func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 	g.out.WriteString("[")
 	for i, ex := range n.Value {
