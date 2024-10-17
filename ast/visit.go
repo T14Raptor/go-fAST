@@ -596,9 +596,7 @@ func (n *FunctionLiteral) VisitWith(v Visitor) {
 }
 func (n *FunctionLiteral) VisitChildrenWith(v Visitor) {
 	n.Name.VisitWith(v)
-	if n.ParameterList != nil {
-		n.ParameterList.VisitWith(v)
-	}
+	n.ParameterList.VisitWith(v)
 	n.Body.VisitWith(v)
 }
 func (n *Identifier) VisitWith(v Visitor) {
