@@ -4,7 +4,7 @@ type (
 	FunctionLiteral struct {
 		Function      Idx
 		Name          *Identifier
-		ParameterList ParameterList
+		ParameterList ParameterList `optional:"true"`
 		Body          *BlockStatement
 
 		Async, Generator bool
