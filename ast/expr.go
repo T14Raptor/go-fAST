@@ -18,7 +18,7 @@ type (
 	}
 
 	BindingTarget struct {
-		Target `optional:"true"`
+		Target
 	}
 
 	Target interface {
