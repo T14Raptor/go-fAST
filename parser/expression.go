@@ -141,7 +141,7 @@ func (p *parser) parseSuperProperty() ast.Expr {
 
 func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.ParameterList {
 	firstRestIdx := -1
-	params := make([]*ast.VariableDeclarator, 0, len(list))
+	params := make([]ast.VariableDeclarator, 0, len(list))
 	for i, item := range list {
 		if _, ok := item.Expr.(*ast.SpreadElement); ok {
 			if firstRestIdx == -1 {
@@ -292,13 +292,9 @@ func (p *parser) parseBindingTarget() (target ast.Target) {
 	return
 }
 
-func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarators) *ast.VariableDeclarator {
+func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarators) ast.VariableDeclarator {
 	node := &ast.VariableDeclarator{
 		Target: &ast.BindingTarget{Target: p.parseBindingTarget()},
-	}
-
-	if declarationList != nil {
-		*declarationList = append(*declarationList, node)
 	}
 
 	if p.token == token.Assign {
@@ -306,7 +302,11 @@ func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarato
 		node.Initializer = ptrExpr(p.parseAssignmentExpression())
 	}
 
-	return node
+	if declarationList != nil {
+		*declarationList = append(*declarationList, *node)
+	}
+
+	return *node
 }
 
 func (p *parser) parseVariableDeclarationList() (declarationList ast.VariableDeclarators) {
@@ -374,7 +374,7 @@ func (p *parser) parseObjectProperty() ast.Prop {
 	if p.token == token.Ellipsis {
 		p.next()
 		return &ast.SpreadElement{
-			Expression: ast.Expression{Expr: p.parseAssignmentExpression()},
+			Expression: &ast.Expression{Expr: p.parseAssignmentExpression()},
 		}
 	}
 	keyStartIdx := p.idx
@@ -527,7 +527,7 @@ func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 		if p.token == token.Ellipsis {
 			p.next()
 			value = append(value, ast.Expression{Expr: &ast.SpreadElement{
-				Expression: ast.Expression{Expr: p.parseAssignmentExpression()},
+				Expression: &ast.Expression{Expr: p.parseAssignmentExpression()},
 			}})
 		} else {
 			value = append(value, ast.Expression{Expr: p.parseAssignmentExpression()})
@@ -592,7 +592,7 @@ func (p *parser) parseArgumentList() (argumentList ast.Expressions, idx0, idx1 a
 		if p.token == token.Ellipsis {
 			p.next()
 			item = &ast.SpreadElement{
-				Expression: ast.Expression{Expr: p.parseAssignmentExpression()},
+				Expression: &ast.Expression{Expr: p.parseAssignmentExpression()},
 			}
 		} else {
 			item = p.parseAssignmentExpression()
@@ -628,7 +628,7 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 		p.next()
 		return &ast.PrivateDotExpression{
 			Left: ptrExpr(left),
-			Identifier: ast.PrivateIdentifier{
+			Identifier: &ast.PrivateIdentifier{
 				Identifier: &ast.Identifier{
 					Idx:  idx,
 					Name: literal,
@@ -1178,7 +1178,7 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 	paramList := ast.ParameterList{
 		Opening: id.Idx,
 		Closing: id.Idx1(),
-		List: []*ast.VariableDeclarator{{
+		List: ast.VariableDeclarators{{
 			Target: &ast.BindingTarget{Target: id},
 		}},
 	}
@@ -1248,7 +1248,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 			paramList = &ast.ParameterList{
 				Opening: id.Idx,
 				Closing: id.Idx1() - 1,
-				List: []*ast.VariableDeclarator{{
+				List: ast.VariableDeclarators{{
 					Target: &ast.BindingTarget{Target: id},
 				}},
 			}
@@ -1552,22 +1552,22 @@ func (p *parser) reinterpretAsBindingElement(expr ast.Expr) ast.Expr {
 	}
 }
 
-func (p *parser) reinterpretAsBinding(expr ast.Expr) *ast.VariableDeclarator {
+func (p *parser) reinterpretAsBinding(expr ast.Expr) ast.VariableDeclarator {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
 		if expr.Operator == token.Assign {
-			return &ast.VariableDeclarator{
+			return ast.VariableDeclarator{
 				Target:      &ast.BindingTarget{Target: p.reinterpretAsDestructBindingTarget(expr.Left.Expr)},
 				Initializer: expr.Right,
 			}
 		} else {
 			p.error("Invalid destructuring assignment target")
-			return &ast.VariableDeclarator{
+			return ast.VariableDeclarator{
 				Target: &ast.BindingTarget{Target: &ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()}},
 			}
 		}
 	default:
-		return &ast.VariableDeclarator{
+		return ast.VariableDeclarator{
 			Target: &ast.BindingTarget{Target: p.reinterpretAsDestructBindingTarget(expr)},
 		}
 	}

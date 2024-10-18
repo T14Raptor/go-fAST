@@ -92,7 +92,7 @@ type (
 
 	PrivateDotExpression struct {
 		Left       *Expression
-		Identifier PrivateIdentifier
+		Identifier *PrivateIdentifier
 	}
 
 	OptionalChain struct {
@@ -118,6 +118,8 @@ type (
 		ParameterList ParameterList
 		Body          *ConciseBody
 		Async         bool
+
+		ScopeContext ScopeContext
 	}
 
 	PrivateIdentifier struct {
@@ -146,7 +148,7 @@ type (
 	}
 
 	SpreadElement struct {
-		Expression Expression
+		Expression *Expression
 	}
 
 	SequenceExpression struct {
