@@ -297,13 +297,13 @@ func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarato
 		Target: &ast.BindingTarget{Target: p.parseBindingTarget()},
 	}
 
-	if declarationList != nil {
-		*declarationList = append(*declarationList, *node)
-	}
-
 	if p.token == token.Assign {
 		p.next()
 		node.Initializer = ptrExpr(p.parseAssignmentExpression())
+	}
+
+	if declarationList != nil {
+		*declarationList = append(*declarationList, *node)
 	}
 
 	return *node
