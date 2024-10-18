@@ -18,7 +18,7 @@ type (
 		Comment string
 	}
 
-	VariableDeclarators []*VariableDeclarator
+	VariableDeclarators []VariableDeclarator
 
 	VariableDeclarator struct {
 		Target      *BindingTarget

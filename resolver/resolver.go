@@ -57,24 +57,19 @@ type Resolver struct {
 }
 
 const (
-	TopLevelMark   ast.ScopeContext = 1
 	UnresolvedMark ast.ScopeContext = 0
+	TopLevelMark   ast.ScopeContext = 1
 )
 
-func NewResolver() *Resolver {
+func Resolve(p *ast.Program) *Resolver {
 	r := &Resolver{
 		identType: IdentTypeRef,
 		nextCtxt:  TopLevelMark,
 	}
 	r.V = r
 
+	p.VisitWith(r)
 	return r
-}
-
-func Resolve(p *ast.Program) *Resolver {
-	resolver := NewResolver()
-	p.VisitWith(resolver)
-	return resolver
 }
 
 func (r *Resolver) pushScope(kind ScopeKind) {
@@ -115,7 +110,26 @@ func (r *Resolver) lookupContext(sym string) (ast.ScopeContext, *Scope) {
 }
 
 func (r *Resolver) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
-	n.VisitChildrenWith(r)
+	r.pushScope(ScopeKindFunction)
+
+	n.ScopeContext = r.current.ctx
+
+	oldIdentType := r.identType
+	r.identType = IdentTypeBinding
+	n.ParameterList.VisitWith(r)
+
+	r.identType = IdentTypeRef
+	switch body := n.Body.Body.(type) {
+	case *ast.BlockStatement:
+		body.ScopeContext = r.current.ctx
+		// Prevent creating a new scope.
+		body.VisitChildrenWith(r)
+	case *ast.Expression:
+		body.VisitWith(r)
+	}
+	r.identType = oldIdentType
+
+	r.popScope()
 }
 
 func (r *Resolver) VisitBlockStatement(n *ast.BlockStatement) {
@@ -179,6 +193,8 @@ func (r *Resolver) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	r.pushScope(ScopeKindFunction)
 
+	n.ScopeContext = r.current.ctx
+
 	oldIdentType := r.identType
 	r.identType = IdentTypeBinding
 	n.ParameterList.VisitWith(r)
@@ -189,9 +205,12 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 		panic(fmt.Sprintf("Unexpected rest type: %T\n", n.ParameterList.Rest))
 	}
 
-	r.identType = oldIdentType
-
+	r.identType = IdentTypeRef
+	// Prevent creating new scope.
+	n.Body.ScopeContext = r.current.ctx
 	n.Body.VisitChildrenWith(r)
+
+	r.identType = oldIdentType
 
 	r.popScope()
 }
