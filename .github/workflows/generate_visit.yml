@@ -1,0 +1,36 @@
+name: Generate visit.go
+
+on:
+  push:
+    paths:
+      - 'ast/**'
+      - '!ast/visit.go'
+  workflow_dispatch:
+
+jobs:
+  generate-visit:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21' 
+
+    - name: Generate visit.go
+      run: go run ast/gen_visit.go
+
+    - name: Check for changes
+      id: git-check
+      run: |
+        git diff --exit-code ast/visit.go || echo "changes=true" >> $GITHUB_OUTPUT
+
+    - name: Commit changes
+      if: steps.git-check.outputs.changes == 'true'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add ast/visit.go
+        git commit -m "Auto-generate visit.go"
+        git push

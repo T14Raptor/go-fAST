@@ -518,7 +518,7 @@ func (g *GenVisitor) VisitTryStatement(n *ast.TryStatement) {
 
 	if n.Catch != nil {
 		g.out.WriteString(" catch ")
-		if n.Catch.Parameter != nil {
+		if n.Catch.Parameter != nil && n.Catch.Parameter.Target != nil {
 			g.out.WriteString("(")
 			g.gen(n.Catch.Parameter)
 			g.out.WriteString(") ")
