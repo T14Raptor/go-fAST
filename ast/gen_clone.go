@@ -43,11 +43,12 @@ type Child struct {
 	FieldType string
 	Cloneable bool
 	Pointer   bool
+	Optional  bool
 	Interface *CloneableInterface
 }
 
-func newChild(fieldName, fieldType string, cloneable, pointer bool) Child {
-	return Child{FieldName: fieldName, FieldType: fieldType, Cloneable: cloneable, Pointer: pointer}
+func newChild(fieldName, fieldType string, cloneable, pointer, optional bool) Child {
+	return Child{FieldName: fieldName, FieldType: fieldType, Cloneable: cloneable, Pointer: pointer, Optional: optional}
 }
 
 func main() {
@@ -64,6 +65,8 @@ func main() {
 	for _, file := range pkgs["ast"].Files {
 		nodes = append(nodes, findCloneableNodes(file)...)
 		interfaces = append(interfaces, findCloneableInterfaces(file)...)
+	}
+	for _, file := range pkgs["ast"].Files {
 		findStructsForInterfaces(file, interfaces)
 	}
 
@@ -111,6 +114,45 @@ func main() {
 					fields = append(fields, &ast.KeyValueExpr{
 						Key:   ast.NewIdent(child.FieldName),
 						Value: declStmt.Decl.(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Names[0],
+					})
+					continue
+				}
+				if child.Optional {
+					visitChildrenBlock.List = append(visitChildrenBlock.List,
+						&ast.DeclStmt{
+							Decl: &ast.GenDecl{
+								Tok: token.VAR,
+								Specs: []ast.Spec{
+									&ast.ValueSpec{
+										Names: []*ast.Ident{ast.NewIdent(strings.ToLower(child.FieldName))},
+										Type:  &ast.StarExpr{X: ast.NewIdent(child.FieldType)},
+									},
+								},
+							},
+						}, &ast.IfStmt{
+							Cond: &ast.BinaryExpr{
+								X:  newSelectorExpr(ast.NewIdent("n"), child.FieldName),
+								Op: token.NEQ,
+								Y:  ast.NewIdent("nil"),
+							},
+							Body: &ast.BlockStmt{
+								List: []ast.Stmt{
+									&ast.AssignStmt{
+										Lhs: []ast.Expr{ast.NewIdent(strings.ToLower(child.FieldName))},
+										Tok: token.ASSIGN,
+										Rhs: []ast.Expr{&ast.CallExpr{
+											Fun: newSelectorExpr(
+												newSelectorExpr(ast.NewIdent("n"), child.FieldName),
+												"Clone",
+											),
+										}},
+									},
+								},
+							},
+						})
+					fields = append(fields, &ast.KeyValueExpr{
+						Key:   ast.NewIdent(child.FieldName),
+						Value: ast.NewIdent(strings.ToLower(child.FieldName)),
 					})
 					continue
 				}
@@ -314,30 +356,31 @@ func findCloneableNodes(f *ast.File) (types []CloneableNodeType) {
 
 func findStructChildren(fields []*ast.Field) (children []Child) {
 	for _, field := range fields {
+		optional := field.Tag != nil && field.Tag.Value == "`optional:\"true\"`"
 		if len(field.Names) != 0 {
 			fmt.Println(field.Names[0].Name)
 		}
 
 		switch fieldType := field.Type.(type) {
 		case *ast.SelectorExpr:
-			children = append(children, newChild(field.Names[0].Name, "", false, false))
+			children = append(children, newChild(field.Names[0].Name, "", false, false, optional))
 		case *ast.Ident:
 			if len(field.Names) == 0 {
-				children = append(children, newChild(fieldType.Name, fieldType.Name, true, false))
+				children = append(children, newChild(fieldType.Name, fieldType.Name, true, false, optional))
 				continue
 			}
 
 			switch fieldType.Name {
 			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "Token":
-				children = append(children, newChild(field.Names[0].Name, fieldType.Name, false, false))
+				children = append(children, newChild(field.Names[0].Name, fieldType.Name, false, false, optional))
 			default:
-				children = append(children, newChild(field.Names[0].Name, fieldType.Name, true, false))
+				children = append(children, newChild(field.Names[0].Name, fieldType.Name, true, false, optional))
 			}
 		case *ast.StarExpr:
 			if ident, ok := fieldType.X.(*ast.Ident); ok {
-				children = append(children, newChild(field.Names[0].Name, ident.Name, true, true))
+				children = append(children, newChild(field.Names[0].Name, ident.Name, true, true, optional))
 			} else {
-				children = append(children, newChild(field.Names[0].Name, "", true, false))
+				children = append(children, newChild(field.Names[0].Name, "", true, false, optional))
 			}
 		}
 	}
