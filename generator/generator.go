@@ -53,7 +53,6 @@ func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 	g.out.WriteString(" => ")
 	g.gen(n.Body)
 }
-
 func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 	g.out.WriteString("[")
 	for i, ex := range n.Value {
@@ -316,7 +315,7 @@ func (g *GenVisitor) VisitForInto(n *ast.ForInto) {
 func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 	g.out.WriteString("(")
 	for i, p := range n.List {
-		g.gen(p)
+		g.gen(&p)
 		if i < len(n.List)-1 {
 			g.out.WriteString(", ")
 		}
@@ -616,7 +615,7 @@ func (g *GenVisitor) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	g.out.WriteString(n.Token.String())
 	g.out.WriteString(" ")
 	for i, b := range n.List {
-		g.gen(b)
+		g.gen(&b)
 		if i < len(n.List)-1 {
 			g.out.WriteString(", ")
 		}

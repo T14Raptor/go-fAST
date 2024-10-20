@@ -23,6 +23,8 @@ type (
 		LeftBrace  Idx
 		List       Statements
 		RightBrace Idx
+
+		ScopeContext ScopeContext
 	}
 
 	BreakStatement struct {

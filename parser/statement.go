@@ -727,7 +727,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 	return p.parseFor(idx, initializer)
 }
 
-func (p *parser) ensurePatternInit(list []*ast.VariableDeclarator) {
+func (p *parser) ensurePatternInit(list []ast.VariableDeclarator) {
 	for _, item := range list {
 		if _, ok := item.Target.Target.(ast.Pattern); ok {
 			if item.Initializer == nil {
