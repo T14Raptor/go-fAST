@@ -17,7 +17,7 @@ import (
 	"strings"
 )
 
-// Generates visit.go
+// Generates clone.go
 
 type NodeType int
 
@@ -400,6 +400,10 @@ func newSelectorExpr(x ast.Expr, sel string) *ast.SelectorExpr {
 	return &ast.SelectorExpr{X: x, Sel: ast.NewIdent(sel)}
 }
 
+func lowerIdent(name string) *ast.Ident {
+	return ast.NewIdent(strings.ToLower(name[:1]) + name[1:])
+}
+
 func newCloner(expr ast.Expr, intf *CloneableInterface) (*ast.DeclStmt, *ast.TypeSwitchStmt) {
 	clonedExprDecl := &ast.DeclStmt{
 		Decl: &ast.GenDecl{
@@ -427,7 +431,7 @@ func newCloner(expr ast.Expr, intf *CloneableInterface) (*ast.DeclStmt, *ast.Typ
 					Rhs: []ast.Expr{
 						&ast.CallExpr{
 							Fun: &ast.SelectorExpr{
-								X:   ast.NewIdent(strings.ToLower(intf.Name)),
+								X:   lowerIdent(intf.Name),
 								Sel: ast.NewIdent("Clone"),
 							},
 						},
@@ -438,15 +442,10 @@ func newCloner(expr ast.Expr, intf *CloneableInterface) (*ast.DeclStmt, *ast.Typ
 		cases = append(cases, caseClause)
 	}
 
-	defaultCase := &ast.CaseClause{
-		List: nil,
-		Body: []ast.Stmt{},
-	}
-
 	switchStmt := &ast.TypeSwitchStmt{
 		Assign: &ast.AssignStmt{
 			Lhs: []ast.Expr{
-				ast.NewIdent(strings.ToLower(intf.Name)),
+				lowerIdent(intf.Name),
 			},
 			Tok: token.DEFINE,
 			Rhs: []ast.Expr{
@@ -456,7 +455,7 @@ func newCloner(expr ast.Expr, intf *CloneableInterface) (*ast.DeclStmt, *ast.Typ
 			},
 		},
 		Body: &ast.BlockStmt{
-			List: append(cases, defaultCase),
+			List: cases,
 		},
 	}
 

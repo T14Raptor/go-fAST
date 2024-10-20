@@ -35,7 +35,6 @@ func (n *BindingTarget) Clone() *BindingTarget {
 		clonedTarget = target.Clone()
 	case *ObjectPattern:
 		clonedTarget = target.Clone()
-	default:
 	}
 	return &BindingTarget{Target: clonedTarget}
 }
@@ -88,7 +87,6 @@ func (n *ClassElement) Clone() *ClassElement {
 		clonedElement = element.Clone()
 	case *MethodDefinition:
 		clonedElement = element.Clone()
-	default:
 	}
 	return &ClassElement{Element: clonedElement}
 }
@@ -120,7 +118,6 @@ func (n *ConciseBody) Clone() *ConciseBody {
 		clonedBody = body.Clone()
 	case *Expression:
 		clonedBody = body.Clone()
-	default:
 	}
 	return &ConciseBody{Body: clonedBody}
 }
@@ -220,7 +217,6 @@ func (n *Expression) Clone() *Expression {
 		clonedExpr = expr.Clone()
 	case *YieldExpression:
 		clonedExpr = expr.Clone()
-	default:
 	}
 	return &Expression{Expr: clonedExpr}
 }
@@ -251,18 +247,16 @@ func (n *ForInto) Clone() *ForInto {
 		clonedInto = into.Clone()
 	case *VariableDeclaration:
 		clonedInto = into.Clone()
-	default:
 	}
 	return &ForInto{Into: clonedInto}
 }
 func (n *ForLoopInitializer) Clone() *ForLoopInitializer {
 	var clonedForLoopInit ForLoopInit
-	switch forloopinit := n.Initializer.(type) {
+	switch forLoopInit := n.Initializer.(type) {
 	case *Expression:
-		clonedForLoopInit = forloopinit.Clone()
+		clonedForLoopInit = forLoopInit.Clone()
 	case *VariableDeclaration:
-		clonedForLoopInit = forloopinit.Clone()
-	default:
+		clonedForLoopInit = forLoopInit.Clone()
 	}
 	return &ForLoopInitializer{Initializer: clonedForLoopInit}
 }
@@ -396,7 +390,6 @@ func (n *ObjectPattern) Clone() *ObjectPattern {
 		clonedExpr = expr.Clone()
 	case *YieldExpression:
 		clonedExpr = expr.Clone()
-	default:
 	}
 	return &ObjectPattern{LeftBrace: n.LeftBrace, RightBrace: n.RightBrace, Properties: *n.Properties.Clone(), Rest: clonedExpr}
 }
@@ -483,7 +476,6 @@ func (n *ParameterList) Clone() *ParameterList {
 		clonedExpr = expr.Clone()
 	case *YieldExpression:
 		clonedExpr = expr.Clone()
-	default:
 	}
 	return &ParameterList{Opening: n.Opening, List: *n.List.Clone(), Rest: clonedExpr, Closing: n.Closing}
 }
@@ -512,7 +504,6 @@ func (n *Property) Clone() *Property {
 		clonedProp = prop.Clone()
 	case *SpreadElement:
 		clonedProp = prop.Clone()
-	default:
 	}
 	return &Property{Prop: clonedProp}
 }
@@ -589,7 +580,6 @@ func (n *Statement) Clone() *Statement {
 		clonedStmt = stmt.Clone()
 	case *WithStatement:
 		clonedStmt = stmt.Clone()
-	default:
 	}
 	return &Statement{Stmt: clonedStmt}
 }
