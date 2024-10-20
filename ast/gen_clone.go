@@ -14,9 +14,10 @@ import (
 	"log"
 	"os"
 	"slices"
+	"strings"
 )
 
-// Generates visit.go
+// Generates clone.go
 
 type NodeType int
 
@@ -31,14 +32,23 @@ type CloneableNodeType struct {
 	Children []Child
 }
 
-type Child struct {
-	FieldName string
-	Cloneable bool
-	Pointer   bool
+type CloneableInterface struct {
+	Name       string
+	UniqueFunc string
+	Structs    []string
 }
 
-func newChild(fieldName string, cloneable, pointer bool) Child {
-	return Child{FieldName: fieldName, Cloneable: cloneable, Pointer: pointer}
+type Child struct {
+	FieldName string
+	FieldType string
+	Cloneable bool
+	Pointer   bool
+	Optional  bool
+	Interface *CloneableInterface
+}
+
+func newChild(fieldName, fieldType string, cloneable, pointer, optional bool) Child {
+	return Child{FieldName: fieldName, FieldType: fieldType, Cloneable: cloneable, Pointer: pointer, Optional: optional}
 }
 
 func main() {
@@ -51,13 +61,32 @@ func main() {
 	}
 
 	var nodes []CloneableNodeType
+	var interfaces []CloneableInterface
 	for _, file := range pkgs["ast"].Files {
 		nodes = append(nodes, findCloneableNodes(file)...)
+		interfaces = append(interfaces, findCloneableInterfaces(file)...)
+	}
+	for _, file := range pkgs["ast"].Files {
+		findStructsForInterfaces(file, interfaces)
 	}
 
 	slices.SortFunc(nodes, func(a, b CloneableNodeType) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
+	for i := range nodes {
+		for j := range nodes[i].Children {
+			if idx := slices.IndexFunc(interfaces, func(a CloneableInterface) bool {
+				return a.Name == nodes[i].Children[j].FieldType
+			}); idx != -1 {
+				nodes[i].Children[j].Interface = &interfaces[idx]
+			}
+		}
+	}
+	for _, i := range interfaces {
+		slices.SortFunc(i.Structs, func(a, b string) int {
+			return cmp.Compare(a, b)
+		})
+	}
 	fmt.Println(nodes)
 
 	var (
@@ -78,6 +107,55 @@ func main() {
 					})
 					continue
 				}
+				if child.Interface != nil {
+					declStmt, switchStmt := newCloner(newSelectorExpr(ast.NewIdent("n"), child.FieldName), child.Interface)
+					visitChildrenBlock.List = append(visitChildrenBlock.List, declStmt, switchStmt)
+
+					fields = append(fields, &ast.KeyValueExpr{
+						Key:   ast.NewIdent(child.FieldName),
+						Value: declStmt.Decl.(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Names[0],
+					})
+					continue
+				}
+				if child.Optional {
+					visitChildrenBlock.List = append(visitChildrenBlock.List,
+						&ast.DeclStmt{
+							Decl: &ast.GenDecl{
+								Tok: token.VAR,
+								Specs: []ast.Spec{
+									&ast.ValueSpec{
+										Names: []*ast.Ident{ast.NewIdent(strings.ToLower(child.FieldName))},
+										Type:  &ast.StarExpr{X: ast.NewIdent(child.FieldType)},
+									},
+								},
+							},
+						}, &ast.IfStmt{
+							Cond: &ast.BinaryExpr{
+								X:  newSelectorExpr(ast.NewIdent("n"), child.FieldName),
+								Op: token.NEQ,
+								Y:  ast.NewIdent("nil"),
+							},
+							Body: &ast.BlockStmt{
+								List: []ast.Stmt{
+									&ast.AssignStmt{
+										Lhs: []ast.Expr{ast.NewIdent(strings.ToLower(child.FieldName))},
+										Tok: token.ASSIGN,
+										Rhs: []ast.Expr{&ast.CallExpr{
+											Fun: newSelectorExpr(
+												newSelectorExpr(ast.NewIdent("n"), child.FieldName),
+												"Clone",
+											),
+										}},
+									},
+								},
+							},
+						})
+					fields = append(fields, &ast.KeyValueExpr{
+						Key:   ast.NewIdent(child.FieldName),
+						Value: ast.NewIdent(strings.ToLower(child.FieldName)),
+					})
+					continue
+				}
 				if child.Pointer {
 					fields = append(fields, &ast.KeyValueExpr{
 						Key: ast.NewIdent(child.FieldName),
@@ -92,12 +170,12 @@ func main() {
 				}
 				fields = append(fields, &ast.KeyValueExpr{
 					Key: ast.NewIdent(child.FieldName),
-					Value: &ast.CallExpr{
+					Value: &ast.StarExpr{X: &ast.CallExpr{
 						Fun: newSelectorExpr(
 							newSelectorExpr(ast.NewIdent("n"), child.FieldName),
 							"Clone",
 						),
-					},
+					}},
 				})
 			}
 
@@ -175,6 +253,72 @@ func main() {
 	fmt.Println(pkgs)
 }
 
+func findCloneableInterfaces(f *ast.File) []CloneableInterface {
+	var interfaces []CloneableInterface
+	for _, decl := range f.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, spec := range genDecl.Specs {
+			typeSpec, ok := spec.(*ast.TypeSpec)
+			if !ok {
+				continue
+			}
+
+			switch typeSpec.Name.Name {
+			case "Node", "VisitableNode", "CloneableNode":
+				continue
+			}
+
+			switch t := typeSpec.Type.(type) {
+			case *ast.InterfaceType:
+				idx := slices.IndexFunc(t.Methods.List, func(a *ast.Field) bool {
+					if len(a.Names) == 0 {
+						return false
+					}
+					return strings.HasPrefix(a.Names[0].Name, "_")
+				})
+				if idx == -1 {
+					continue
+				}
+				interfaces = append(interfaces, CloneableInterface{
+					Name:       typeSpec.Name.Name,
+					UniqueFunc: t.Methods.List[idx].Names[0].Name,
+				})
+			}
+		}
+	}
+	return interfaces
+}
+
+func findStructsForInterfaces(f *ast.File, interfaces []CloneableInterface) {
+	for _, decl := range f.Decls {
+		funcDecl, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		if funcDecl.Recv == nil || len(funcDecl.Recv.List) == 0 {
+			continue
+		}
+		starExpr, ok := funcDecl.Recv.List[0].Type.(*ast.StarExpr)
+		if !ok {
+			continue
+		}
+		ident, ok := starExpr.X.(*ast.Ident)
+		if !ok {
+			continue
+		}
+		idx := slices.IndexFunc(interfaces, func(a CloneableInterface) bool {
+			return a.UniqueFunc == funcDecl.Name.Name
+		})
+		if idx == -1 {
+			continue
+		}
+		interfaces[idx].Structs = append(interfaces[idx].Structs, ident.Name)
+	}
+}
+
 func findCloneableNodes(f *ast.File) (types []CloneableNodeType) {
 	for _, decl := range f.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
@@ -212,27 +356,32 @@ func findCloneableNodes(f *ast.File) (types []CloneableNodeType) {
 
 func findStructChildren(fields []*ast.Field) (children []Child) {
 	for _, field := range fields {
+		optional := field.Tag != nil && field.Tag.Value == "`optional:\"true\"`"
 		if len(field.Names) != 0 {
 			fmt.Println(field.Names[0].Name)
 		}
 
 		switch fieldType := field.Type.(type) {
 		case *ast.SelectorExpr:
-			children = append(children, newChild(field.Names[0].Name, false, false))
+			children = append(children, newChild(field.Names[0].Name, "", false, false, optional))
 		case *ast.Ident:
 			if len(field.Names) == 0 {
-				children = append(children, newChild(fieldType.Name, true, false))
+				children = append(children, newChild(fieldType.Name, fieldType.Name, true, false, optional))
 				continue
 			}
 
 			switch fieldType.Name {
 			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "Token":
-				children = append(children, newChild(field.Names[0].Name, false, false))
+				children = append(children, newChild(field.Names[0].Name, fieldType.Name, false, false, optional))
 			default:
-				children = append(children, newChild(field.Names[0].Name, true, false))
+				children = append(children, newChild(field.Names[0].Name, fieldType.Name, true, false, optional))
 			}
 		case *ast.StarExpr:
-			children = append(children, newChild(field.Names[0].Name, true, true))
+			if ident, ok := fieldType.X.(*ast.Ident); ok {
+				children = append(children, newChild(field.Names[0].Name, ident.Name, true, true, optional))
+			} else {
+				children = append(children, newChild(field.Names[0].Name, "", true, false, optional))
+			}
 		}
 	}
 	return children
@@ -249,4 +398,66 @@ func newFieldList(name string, t ast.Expr) *ast.FieldList {
 
 func newSelectorExpr(x ast.Expr, sel string) *ast.SelectorExpr {
 	return &ast.SelectorExpr{X: x, Sel: ast.NewIdent(sel)}
+}
+
+func lowerIdent(name string) *ast.Ident {
+	return ast.NewIdent(strings.ToLower(name[:1]) + name[1:])
+}
+
+func newCloner(expr ast.Expr, intf *CloneableInterface) (*ast.DeclStmt, *ast.TypeSwitchStmt) {
+	clonedExprDecl := &ast.DeclStmt{
+		Decl: &ast.GenDecl{
+			Tok: token.VAR,
+			Specs: []ast.Spec{
+				&ast.ValueSpec{
+					Names: []*ast.Ident{ast.NewIdent("cloned" + intf.Name)},
+					Type:  ast.NewIdent(intf.Name),
+				},
+			},
+		},
+	}
+
+	var cases []ast.Stmt
+
+	for _, structName := range intf.Structs {
+		caseClause := &ast.CaseClause{
+			List: []ast.Expr{
+				&ast.StarExpr{X: ast.NewIdent(structName)},
+			},
+			Body: []ast.Stmt{
+				&ast.AssignStmt{
+					Lhs: []ast.Expr{ast.NewIdent("cloned" + intf.Name)},
+					Tok: token.ASSIGN,
+					Rhs: []ast.Expr{
+						&ast.CallExpr{
+							Fun: &ast.SelectorExpr{
+								X:   lowerIdent(intf.Name),
+								Sel: ast.NewIdent("Clone"),
+							},
+						},
+					},
+				},
+			},
+		}
+		cases = append(cases, caseClause)
+	}
+
+	switchStmt := &ast.TypeSwitchStmt{
+		Assign: &ast.AssignStmt{
+			Lhs: []ast.Expr{
+				lowerIdent(intf.Name),
+			},
+			Tok: token.DEFINE,
+			Rhs: []ast.Expr{
+				&ast.TypeAssertExpr{
+					X: expr,
+				},
+			},
+		},
+		Body: &ast.BlockStmt{
+			List: cases,
+		},
+	}
+
+	return clonedExprDecl, switchStmt
 }
