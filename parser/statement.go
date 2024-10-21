@@ -128,15 +128,15 @@ func (p *parser) parseTryStatement() ast.Stmt {
 	if p.token == token.Catch {
 		catch := p.idx
 		p.next()
-		var parameter ast.Target
+		var parameter *ast.BindingTarget
 		if p.token == token.LeftParenthesis {
 			p.next()
-			parameter = p.parseBindingTarget()
+			parameter = &ast.BindingTarget{Target: p.parseBindingTarget()}
 			p.expect(token.RightParenthesis)
 		}
 		node.Catch = &ast.CatchStatement{
 			Catch:     catch,
-			Parameter: &ast.BindingTarget{Target: parameter},
+			Parameter: parameter,
 			Body:      p.parseBlockStatement(),
 		}
 	}
