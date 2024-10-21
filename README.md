@@ -18,20 +18,6 @@ To use `go-fAST` in your Go project, you need to install it using `go get`:
 go get github.com/t14raptor/go-fast
 ```
 
-## Contributing
-
-We welcome contributions to `go-fAST`. If you'd like to contribute, please follow these guidelines:
-
-1. Fork the repository.
-2. Create a new branch for your feature or bugfix.
-3. Submit a pull request with a clear description of your changes.
-
-Please check the [CONTRIBUTING.md](CONTRIBUTING.md) for more details.
-
-## License
-
-`go-fAST` is released under the [MIT License](LICENSE). See the [LICENSE](LICENSE) file for details.
-
 ## Credits
 
 We'd like to extend our heartfelt thanks to the following individuals and projects for their invaluable contributions:
