@@ -91,9 +91,6 @@ func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
 			g.out.WriteString("(")
 			defer g.out.WriteString(")")
 		}
-	} else if _, ok = g.p.(*ast.MemberExpression); ok {
-		g.out.WriteString("(")
-		defer g.out.WriteString(")")
 	}
 	g.gen(n.Left.Expr)
 	g.out.WriteString(" " + n.Operator.String() + " ")
@@ -221,7 +218,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Expr.(type) {
-	case *ast.AssignExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression:
+	case *ast.AssignExpression, *ast.BinaryExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
 		g.out.WriteString(")")
