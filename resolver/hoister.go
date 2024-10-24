@@ -1,9 +1,10 @@
 package resolver
 
 import (
+	"maps"
+
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"maps"
 )
 
 // Loosely inspired from https://rustdoc.swc.rs/swc_ecma_transforms_base/fn.resolver.html
@@ -60,8 +61,10 @@ func (h *Hoister) VisitCatchStatement(n *ast.CatchStatement) {
 	h.excludedFromCatch = make(map[string]struct{})
 	oldInCatchBody := h.inCatchBody
 
-	if params := findIds(n.Parameter); len(params) == 1 {
-		h.catchParamDecls[params[0].Name] = struct{}{}
+	if n.Parameter != nil {
+		if params := findIds(n.Parameter); len(params) == 1 {
+			h.catchParamDecls[params[0].Name] = struct{}{}
+		}
 	}
 
 	old := maps.Clone(h.catchParamDecls)
@@ -69,7 +72,9 @@ func (h *Hoister) VisitCatchStatement(n *ast.CatchStatement) {
 	h.inCatchBody = true
 	n.Body.VisitWith(h)
 	h.inCatchBody = false
-	n.Parameter.VisitWith(h)
+	if n.Parameter != nil {
+		n.Parameter.VisitWith(h)
+	}
 
 	h.catchParamDecls = old
 	h.inCatchBody = oldInCatchBody
