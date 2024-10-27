@@ -381,7 +381,7 @@ func (g *GenVisitor) VisitLabelledStatement(n *ast.LabelledStatement) {
 func (g *GenVisitor) VisitNewExpression(n *ast.NewExpression) {
 	g.out.WriteString("new ")
 	switch n.Callee.Expr.(type) {
-	case *ast.BinaryExpression, *ast.CallExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression:
+	case *ast.BinaryExpression, *ast.CallExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.SequenceExpression:
 		g.out.WriteString("(")
 		g.gen(n.Callee.Expr)
 		g.out.WriteString(")")
