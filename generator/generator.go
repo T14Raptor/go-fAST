@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -53,6 +54,7 @@ func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 	g.out.WriteString(" => ")
 	g.gen(n.Body)
 }
+
 func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 	g.out.WriteString("[")
 	for i, ex := range n.Value {
@@ -69,24 +71,12 @@ func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 	needsParens := false
 
-	// Check if left side is an object or array pattern
-	isObjectPattern := false
-	isArrayPattern := false
-
 	switch n.Left.Expr.(type) {
-	case *ast.ObjectPattern:
-		isObjectPattern = true
-	case *ast.ArrayPattern:
-		isArrayPattern = true
-	}
-
-	// we need parentheses if parent is an expression statement and left is object or array pattern
-	if isObjectPattern || isArrayPattern {
+	case *ast.ObjectPattern, *ast.ArrayPattern:
 		if _, ok := g.p.(*ast.ExpressionStatement); ok {
 			needsParens = true
 		}
 	}
-
 	// we also need parentheses if parent is binary expression
 	if _, ok := g.p.(*ast.BinaryExpression); ok {
 		needsParens = true
@@ -97,37 +87,7 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 		defer g.out.WriteString(")")
 	}
 
-	// if lhs is object pattern, handle destructuring
-	if isObjectPattern {
-		g.out.WriteString("{")
-		obj := n.Left.Expr.(*ast.ObjectPattern)
-		for i, prop := range obj.Properties {
-			g.gen(prop.Prop)
-			if i < len(obj.Properties)-1 {
-				g.out.WriteString(", ")
-			}
-		}
-		if obj.Rest != nil {
-			if len(obj.Properties) > 0 {
-				g.out.WriteString(", ")
-			}
-			g.out.WriteString("...")
-			g.gen(obj.Rest)
-		}
-		g.out.WriteString("}")
-	} else if isArrayPattern {
-		g.out.WriteString("[")
-		arr := n.Left.Expr.(*ast.ArrayPattern)
-		for i, elem := range arr.Elements {
-			g.gen(elem.Expr)
-			if i < len(arr.Elements)-1 {
-				g.out.WriteString(", ")
-			}
-		}
-		g.out.WriteString("]")
-	} else {
-		g.gen(n.Left.Expr)
-	}
+	g.gen(n.Left.Expr)
 
 	g.out.WriteString(" ")
 	g.out.WriteString(n.Operator.String())
@@ -139,13 +99,33 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 	g.gen(n.Right.Expr)
 }
 
-func isPartOfVar(node ast.VisitableNode) bool {
-	switch node.(type) {
-	case *ast.VariableDeclaration, *ast.VariableDeclarator:
-		return true
-	default:
-		return false
+func (g *GenVisitor) VisitArrayPattern(n *ast.ArrayPattern) {
+	g.out.WriteString("[")
+	for i, elem := range n.Elements {
+		g.gen(elem.Expr)
+		if i < len(n.Elements)-1 {
+			g.out.WriteString(", ")
+		}
 	}
+	g.out.WriteString("]")
+}
+
+func (g *GenVisitor) VisitObjectPattern(n *ast.ObjectPattern) {
+	g.out.WriteString("{")
+	for i, prop := range n.Properties {
+		g.gen(prop.Prop)
+		if i < len(n.Properties)-1 {
+			g.out.WriteString(", ")
+		}
+	}
+	if n.Rest != nil {
+		if len(n.Properties) > 0 {
+			g.out.WriteString(", ")
+		}
+		g.out.WriteString("...")
+		g.gen(n.Rest)
+	}
+	g.out.WriteString("}")
 }
 
 func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
@@ -468,7 +448,11 @@ func (g *GenVisitor) VisitNullLiteral(n *ast.NullLiteral) {
 }
 
 func (g *GenVisitor) VisitNumberLiteral(n *ast.NumberLiteral) {
-	g.out.WriteString(n.Literal)
+	if n.Raw != nil {
+		g.out.WriteString(*n.Raw)
+		return
+	}
+	g.out.WriteString(strconv.FormatFloat(n.Value, 'f', -1, 64))
 }
 
 func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
@@ -541,7 +525,11 @@ func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
 }
 
 func (g *GenVisitor) VisitStringLiteral(n *ast.StringLiteral) {
-	g.out.WriteString(n.Literal)
+	if n.Raw != nil {
+		g.out.WriteString(*n.Raw)
+		return
+	}
+	g.out.WriteString(strconv.Quote(n.Value))
 }
 
 func (g *GenVisitor) VisitSwitchStatement(n *ast.SwitchStatement) {

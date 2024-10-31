@@ -245,12 +245,15 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			}
 
 			switch fieldType.Name {
-			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind":
+			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "float64":
 			default:
 				fmt.Println(fieldType.Name)
 				children = append(children, newChild(field.Names[0].Name, optional))
 			}
 		case *ast.StarExpr:
+			if ident, ok := fieldType.X.(*ast.Ident); ok && ident.Name == "string" {
+				continue
+			}
 			children = append(children, newChild(field.Names[0].Name, optional))
 		}
 	}

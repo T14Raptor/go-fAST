@@ -308,7 +308,7 @@ func (n *NullLiteral) Clone() *NullLiteral {
 	return &NullLiteral{Idx: n.Idx}
 }
 func (n *NumberLiteral) Clone() *NumberLiteral {
-	return &NumberLiteral{Idx: n.Idx, Literal: n.Literal, Value: n.Value}
+	return &NumberLiteral{Idx: n.Idx, Value: n.Value, Raw: n.Raw}
 }
 func (n *ObjectLiteral) Clone() *ObjectLiteral {
 	return &ObjectLiteral{LeftBrace: n.LeftBrace, RightBrace: n.RightBrace, Value: *n.Value.Clone()}
@@ -591,7 +591,7 @@ func (n *Statements) Clone() *Statements {
 	return &ns
 }
 func (n *StringLiteral) Clone() *StringLiteral {
-	return &StringLiteral{Idx: n.Idx, Literal: n.Literal, Value: n.Value}
+	return &StringLiteral{Idx: n.Idx, Value: n.Value, Raw: n.Raw}
 }
 func (n *SuperExpression) Clone() *SuperExpression {
 	return &SuperExpression{Idx: n.Idx}

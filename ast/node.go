@@ -123,13 +123,13 @@ func (n *NewExpression) Idx1() Idx {
 	}
 }
 func (n *NullLiteral) Idx1() Idx        { return Idx(int(n.Idx) + 4) } // "null"
-func (n *NumberLiteral) Idx1() Idx      { return Idx(int(n.Idx) + len(n.Literal)) }
+func (n *NumberLiteral) Idx1() Idx      { return Idx(int(n.Idx) + len(*n.Raw)) }
 func (n *ObjectLiteral) Idx1() Idx      { return n.RightBrace + 1 }
 func (n *ObjectPattern) Idx1() Idx      { return n.RightBrace + 1 }
 func (n *ParameterList) Idx1() Idx      { return n.Closing + 1 }
 func (n *RegExpLiteral) Idx1() Idx      { return Idx(int(n.Idx) + len(n.Literal)) }
 func (n *SequenceExpression) Idx1() Idx { return n.Sequence[len(n.Sequence)-1].Expr.Idx1() }
-func (n *StringLiteral) Idx1() Idx      { return Idx(int(n.Idx) + len(n.Literal)) }
+func (n *StringLiteral) Idx1() Idx      { return Idx(int(n.Idx) + len(*n.Raw)) }
 func (n *TemplateElement) Idx1() Idx    { return Idx(int(n.Idx) + len(n.Literal)) }
 func (n *TemplateLiteral) Idx1() Idx    { return n.CloseQuote + 1 }
 func (n *ThisExpression) Idx1() Idx     { return n.Idx + 4 }

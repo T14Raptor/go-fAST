@@ -868,11 +868,11 @@ func hex2decimal(chr byte) (value rune, ok bool) {
 	}
 }
 
-func parseNumberLiteral(literal string) (value any, err error) {
+func parseNumberLiteral(literal string) (value float64, err error) {
 	// TODO Is Uint okay? What about -MAX_UINT
-	value, err = strconv.ParseInt(literal, 0, 64)
+	n, err := strconv.ParseInt(literal, 0, 64)
 	if err == nil {
-		return
+		return float64(n), nil
 	}
 
 	parseIntErr := err // Save this first error, just in case
@@ -904,7 +904,7 @@ func parseNumberLiteral(literal string) (value any, err error) {
 	}
 
 error:
-	return nil, errors.New("Illegal numeric literal")
+	return 0, errors.New("Illegal numeric literal")
 }
 
 func parseStringLiteral(literal string, length int, unicode, strict bool) (string, string) {
