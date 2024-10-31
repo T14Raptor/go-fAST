@@ -67,11 +67,67 @@ func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 }
 
 func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
+	needsParens := false
+
+	// Check if left side is an object or array pattern
+	isObjectPattern := false
+	isArrayPattern := false
+
+	switch n.Left.Expr.(type) {
+	case *ast.ObjectPattern:
+		isObjectPattern = true
+	case *ast.ArrayPattern:
+		isArrayPattern = true
+	}
+
+	// we need parentheses if parent is an expression statement and left is object or array pattern
+	if isObjectPattern || isArrayPattern {
+		if _, ok := g.p.(*ast.ExpressionStatement); ok {
+			needsParens = true
+		}
+	}
+
+	// we also need parentheses if parent is binary expression
 	if _, ok := g.p.(*ast.BinaryExpression); ok {
+		needsParens = true
+	}
+
+	if needsParens {
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
-	g.gen(n.Left.Expr)
+
+	// if lhs is object pattern, handle destructuring
+	if isObjectPattern {
+		g.out.WriteString("{")
+		obj := n.Left.Expr.(*ast.ObjectPattern)
+		for i, prop := range obj.Properties {
+			g.gen(prop.Prop)
+			if i < len(obj.Properties)-1 {
+				g.out.WriteString(", ")
+			}
+		}
+		if obj.Rest != nil {
+			if len(obj.Properties) > 0 {
+				g.out.WriteString(", ")
+			}
+			g.out.WriteString("...")
+			g.gen(obj.Rest)
+		}
+		g.out.WriteString("}")
+	} else if isArrayPattern {
+		g.out.WriteString("[")
+		arr := n.Left.Expr.(*ast.ArrayPattern)
+		for i, elem := range arr.Elements {
+			g.gen(elem.Expr)
+			if i < len(arr.Elements)-1 {
+				g.out.WriteString(", ")
+			}
+		}
+		g.out.WriteString("]")
+	} else {
+		g.gen(n.Left.Expr)
+	}
 
 	g.out.WriteString(" ")
 	g.out.WriteString(n.Operator.String())
@@ -81,6 +137,15 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 	g.out.WriteString(" ")
 
 	g.gen(n.Right.Expr)
+}
+
+func isPartOfVar(node ast.VisitableNode) bool {
+	switch node.(type) {
+	case *ast.VariableDeclaration, *ast.VariableDeclarator:
+		return true
+	default:
+		return false
+	}
 }
 
 func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
