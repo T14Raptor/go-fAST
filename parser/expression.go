@@ -50,9 +50,10 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 	case token.String:
 		p.next()
 		return &ast.StringLiteral{
-			Idx:     idx,
-			Literal: literal,
-			Value:   parsedLiteral,
+			Idx:   idx,
+			Value: parsedLiteral,
+
+			Raw: &literal,
 		}
 	case token.Number:
 		p.next()
@@ -62,9 +63,10 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 			value = 0
 		}
 		return &ast.NumberLiteral{
-			Idx:     idx,
-			Literal: literal,
-			Value:   value,
+			Idx:   idx,
+			Value: value,
+
+			Raw: &literal,
 		}
 	case token.Slash, token.QuotientAssign:
 		return p.parseRegExpLiteral()
@@ -333,9 +335,10 @@ func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token
 	switch tkn {
 	case token.Identifier, token.String, token.Keyword, token.EscapedReservedWord:
 		value = &ast.StringLiteral{
-			Idx:     idx,
-			Literal: literal,
-			Value:   parsedLiteral,
+			Idx:   idx,
+			Value: parsedLiteral,
+
+			Raw: &literal,
 		}
 	case token.Number:
 		num, err := parseNumberLiteral(literal)
@@ -343,9 +346,10 @@ func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token
 			p.error(err.Error())
 		} else {
 			value = &ast.NumberLiteral{
-				Idx:     idx,
-				Literal: literal,
-				Value:   num,
+				Idx:   idx,
+				Value: num,
+
+				Raw: &literal,
 			}
 		}
 	case token.PrivateIdentifier:
@@ -359,9 +363,10 @@ func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token
 		// null, false, class, etc.
 		if token.ID(tkn) {
 			value = &ast.StringLiteral{
-				Idx:     idx,
-				Literal: literal,
-				Value:   literal,
+				Idx:   idx,
+				Value: literal,
+
+				Raw: &literal,
 			}
 		} else {
 			p.errorUnexpectedToken(tkn)
