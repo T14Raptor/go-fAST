@@ -12,7 +12,7 @@ type (
 	ClassElements []ClassElement
 
 	ClassElement struct {
-		Element
+		Element Element
 	}
 
 	Element interface {

@@ -7,7 +7,7 @@ type (
 
 	// Expression is a struct to allow defining methods on it.
 	Expression struct {
-		Expr `optional:"true"`
+		Expr Expr `optional:"true"`
 	}
 
 	// All expression nodes implement the Expr interface.
@@ -74,7 +74,16 @@ type (
 
 	MemberExpression struct {
 		Object   *Expression
-		Property *Expression
+		Property *MemberProperty
+	}
+
+	MemberProperty struct {
+		Prop MemberProp
+	}
+
+	MemberProp interface {
+		VisitableNode
+		_memberProperty()
 	}
 
 	CallExpression struct {
@@ -108,7 +117,6 @@ type (
 	}
 
 	Body interface {
-		Node
 		VisitableNode
 		_conciseBody()
 	}

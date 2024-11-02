@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -152,7 +153,9 @@ func (g *GenVisitor) VisitBlockStatement(n *ast.BlockStatement) {
 	}
 	g.indent--
 
-	g.lineAndPad()
+	if len(n.List) > 0 {
+		g.lineAndPad()
+	}
 	g.out.WriteString("}")
 }
 
@@ -184,7 +187,7 @@ func (g *GenVisitor) VisitContinueStatement(n *ast.ContinueStatement) {
 
 func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
 	switch n.Callee.Expr.(type) {
-	case *ast.FunctionLiteral, *ast.AssignExpression:
+	case *ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.AssignExpression:
 		g.out.WriteString("(")
 		g.gen(n.Callee.Expr)
 		g.out.WriteString(")")
@@ -212,7 +215,7 @@ func (g *GenVisitor) VisitCaseStatement(n *ast.CaseStatement) {
 	g.indent++
 	for i := range n.Consequent {
 		g.lineAndPad()
-		g.gen(&n.Consequent[i])
+		g.gen(n.Consequent[i].Stmt)
 	}
 	g.indent--
 }
@@ -263,19 +266,26 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Expr.(type) {
-	case *ast.AssignExpression, *ast.BinaryExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression:
+	case *ast.AssignExpression, *ast.BinaryExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression, *ast.NumberLiteral,
+		*ast.FunctionLiteral, *ast.ArrowFunctionLiteral:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
 		g.out.WriteString(")")
 	default:
 		g.gen(n.Object.Expr)
 	}
-	if st, ok := n.Property.Expr.(*ast.StringLiteral); ok && valid(st.Value) {
+
+	g.gen(n.Property)
+}
+
+func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
+	switch prop := n.Prop.(type) {
+	case *ast.Identifier:
 		g.out.WriteString(".")
-		g.out.WriteString(st.Value)
-	} else {
+		g.gen(prop)
+	case *ast.ComputedProperty:
 		g.out.WriteString("[")
-		g.gen(n.Property.Expr)
+		g.gen(prop.Expr.Expr)
 		g.out.WriteString("]")
 	}
 }
@@ -367,7 +377,7 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 		g.out.WriteString("...")
 		g.gen(n.Rest)
 	}
-	g.out.WriteString(") ")
+	g.out.WriteString(")")
 }
 
 func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
@@ -375,8 +385,12 @@ func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 		g.out.WriteString("async ")
 	}
 
-	g.out.WriteString("function ")
-	g.gen(n.Name)
+	if n.Name != nil {
+		g.out.WriteString("function ")
+		g.gen(n.Name)
+	} else {
+		g.out.WriteString("function")
+	}
 	g.gen(&n.ParameterList)
 	g.out.WriteString(" ")
 	g.gen(n.Body)
@@ -450,12 +464,22 @@ func (g *GenVisitor) VisitNullLiteral(n *ast.NullLiteral) {
 func (g *GenVisitor) VisitNumberLiteral(n *ast.NumberLiteral) {
 	if n.Raw != nil {
 		g.out.WriteString(*n.Raw)
-		return
+	} else if math.IsInf(n.Value, 1) {
+		g.out.WriteString("Infinity")
+	} else if math.IsInf(n.Value, -1) {
+		g.out.WriteString("-Infinity")
+	} else {
+		g.out.WriteString(strconv.FormatFloat(n.Value, 'f', -1, 64))
 	}
-	g.out.WriteString(strconv.FormatFloat(n.Value, 'f', -1, 64))
 }
 
 func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
+	switch g.p.(type) {
+	case *ast.BinaryExpression, *ast.ArrowFunctionLiteral:
+		g.out.WriteString("(")
+		defer g.out.WriteString(")")
+	}
+
 	g.out.WriteString("{")
 
 	g.indent++
@@ -478,14 +502,26 @@ func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 	if n.Kind == ast.PropertyKindGet || n.Kind == ast.PropertyKindSet {
 		g.out.WriteString(string(n.Kind))
 		g.out.WriteString(" ")
-		g.gen(n.Key.Expr)
+		if n.Computed {
+			g.out.WriteString("[")
+			g.gen(n.Key.Expr)
+			g.out.WriteString("]")
+		} else {
+			g.gen(n.Key.Expr)
+		}
 		f := n.Value.Expr.(*ast.FunctionLiteral)
 		g.gen(&f.ParameterList)
 		g.out.WriteString(" ")
 		g.gen(f.Body)
 		return
 	}
-	g.gen(n.Key.Expr)
+	if n.Computed {
+		g.out.WriteString("[")
+		g.gen(n.Key.Expr)
+		g.out.WriteString("]")
+	} else {
+		g.gen(n.Key.Expr)
+	}
 	g.out.WriteString(": ")
 	g.gen(n.Value.Expr)
 }

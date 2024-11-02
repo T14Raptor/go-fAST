@@ -22,6 +22,7 @@ type Visitor interface {
 	VisitClassElements(n *ClassElements)
 	VisitClassLiteral(n *ClassLiteral)
 	VisitClassStaticBlock(n *ClassStaticBlock)
+	VisitComputedProperty(n *ComputedProperty)
 	VisitConciseBody(n *ConciseBody)
 	VisitConditionalExpression(n *ConditionalExpression)
 	VisitContinueStatement(n *ContinueStatement)
@@ -44,6 +45,7 @@ type Visitor interface {
 	VisitInvalidExpression(n *InvalidExpression)
 	VisitLabelledStatement(n *LabelledStatement)
 	VisitMemberExpression(n *MemberExpression)
+	VisitMemberProperty(n *MemberProperty)
 	VisitMetaProperty(n *MetaProperty)
 	VisitMethodDefinition(n *MethodDefinition)
 	VisitNewExpression(n *NewExpression)
@@ -149,6 +151,9 @@ func (nv *NoopVisitor) VisitClassLiteral(n *ClassLiteral) {
 func (nv *NoopVisitor) VisitClassStaticBlock(n *ClassStaticBlock) {
 	n.VisitChildrenWith(nv.V)
 }
+func (nv *NoopVisitor) VisitComputedProperty(n *ComputedProperty) {
+	n.VisitChildrenWith(nv.V)
+}
 func (nv *NoopVisitor) VisitConciseBody(n *ConciseBody) {
 	n.VisitChildrenWith(nv.V)
 }
@@ -213,6 +218,9 @@ func (nv *NoopVisitor) VisitLabelledStatement(n *LabelledStatement) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitMemberExpression(n *MemberExpression) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitMemberProperty(n *MemberProperty) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitMetaProperty(n *MetaProperty) {
@@ -425,7 +433,7 @@ func (n *CaseStatements) VisitWith(v Visitor) {
 	v.VisitCaseStatements(n)
 }
 func (n *CaseStatements) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -454,7 +462,7 @@ func (n *ClassElements) VisitWith(v Visitor) {
 	v.VisitClassElements(n)
 }
 func (n *ClassElements) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -475,6 +483,12 @@ func (n *ClassStaticBlock) VisitWith(v Visitor) {
 }
 func (n *ClassStaticBlock) VisitChildrenWith(v Visitor) {
 	n.Block.VisitWith(v)
+}
+func (n *ComputedProperty) VisitWith(v Visitor) {
+	v.VisitComputedProperty(n)
+}
+func (n *ComputedProperty) VisitChildrenWith(v Visitor) {
+	n.Expr.VisitWith(v)
 }
 func (n *ConciseBody) VisitWith(v Visitor) {
 	v.VisitConciseBody(n)
@@ -533,7 +547,7 @@ func (n *Expressions) VisitWith(v Visitor) {
 	v.VisitExpressions(n)
 }
 func (n *Expressions) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -595,7 +609,9 @@ func (n *FunctionLiteral) VisitWith(v Visitor) {
 	v.VisitFunctionLiteral(n)
 }
 func (n *FunctionLiteral) VisitChildrenWith(v Visitor) {
-	n.Name.VisitWith(v)
+	if n.Name != nil {
+		n.Name.VisitWith(v)
+	}
 	n.ParameterList.VisitWith(v)
 	n.Body.VisitWith(v)
 }
@@ -632,6 +648,12 @@ func (n *MemberExpression) VisitWith(v Visitor) {
 func (n *MemberExpression) VisitChildrenWith(v Visitor) {
 	n.Object.VisitWith(v)
 	n.Property.VisitWith(v)
+}
+func (n *MemberProperty) VisitWith(v Visitor) {
+	v.VisitMemberProperty(n)
+}
+func (n *MemberProperty) VisitChildrenWith(v Visitor) {
+	n.Prop.VisitWith(v)
 }
 func (n *MetaProperty) VisitWith(v Visitor) {
 	v.VisitMetaProperty(n)
@@ -722,7 +744,7 @@ func (n *Properties) VisitWith(v Visitor) {
 	v.VisitProperties(n)
 }
 func (n *Properties) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -783,7 +805,7 @@ func (n *Statements) VisitWith(v Visitor) {
 	v.VisitStatements(n)
 }
 func (n *Statements) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -813,7 +835,7 @@ func (n *TemplateElements) VisitWith(v Visitor) {
 	v.VisitTemplateElements(n)
 }
 func (n *TemplateElements) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -881,7 +903,7 @@ func (n *VariableDeclarators) VisitWith(v Visitor) {
 	v.VisitVariableDeclarators(n)
 }
 func (n *VariableDeclarators) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
