@@ -757,3 +757,215 @@ func numFromStr(str string) (value float64, ok bool) {
 	}
 	return math.NaN(), true
 }
+
+func isLiteral(n ast.VisitableNode) bool {
+	_, isLit := calcLiteralCost(n, true)
+	return isLit
+}
+
+func calcLiteralCost(n ast.VisitableNode, allowNonJsonValue bool) (cost int, isLit bool) {
+	visitor := &LiteralVisitor{isLit: true, allowNonJsonValue: allowNonJsonValue}
+	visitor.V = visitor
+	n.VisitWith(visitor)
+	return visitor.cost, visitor.isLit
+}
+
+type LiteralVisitor struct {
+	ast.NoopVisitor
+	isLit             bool
+	cost              int
+	allowNonJsonValue bool
+}
+
+func (v *LiteralVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
+	if !v.isLit {
+		return
+	}
+	v.cost += 2 + len(n.Value)
+	n.VisitChildrenWith(v)
+	for _, elem := range n.Value {
+		if !v.allowNonJsonValue && elem.Expr == nil {
+			v.isLit = false
+		}
+	}
+}
+func (v *LiteralVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral)   { v.isLit = false }
+func (v *LiteralVisitor) VisitAssignExpression(n *ast.AssignExpression)           { v.isLit = false }
+func (v *LiteralVisitor) VisitAwaitExpression(n *ast.AwaitExpression)             { v.isLit = false }
+func (v *LiteralVisitor) VisitBinaryExpression(n *ast.BinaryExpression)           { v.isLit = false }
+func (v *LiteralVisitor) VisitCallExpression(n *ast.CallExpression)               { v.isLit = false }
+func (v *LiteralVisitor) VisitClassLiteral(n *ast.ClassLiteral)                   { v.isLit = false }
+func (v *LiteralVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) { v.isLit = false }
+func (v *LiteralVisitor) VisitExpression(n *ast.Expression) {
+	if !v.isLit {
+		return
+	}
+	switch e := n.Expr.(type) {
+	case *ast.Identifier, *ast.RegExpLiteral:
+		v.isLit = false
+	case *ast.TemplateLiteral:
+		if e.Expressions != nil {
+			v.isLit = false
+		}
+	default:
+		n.VisitChildrenWith(v)
+	}
+}
+func (v *LiteralVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral)     { v.isLit = false }
+func (v *LiteralVisitor) VisitInvalidExpression(n *ast.InvalidExpression) { v.isLit = false }
+func (v *LiteralVisitor) VisitMemberExpression(n *ast.MemberExpression)   { v.isLit = false }
+func (v *LiteralVisitor) VisitMetaProperty(n *ast.MetaProperty)           { v.isLit = false }
+func (v *LiteralVisitor) VisitNewExpression(n *ast.NewExpression)         { v.isLit = false }
+func (v *LiteralVisitor) VisitNumberLiteral(n *ast.NumberLiteral) {
+	if !v.allowNonJsonValue && (math.IsNaN(n.Value) || math.IsInf(n.Value, 0)) {
+		v.isLit = false
+	}
+}
+func (v *LiteralVisitor) VisitOptionalChain(n *ast.OptionalChain)         { v.isLit = false }
+func (v *LiteralVisitor) VisitPrivateIdentifier(n *ast.PrivateIdentifier) { v.isLit = false }
+func (v *LiteralVisitor) VisitProperty(n *ast.Property) {
+	if !v.isLit {
+		return
+	}
+	n.VisitChildrenWith(v)
+	switch p := n.Prop.(type) {
+	case *ast.PropertyKeyed:
+		switch p := p.Key.Expr.(type) {
+		case *ast.StringLiteral:
+			v.cost += 2 + len(p.Value)
+		case *ast.Identifier:
+			v.cost += 2 + len(p.Name)
+		case *ast.NumberLiteral:
+			v.cost += 2 + len(strconv.FormatFloat(p.Value, 'f', -1, 64))
+		}
+	}
+	switch n.Prop.(type) {
+	case *ast.PropertyKeyed:
+		v.cost++
+	default:
+		v.isLit = false
+	}
+}
+func (v *LiteralVisitor) VisitSequenceExpression(n *ast.SequenceExpression) { v.isLit = false }
+func (v *LiteralVisitor) VisitSpreadElement(n *ast.SpreadElement)           { v.isLit = false }
+func (v *LiteralVisitor) VisitThisExpression(n *ast.ThisExpression)         { v.isLit = false }
+func (v *LiteralVisitor) VisitUnaryExpression(n *ast.UnaryExpression)       { v.isLit = false }
+func (v *LiteralVisitor) VisitUpdateExpression(n *ast.UpdateExpression)     { v.isLit = false }
+func (v *LiteralVisitor) VisitYieldExpression(n *ast.YieldExpression)       { v.isLit = false }
+
+func preserveEffects(val ast.Expression, exprs []ast.Expression) ast.Expression {
+	var exprs2 []ast.Expression
+	for _, expr := range exprs {
+		extractSideEffectsTo(&exprs2, &expr)
+	}
+	if len(exprs2) == 0 {
+		return val
+	} else {
+		exprs2 = append(exprs2, val)
+		return ast.Expression{Expr: &ast.SequenceExpression{Sequence: exprs2}}
+	}
+}
+
+func extractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
+	switch e := expr.Expr.(type) {
+	case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.RegExpLiteral,
+		*ast.ThisExpression, *ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.PrivateIdentifier:
+	case *ast.Identifier:
+		if mayHaveSideEffects(expr) {
+			*to = append(*to, *expr)
+		}
+	// In most case, we can do nothing for this.
+	case *ast.UpdateExpression, *ast.AssignExpression, *ast.YieldExpression, *ast.AwaitExpression:
+		*to = append(*to, *expr)
+	// TODO
+	case *ast.MetaProperty:
+		*to = append(*to, *expr)
+	case *ast.CallExpression:
+		*to = append(*to, *expr)
+	case *ast.NewExpression:
+		// Known constructors
+		if ident, ok := e.Callee.Expr.(*ast.Identifier); ok && ident.Name == "Date" && len(e.ArgumentList) == 0 {
+			return
+		}
+		*to = append(*to, *expr)
+	case *ast.MemberExpression, *ast.SuperExpression:
+		*to = append(*to, *expr)
+	// We are at here because we could not determine value of test.
+	//TODO: Drop values if it does not have side effects.
+	case *ast.ConditionalExpression:
+		*to = append(*to, *expr)
+	case *ast.UnaryExpression:
+		if e.Operator == token.Typeof {
+			if _, ok := e.Operand.Expr.(*ast.Identifier); ok {
+				return
+			}
+		}
+		extractSideEffectsTo(to, e.Operand)
+	case *ast.BinaryExpression:
+		if e.Operator.MayShortCircuit() {
+			*to = append(*to, *expr)
+		} else {
+			extractSideEffectsTo(to, e.Left)
+			extractSideEffectsTo(to, e.Right)
+		}
+	case *ast.SequenceExpression:
+		for _, expr := range e.Sequence {
+			extractSideEffectsTo(to, &expr)
+		}
+	case *ast.ObjectLiteral:
+		var hasSpread bool
+		e.Value = slices.DeleteFunc(e.Value, func(prop ast.Property) bool {
+			switch p := prop.Prop.(type) {
+			case *ast.PropertyShort:
+				return false
+			case *ast.PropertyKeyed:
+				if p.Computed && mayHaveSideEffects(p.Key) {
+					return true
+				}
+				return mayHaveSideEffects(p.Value)
+			case *ast.SpreadElement:
+				hasSpread = true
+				return true
+			}
+			return false
+		})
+		if hasSpread {
+			*to = append(*to, *expr)
+		} else {
+			for _, prop := range e.Value {
+				switch p := prop.Prop.(type) {
+				case *ast.PropertyShort:
+				case *ast.PropertyKeyed:
+					if p.Computed {
+						extractSideEffectsTo(to, p.Key)
+					}
+					extractSideEffectsTo(to, p.Value)
+				}
+			}
+		}
+	case *ast.ArrayLiteral:
+		for _, elem := range e.Value {
+			extractSideEffectsTo(to, &elem)
+		}
+	case *ast.TemplateLiteral:
+		for _, elem := range e.Expressions {
+			extractSideEffectsTo(to, &elem)
+		}
+	case *ast.ClassLiteral:
+		panic("add_effects for class expression")
+	case *ast.OptionalChain:
+		*to = append(*to, *expr)
+	}
+}
+
+func propNameEq(p *ast.Expression, key string) bool {
+	switch p := p.Expr.(type) {
+	case *ast.Identifier:
+		return p.Name == key
+	case *ast.StringLiteral:
+		return p.Value == key
+	case *ast.NumberLiteral:
+		return strconv.FormatFloat(p.Value, 'f', -1, 64) == key
+	}
+	return false
+}
