@@ -261,7 +261,7 @@ func asPureString(expr *ast.Expression) (value string, ok bool) {
 		if e.Value == 0.0 {
 			return "0", true
 		}
-		return fmt.Sprint(e.Raw), true
+		return fmt.Sprint(e.Value), true
 	case *ast.BooleanLiteral:
 		return fmt.Sprint(e.Value), true
 	case *ast.NullLiteral:

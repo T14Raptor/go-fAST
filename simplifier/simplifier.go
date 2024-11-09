@@ -593,7 +593,7 @@ func (s *Simplifier) performArithmeticOp(op token.Token, left, right *ast.Expres
 
 	typl, _ := getType(left)
 	typr, _ := getType(right)
-	if (!lok && !rok) || op == token.Plus && (typl.CastToNumberOnAdd() || typr.CastToNumberOnAdd()) {
+	if (!lok && !rok) || op == token.Plus && (!typl.CastToNumberOnAdd() || !typr.CastToNumberOnAdd()) {
 		return 0, false
 	}
 
