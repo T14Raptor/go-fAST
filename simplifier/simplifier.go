@@ -479,6 +479,114 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 	}
 }
 
+func (s *Simplifier) tryFoldTypeOf(expr *ast.Expression) {
+	if unary, ok := expr.Expr.(*ast.UnaryExpression); ok && unary.Operator == token.Typeof {
+		var val string
+		switch operand := unary.Operand.Expr.(type) {
+		case *ast.FunctionLiteral:
+			val = "function"
+		case *ast.StringLiteral:
+			val = "string"
+		case *ast.NumberLiteral:
+			val = "number"
+		case *ast.BooleanLiteral:
+			val = "boolean"
+		case *ast.NullLiteral, *ast.ObjectLiteral, *ast.ArrayLiteral:
+			val = "object"
+		case *ast.UnaryExpression:
+			if operand.Operator == token.Void {
+				val = "undefined"
+			}
+			return
+		case *ast.Identifier:
+			if operand.Name == "undefined" {
+				val = "undefined"
+			}
+		default:
+			return
+		}
+		s.changed = true
+		expr.Expr = &ast.StringLiteral{Value: val}
+	}
+}
+
+func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
+	unaryExpr, ok := expr.Expr.(*ast.UnaryExpression)
+	if !ok {
+		return
+	}
+	sideEffects := mayHaveSideEffects(unaryExpr.Operand)
+
+	switch unaryExpr.Operator {
+	case token.Typeof:
+		if !sideEffects {
+			s.tryFoldTypeOf(expr)
+		}
+	case token.Not:
+		switch operand := unaryExpr.Operand.Expr.(type) {
+		// Don't expand booleans.
+		case *ast.NumberLiteral:
+			return
+		// Don't remove ! from negated iifes.
+		case *ast.CallExpression:
+			if _, ok := operand.Callee.Expr.(*ast.FunctionLiteral); ok {
+				return
+			}
+		}
+		if val, ok, _ := castToBool(unaryExpr.Operand); ok {
+			s.changed = true
+			expr.Expr = makeBoolExpr(!val, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
+		}
+	case token.Plus:
+		if val, ok := asPureNumber(unaryExpr.Operand); ok {
+			s.changed = true
+			if math.IsNaN(val) {
+				expr.Expr = preserveEffects(ast.Expression{Expr: &ast.Identifier{Name: "NaN"}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
+				return
+			}
+			expr.Expr = preserveEffects(ast.Expression{Expr: &ast.NumberLiteral{Value: val}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
+		}
+	case token.Minus:
+		switch operand := unaryExpr.Operand.Expr.(type) {
+		case *ast.Identifier:
+			if operand.Name == "Infinity" {
+			} else if operand.Name == "NaN" {
+				// "-NaN" is "NaN"
+				s.changed = true
+				expr.Expr = operand
+			}
+		case *ast.NumberLiteral:
+			s.changed = true
+			expr.Expr = &ast.NumberLiteral{Value: -operand.Value}
+		}
+		// TODO: Report that user is something bad (negating
+		// non-number value)
+
+	case token.Void:
+		if !sideEffects {
+			if numLit, ok := unaryExpr.Operand.Expr.(*ast.NumberLiteral); ok && numLit.Value == 0 {
+				return
+			}
+			s.changed = true
+			expr.Expr = &ast.NumberLiteral{Value: 0.0}
+		}
+	case token.BitwiseNot:
+		if val, ok := asPureNumber(unaryExpr.Operand); ok {
+			if _, frac := math.Modf(val); frac == 0.0 {
+				s.changed = true
+				var result float64
+				if val < 0.0 {
+					result = float64(^uint32(int32(val)))
+				} else {
+					result = float64(^uint32(val))
+				}
+				expr.Expr = &ast.NumberLiteral{Value: result}
+			}
+			// TODO: Report error
+		}
+	}
+}
+
 func (s *Simplifier) performArithmeticOp(op token.Token, left, right *ast.Expression) (float64, bool) {
 	lv, lok := asPureNumber(left)
 	rv, rok := asPureNumber(right)
