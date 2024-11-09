@@ -254,6 +254,13 @@ func castToNumber(expr *ast.Expression) (value float64, ok bool, pure bool) {
 }
 
 func asPureString(expr *ast.Expression) (value string, ok bool) {
+	objectToStr := func(name string) string {
+		return fmt.Sprintf("[object %s]", name)
+	}
+	funcToStr := func(name string) string {
+		return fmt.Sprintf("function %s() { [native code] }", name)
+	}
+
 	switch e := expr.Expr.(type) {
 	case *ast.StringLiteral:
 		return e.Value, true
@@ -271,8 +278,13 @@ func asPureString(expr *ast.Expression) (value string, ok bool) {
 		// Only convert a template literal if all its expressions can be
 		// converted.
 	case *ast.Identifier:
-		if slices.Contains([]string{"undefined", "Infinity", "NaN"}, e.Name) {
+		switch e.Name {
+		case "undefined", "Infinity", "NaN":
 			return e.Name, true
+		case "Math", "JSON":
+			return objectToStr(e.Name), true
+		case "Date":
+			return funcToStr(e.Name), true
 		}
 	case *ast.UnaryExpression:
 		switch e.Operator {
@@ -312,6 +324,49 @@ func asPureString(expr *ast.Expression) (value string, ok bool) {
 			}
 		}
 		return sb.String(), true
+	case *ast.MemberExpression:
+		strLit, ok := e.Property.Expr.(*ast.StringLiteral)
+		if !ok {
+			return "", false
+		}
+		// Convert some built-in funcs to string.
+		switch obj := e.Object.Expr.(type) {
+		case *ast.Identifier:
+			switch obj.Name {
+			case "Math":
+				if slices.Contains([]string{"abs", "acos", "acosh", "asin", "asinh", "atan", "atan2", "atanh", "cbrt", "ceil", "clz32", "cos", "cosh", "exp", "expm1", "floor", "fround", "hypot", "imul", "log", "log10", "log1p", "log2", "max", "min", "pow", "random", "round", "sign", "sin", "sinh", "sqrt", "tan", "tanh", "trunc"}, strLit.Value) {
+					return funcToStr(strLit.Value), true
+				}
+			case "JSON":
+				if slices.Contains([]string{"parse", "stringify"}, strLit.Value) {
+					return funcToStr(strLit.Value), true
+				}
+			case "Date":
+				if slices.Contains([]string{"now", "parse", "UTC"}, strLit.Value) {
+					return funcToStr(strLit.Value), true
+				}
+			}
+		case *ast.StringLiteral:
+			if slices.Contains([]string{"anchor", "at", "big", "blink", "bold", "charAt", "charCodeAt", "codePointAt", "concat", "endsWith", "fixed", "fontcolor", "fontsize", "includes", "indexOf", "isWellFormed", "italics", "lastIndexOf", "link", "localeCompare", "match", "matchAll", "normalize", "padEnd", "padStart", "repeat", "replace", "replaceAll", "search", "slice", "small", "split", "startsWith", "strike", "sub", "substr", "substring", "sup", "toLocaleLowerCase", "toLocaleUpperCase", "toLowerCase", "toString", "toUpperCase", "toWellFormed", "trim", "trimEnd", "trimStart", "valueOf"}, strLit.Value) {
+				return funcToStr(strLit.Value), true
+			}
+		case *ast.NumberLiteral:
+			if slices.Contains([]string{"toExponential", "toFixed", "toLocaleString", "toPrecision", "toString", "valueOf"}, strLit.Value) {
+				return funcToStr(strLit.Value), true
+			}
+		case *ast.BooleanLiteral:
+			if slices.Contains([]string{"toString", "valueOf"}, strLit.Value) {
+				return funcToStr(strLit.Value), true
+			}
+		case *ast.ArrayLiteral:
+			if slices.Contains([]string{"at", "concat", "copyWithin", "entries", "every", "fill", "filter", "find", "findIndex", "findLast", "findLastIndex", "flat", "flatMap", "forEach", "includes", "indexOf", "join", "keys", "lastIndexOf", "map", "pop", "push", "reduce", "reduceRight", "reverse", "shift", "slice", "some", "sort", "splice", "toLocaleString", "toReversed", "toSorted", "toSpliced", "toString", "unshift", "values", "with"}, strLit.Value) {
+				return funcToStr(strLit.Value), true
+			}
+		case *ast.ObjectLiteral:
+			if slices.Contains([]string{"hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "toLocaleString", "toString", "valueOf"}, strLit.Value) {
+				return funcToStr(strLit.Value), true
+			}
+		}
 	}
 	return "", false
 }
