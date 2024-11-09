@@ -830,6 +830,296 @@ func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) (bool, bool
 	return false, false
 }
 
+func (s *Simplifier) VisitAssignExpression(n *ast.AssignExpression) {
+	old := s.isModifying
+	s.isModifying = true
+	n.Left.VisitWith(s)
+	s.isModifying = old
+
+	s.isModifying = false
+	n.Right.VisitWith(s)
+	s.isModifying = old
+}
+
+// This is overriden to preserve `this`.
+func (s *Simplifier) VisitCallExpression(n *ast.CallExpression) {
+	oldInCallee := s.inCallee
+
+	s.inCallee = true
+	switch callee := n.Callee.Expr.(type) {
+	case *ast.SuperExpression:
+	case *ast.Expression:
+		mayInjectZero := needZeroForThis(callee)
+
+		switch e := callee.Expr.(type) {
+		case *ast.SequenceExpression:
+			if len(e.Sequence) == 1 {
+				expr := e.Sequence[0]
+				expr.VisitWith(s)
+				callee.Expr = expr.Expr
+			} else if len(e.Sequence) > 0 && directnessMaters(&e.Sequence[len(e.Sequence)-1]) {
+				first := e.Sequence[0]
+				switch first.Expr.(type) {
+				case *ast.NumberLiteral, *ast.Identifier:
+				default:
+					e.Sequence = append([]ast.Expression{{Expr: &ast.NumberLiteral{Value: 0.0}}}, e.Sequence...)
+				}
+				e.VisitWith(s)
+			}
+		default:
+			e.VisitWith(s)
+		}
+
+		if mayInjectZero && needZeroForThis(callee) {
+			switch e := callee.Expr.(type) {
+			case *ast.SequenceExpression:
+				e.Sequence = append([]ast.Expression{{Expr: &ast.NumberLiteral{Value: 0.0}}}, e.Sequence...)
+			default:
+				callee.Expr = &ast.SequenceExpression{
+					Sequence: []ast.Expression{
+						{Expr: &ast.NumberLiteral{Value: 0.0}},
+						{Expr: e},
+					},
+				}
+			}
+		}
+	}
+
+	s.inCallee = false
+	n.ArgumentList.VisitWith(s)
+
+	s.inCallee = oldInCallee
+}
+
+func (s *Simplifier) VisitExpression(n *ast.Expression) {
+	if unaryExpr, ok := n.Expr.(*ast.UnaryExpression); ok && unaryExpr.Operator == token.Delete {
+		return
+	}
+	// fold children before doing something more.
+	n.VisitChildrenWith(s)
+
+	switch expr := n.Expr.(type) {
+	// Do nothing.
+	case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.RegExpLiteral, *ast.ThisExpression:
+		return
+	case *ast.SequenceExpression:
+		if len(expr.Sequence) == 0 {
+			return
+		}
+	case *ast.UnaryExpression, *ast.BinaryExpression, *ast.MemberExpression, *ast.ConditionalExpression, *ast.ArrayLiteral, *ast.ObjectLiteral, *ast.NewExpression:
+	default:
+		return
+	}
+
+	switch expr := n.Expr.(type) {
+	case *ast.UnaryExpression:
+		s.optimizeUnaryExpression(n)
+	case *ast.BinaryExpression:
+		s.optimizeBinaryExpression(n)
+	case *ast.MemberExpression:
+		s.optimizeMemberExpression(n)
+	case *ast.ConditionalExpression:
+		v, ok, pure := castToBool(expr.Test)
+		if ok {
+			s.changed = true
+			var val *ast.Expression
+			if v {
+				val = expr.Consequent
+			} else {
+				val = expr.Alternate
+			}
+			if pure {
+				if directnessMaters(val) {
+					n.Expr = &ast.SequenceExpression{
+						Sequence: []ast.Expression{
+							{Expr: &ast.NumberLiteral{Value: 0.0}},
+							{Expr: val.Expr},
+						},
+					}
+				} else {
+					n.Expr = val
+				}
+			} else {
+				n.Expr = &ast.SequenceExpression{
+					Sequence: []ast.Expression{
+						{Expr: expr.Test.Expr},
+						{Expr: val.Expr},
+					},
+				}
+			}
+		}
+
+	// Simplify sequence expression.
+	case *ast.SequenceExpression:
+		if len(expr.Sequence) == 1 {
+			n.Expr = expr.Sequence[0].Expr
+		}
+
+	case *ast.ArrayLiteral:
+		var exprs []ast.Expression
+		for _, elem := range expr.Value {
+			if arrLit, ok := elem.Expr.(*ast.ArrayLiteral); ok {
+				s.changed = true
+				exprs = append(exprs, arrLit.Value...)
+			} else {
+				exprs = append(exprs, elem)
+			}
+		}
+		expr.Value = exprs
+
+	case *ast.ObjectLiteral:
+		// If the object has a spread property, we can't simplify it.
+		if slices.ContainsFunc(expr.Value, func(e ast.Property) bool {
+			_, ok := e.Prop.(*ast.SpreadElement)
+			return ok
+		}) {
+			return
+		}
+
+		var props []ast.Property
+		for _, prop := range expr.Value {
+			if spread, ok := prop.Prop.(*ast.SpreadElement); ok {
+				if obj, ok := spread.Expression.Expr.(*ast.ObjectLiteral); ok {
+					s.changed = true
+					props = append(props, obj.Value...)
+				} else {
+					props = append(props, prop)
+				}
+			} else {
+				props = append(props, prop)
+			}
+		}
+		expr.Value = props
+	}
+}
+
+// Currently noop
+func (s *Simplifier) VisitOptionalChain(n *ast.OptionalChain) {
+}
+
+func (s *Simplifier) VisitVariableDeclarator(n *ast.VariableDeclarator) {
+	if seqExpr, ok := n.Initializer.Expr.(*ast.SequenceExpression); ok {
+		if len(seqExpr.Sequence) == 0 {
+			n = nil
+		}
+	}
+}
+
+// Drops unused values
+func (s *Simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
+	if len(n.Sequence) == 0 {
+		return
+	}
+
+	oldInCallee := s.inCallee
+	length := len(n.Sequence)
+	for i, expr := range n.Sequence {
+		if i == length-1 {
+			s.inCallee = oldInCallee
+		} else {
+			s.inCallee = false
+		}
+		expr.VisitWith(s)
+	}
+	s.inCallee = oldInCallee
+
+	length = len(n.Sequence)
+	last := n.Sequence[length-1]
+
+	// Expressions except last one
+	var exprs []ast.Expression
+	for _, expr := range n.Sequence[:length-1] {
+		if e, ok := expr.Expr.(*ast.NumberLiteral); ok && s.inCallee && e.Value == 0.0 {
+			if len(exprs) == 0 {
+				exprs = append(exprs, ast.Expression{Expr: &ast.NumberLiteral{Value: 0.0}})
+			}
+		}
+		if s.inCallee && !mayHaveSideEffects(&expr) {
+			switch expr.Expr.(type) {
+			case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.RegExpLiteral, *ast.Identifier:
+				if len(exprs) == 0 {
+					s.changed = true
+					exprs = append(exprs, ast.Expression{Expr: &ast.NumberLiteral{Value: 0.0}})
+				}
+			}
+		}
+		// Drop side-effect free nodes.
+		switch expr.Expr.(type) {
+		case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.RegExpLiteral, *ast.Identifier:
+			continue
+		}
+		// Flatten array
+		if arrLit, ok := expr.Expr.(*ast.ArrayLiteral); ok {
+			isSimple := !slices.ContainsFunc(arrLit.Value, func(e ast.Expression) bool {
+				_, ok := e.Expr.(*ast.SpreadElement)
+				return ok
+			})
+			if isSimple {
+				exprs = append(exprs, arrLit.Value...)
+			} else {
+				exprs = append(exprs, ast.Expression{Expr: &ast.ArrayLiteral{Value: arrLit.Value}})
+			}
+			continue
+		}
+		// Default case: preserve it
+		exprs = append(exprs, expr)
+	}
+
+	exprs = append(exprs, last)
+	s.changed = s.changed || len(exprs) != len(n.Sequence)
+
+	n.Sequence = exprs
+}
+
+func (s *Simplifier) VisitStatement(n *ast.Statement) {
+	oldIsModifying := s.isModifying
+	s.isModifying = false
+	oldIsArgOfUpdate := s.isArgOfUpdate
+	s.isArgOfUpdate = false
+	n.VisitChildrenWith(s)
+	s.isArgOfUpdate = oldIsArgOfUpdate
+	s.isModifying = oldIsModifying
+}
+
+func (s *Simplifier) VisitUpdateExpression(n *ast.UpdateExpression) {
+	old := s.isModifying
+	s.isModifying = true
+	n.Operand.VisitWith(s)
+	s.isModifying = old
+}
+
+func (s *Simplifier) VisitForInStatement(n *ast.ForInStatement) {
+	old := s.isModifying
+	s.isModifying = true
+	n.VisitChildrenWith(s)
+	s.isModifying = old
+}
+
+func (s *Simplifier) VisitForOfStatement(n *ast.ForOfStatement) {
+	old := s.isModifying
+	s.isModifying = true
+	n.VisitChildrenWith(s)
+	s.isModifying = old
+}
+
+func (s *Simplifier) VisitTemplateLiteral(n *ast.TemplateLiteral) {
+	if n.Tag != nil {
+		old := s.inCallee
+		s.inCallee = true
+
+		n.Tag.VisitWith(s)
+
+		s.inCallee = false
+		n.Expressions.VisitWith(s)
+
+		s.inCallee = old
+	}
+}
+
+func (s *Simplifier) VisitWithStatement(n *ast.WithStatement) {
+	n.Object.VisitWith(s)
+}
+
 func makeBoolExpr(value bool, orig ast.Expressions) ast.Expression {
 	return preserveEffects(ast.Expression{Expr: &ast.BooleanLiteral{Value: value}}, orig)
 }
@@ -868,6 +1158,11 @@ func nthChar(s string, idx int) (string, bool) {
 	}
 
 	return "", false
+}
+
+func needZeroForThis(e *ast.Expression) bool {
+	_, ok := e.Expr.(*ast.SequenceExpression)
+	return directnessMaters(e) || ok
 }
 
 func getKeyValue(props []ast.Property, key string) ast.Expr {
