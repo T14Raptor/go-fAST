@@ -244,6 +244,488 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	}
 }
 
+func isNonObj(n *ast.Expression) bool {
+	switch n := n.Expr.(type) {
+	case *ast.StringLiteral, *ast.NumberLiteral, *ast.NullLiteral, *ast.BooleanLiteral:
+		return true
+	case *ast.Identifier:
+		if n.Name == "undefined" || n.Name == "Infinity" || n.Name == "NaN" {
+			return true
+		}
+	case *ast.UnaryExpression:
+		if n.Operator == token.Not || n.Operator == token.Minus || n.Operator == token.Void {
+			return isNonObj(n.Operand)
+		}
+	}
+	return false
+}
+
+func isObj(n *ast.Expression) bool {
+	switch n.Expr.(type) {
+	case *ast.ArrayLiteral, *ast.ObjectLiteral, *ast.FunctionLiteral, *ast.NewExpression:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
+	binExpr, ok := expr.Expr.(*ast.BinaryExpression)
+	if !ok {
+		return
+	}
+
+	tryReplaceBool := func(v bool, left, right *ast.Expression) {
+		s.changed = true
+		expr.Expr = makeBoolExpr(v, []ast.Expression{{Expr: left}, {Expr: right}}).Expr
+	}
+	tryReplaceNum := func(v float64, left, right *ast.Expression) {
+		s.changed = true
+		var value ast.Expr
+		if !math.IsNaN(v) {
+			value = &ast.NumberLiteral{Value: v}
+		} else {
+			value = &ast.Identifier{Name: "NaN"}
+		}
+		expr.Expr = preserveEffects(ast.Expression{Expr: value}, []ast.Expression{{Expr: left}, {Expr: right}}).Expr
+	}
+
+	switch binExpr.Operator {
+	case token.Plus:
+		// It's string concatenation if either left or right is string.
+		if isStr(binExpr.Left) || isArrayLiteral(binExpr.Left) || isStr(binExpr.Right) || isArrayLiteral(binExpr.Right) {
+			l, lok := asPureString(binExpr.Left)
+			r, rok := asPureString(binExpr.Right)
+			if lok && rok {
+				s.changed = true
+				expr.Expr = &ast.StringLiteral{Value: l + r}
+			}
+		}
+
+		typ, ok := getType(expr)
+		if !ok {
+			return
+		}
+		switch typ {
+		// String concatenation
+		case StringType:
+			if !mayHaveSideEffects(binExpr.Left) && !mayHaveSideEffects(binExpr.Right) {
+				l, lok := asPureString(binExpr.Left)
+				r, rok := asPureString(binExpr.Right)
+				if lok && rok {
+					s.changed = true
+					expr.Expr = &ast.StringLiteral{Value: l + r}
+				}
+			}
+		// Numerical calculation
+		case BooleanType, NullType, NumberType, UndefinedType:
+			v, ok := s.performArithmeticOp(token.Plus, binExpr.Left, binExpr.Right)
+			if ok {
+				tryReplaceNum(v, binExpr.Left, binExpr.Right)
+			}
+		}
+
+		//TODO: try string concat
+
+	case token.LogicalAnd, token.LogicalOr:
+		val, ok, _ := castToBool(binExpr.Left)
+		if ok {
+			var node ast.Expression
+			if binExpr.Operator == token.LogicalAnd {
+				if val {
+					// 1 && $right
+					node = *binExpr.Right
+				} else {
+					s.changed = true
+					// 0 && $right
+					expr.Expr = binExpr.Left.Expr
+				}
+			} else {
+				if val {
+					s.changed = true
+					// 1 || $right
+					expr.Expr = binExpr.Left.Expr
+				} else {
+					// 0 || $right
+					node = *binExpr.Right
+				}
+			}
+
+			if !mayHaveSideEffects(binExpr.Left) {
+				s.changed = true
+				if directnessMaters(&node) {
+					expr.Expr = &ast.SequenceExpression{
+						Sequence: []ast.Expression{
+							{Expr: &ast.NumberLiteral{Value: 0.0}},
+							{Expr: node.Expr},
+						},
+					}
+				} else {
+					expr.Expr = node.Expr
+				}
+			} else {
+				s.changed = true
+				seq := &ast.SequenceExpression{
+					Sequence: []ast.Expression{
+						{Expr: binExpr.Left.Expr},
+						{Expr: node.Expr},
+					},
+				}
+				seq.VisitWith(s)
+				expr.Expr = seq
+			}
+		}
+	case token.InstanceOf:
+		// Non-object types are never instances.
+		if isNonObj(binExpr.Left) {
+			s.changed = true
+			expr.Expr = makeBoolExpr(false, []ast.Expression{{Expr: binExpr.Right}}).Expr
+			return
+		}
+		if isObj(binExpr.Left) && isGlobalRefTo(binExpr.Right, "Object") {
+			s.changed = true
+			expr.Expr = makeBoolExpr(true, []ast.Expression{{Expr: binExpr.Left}}).Expr
+		}
+	case token.Minus, token.Slash, token.Remainder, token.Exponent:
+		if v, ok := s.performArithmeticOp(binExpr.Operator, binExpr.Left, binExpr.Right); ok {
+			tryReplaceNum(v, binExpr.Left, binExpr.Right)
+		}
+	case token.ShiftLeft, token.ShiftRight, token.UnsignedShiftRight:
+		tryFoldShift := func(op token.Token, left, right *ast.Expression) (float64, bool) {
+			if _, ok := left.Expr.(*ast.NumberLiteral); !ok {
+				return 0, false
+			}
+			if _, ok := right.Expr.(*ast.NumberLiteral); !ok {
+				return 0, false
+			}
+
+			lv, lok := asPureNumber(left)
+			rv, rok := asPureNumber(right)
+			if !lok || !rok {
+				return 0, false
+			}
+			// Shift
+			// (Masking of 0x1f is to restrict the shift to a maximum of 31 places)
+			switch op {
+			case token.ShiftLeft:
+				return float64(int32(int32(lv) << uint32(rv) & 0x1f)), true
+			case token.ShiftRight:
+				return float64(int32(int32(lv)>>uint32(rv)) & 0x1f), true
+			case token.UnsignedShiftRight:
+				return float64(uint32(uint32(lv) >> uint32(rv) & 0x1f)), true
+			}
+			return 0, false
+		}
+		if v, ok := tryFoldShift(binExpr.Operator, binExpr.Left, binExpr.Right); ok {
+			tryReplaceNum(v, binExpr.Left, binExpr.Right)
+		}
+
+	// These needs one more check.
+	//
+	// (a * 1) * 2 --> a * (1 * 2) --> a * 2
+	case token.Multiply:
+		if v, ok := s.performArithmeticOp(binExpr.Operator, binExpr.Left, binExpr.Right); ok {
+			tryReplaceNum(v, binExpr.Left, binExpr.Right)
+		}
+
+		// Try left.rhs * right
+		if binExpr2, ok := binExpr.Left.Expr.(*ast.BinaryExpression); ok && binExpr2.Operator == binExpr.Operator {
+			if v, ok := s.performArithmeticOp(binExpr.Operator, binExpr2.Left, binExpr.Right); ok {
+				var valExpr ast.Expr
+				if !math.IsNaN(v) {
+					valExpr = &ast.NumberLiteral{Value: v}
+				} else {
+					valExpr = &ast.Identifier{Name: "NaN"}
+				}
+				s.changed = true
+				binExpr.Left.Expr = binExpr2.Left.Expr
+				binExpr.Right.Expr = valExpr
+			}
+		}
+
+	// Comparisons
+	case token.Less:
+		if v, ok := s.performAbstractRelCmp(binExpr.Left, binExpr.Right, false); ok {
+			tryReplaceBool(v, binExpr.Left, binExpr.Right)
+		}
+	case token.Greater:
+		if v, ok := s.performAbstractRelCmp(binExpr.Right, binExpr.Left, false); ok {
+			tryReplaceBool(v, binExpr.Right, binExpr.Left)
+		}
+	case token.LessOrEqual:
+		if v, ok := s.performAbstractRelCmp(binExpr.Right, binExpr.Left, true); ok {
+			tryReplaceBool(v, binExpr.Right, binExpr.Left)
+		}
+	case token.GreaterOrEqual:
+		if v, ok := s.performAbstractRelCmp(binExpr.Left, binExpr.Right, true); ok {
+			tryReplaceBool(v, binExpr.Left, binExpr.Right)
+		}
+	case token.Equal:
+		if v, ok := s.performAbstractEqCmp(binExpr.Left, binExpr.Right); ok {
+			tryReplaceBool(v, binExpr.Left, binExpr.Right)
+		}
+	case token.NotEqual:
+		if v, ok := s.performAbstractEqCmp(binExpr.Left, binExpr.Right); ok {
+			tryReplaceBool(!v, binExpr.Left, binExpr.Right)
+		}
+	case token.StrictEqual:
+		if v, ok := s.performStrictEqCmp(binExpr.Left, binExpr.Right); ok {
+			tryReplaceBool(v, binExpr.Left, binExpr.Right)
+		}
+	case token.StrictNotEqual:
+		if v, ok := s.performStrictEqCmp(binExpr.Left, binExpr.Right); ok {
+			tryReplaceBool(!v, binExpr.Left, binExpr.Right)
+		}
+	}
+}
+
+func (s *Simplifier) performArithmeticOp(op token.Token, left, right *ast.Expression) (float64, bool) {
+	lv, lok := asPureNumber(left)
+	rv, rok := asPureNumber(right)
+
+	typl, _ := getType(left)
+	typr, _ := getType(right)
+	if (!lok && !rok) || op == token.Plus && (typl.CastToNumberOnAdd() || typr.CastToNumberOnAdd()) {
+		return 0, false
+	}
+
+	switch op {
+	case token.Plus:
+		if lok && rok {
+			return lv + rv, true
+		}
+		if lv == 0.0 && lok {
+			return rv, rok
+		} else if rv == 0.0 && rok {
+			return lv, lok
+		}
+		return 0, false
+	case token.Minus:
+		if lok && rok {
+			return lv - rv, true
+		}
+
+		// 0 - x => -x
+		if lv == 0.0 && lok {
+			return -rv, rok
+		}
+
+		// x - 0 => x
+		if rv == 0.0 && rok {
+			return lv, lok
+		}
+		return 0, false
+	case token.Multiply:
+		if lok && rok {
+			return lv * rv, true
+		}
+		// NOTE: 0*x != 0 for all x, if x==0, then it is NaN.  So we can't take
+		// advantage of that without some kind of non-NaN proof.  So the special cases
+		// here only deal with 1*x
+		if lv == 1.0 && lok {
+			return rv, rok
+		}
+		if rv == 1.0 && rok {
+			return lv, lok
+		}
+		return 0, false
+	case token.Slash:
+		if lok && rok {
+			if rv == 0.0 {
+				return 0, false
+			}
+			return lv / rv, true
+		}
+		// NOTE: 0/x != 0 for all x, if x==0, then it is NaN
+		if rv == 1.0 && rok {
+			// TODO: cloneTree
+			// x/1->x
+			return lv, lok
+		}
+		return 0, false
+	case token.Exponent:
+		if rv == 0.0 && rok {
+			return 1, true
+		}
+		if lok && rok {
+			return math.Pow(lv, rv), true
+		}
+		return 0, false
+	}
+
+	if !lok || !rok {
+		return 0, false
+	}
+
+	switch op {
+	case token.And:
+		return float64(int32(lv) & int32(rv)), true
+	case token.Or:
+		return float64(int32(lv) | int32(rv)), true
+	case token.ExclusiveOr:
+		return float64(int32(lv) ^ int32(rv)), true
+	case token.Remainder:
+		if rv == 0.0 {
+			return 0, false
+		}
+		return float64(int(lv) % int(rv)), true
+	}
+	return 0, false
+}
+
+func (s *Simplifier) performAbstractRelCmp(left, right *ast.Expression, willNegate bool) (bool, bool) {
+	// Special case: `x < x` is always false.
+	if l, ok := left.Expr.(*ast.Identifier); ok {
+		if r, ok := right.Expr.(*ast.Identifier); ok {
+			if !willNegate && l.Name == r.Name && l.ScopeContext == r.ScopeContext {
+				return false, true
+			}
+		}
+	}
+	// Special case: `typeof a < typeof a` is always false.
+	if l, ok := left.Expr.(*ast.UnaryExpression); ok && l.Operator == token.Typeof {
+		if r, ok := right.Expr.(*ast.UnaryExpression); ok && r.Operator == token.Typeof {
+			if lid, lok := l.Operand.Expr.(*ast.Identifier); lok {
+				if rid, rok := r.Operand.Expr.(*ast.Identifier); rok {
+					if lid.ToId() == rid.ToId() {
+						return false, true
+					}
+				}
+			}
+		}
+	}
+
+	// Try to evaluate based on the general type.
+	lt, lok := getType(left)
+	rt, rok := getType(right)
+	if lt == StringType && rt == StringType && lok && rok {
+		lv, lok := asPureString(left)
+		rv, rok := asPureString(right)
+		if lok && rok {
+			// In JS, browsers parse \v differently. So do not compare strings if one
+			// contains \v.
+			if strings.ContainsRune(lv, '\u000B') || strings.ContainsRune(rv, '\u000B') {
+				return false, false
+			} else {
+				return lv < rv, true
+			}
+		}
+	}
+
+	// Then, try to evaluate based on the value of the node. Try comparing as
+	// numbers.
+	lv, lok := asPureNumber(left)
+	rv, rok := asPureNumber(right)
+	if lok && rok {
+		if math.IsNaN(lv) || math.IsNaN(rv) {
+			return willNegate, true
+		}
+		return lv < rv, true
+	}
+
+	return false, false
+}
+
+func (s *Simplifier) performAbstractEqCmp(left, right *ast.Expression) (bool, bool) {
+	lt, lok := getType(left)
+	rt, rok := getType(right)
+	if !lok || !rok {
+		return false, false
+	}
+
+	if lt == rt {
+		return s.performStrictEqCmp(left, right)
+	}
+
+	if (lt == NullType && rt == UndefinedType) || (lt == UndefinedType && rt == NullType) {
+		return true, true
+	}
+	if (lt == NumberType && rt == StringType) || rt == BooleanType {
+		rv, rok := asPureNumber(right)
+		if !rok {
+			return false, false
+		}
+		return s.performAbstractEqCmp(left, &ast.Expression{Expr: &ast.NumberLiteral{Value: rv}})
+	}
+	if (lt == StringType && rt == NumberType) || lt == BooleanType {
+		lv, lok := asPureNumber(left)
+		if !lok {
+			return false, false
+		}
+		return s.performAbstractEqCmp(&ast.Expression{Expr: &ast.NumberLiteral{Value: lv}}, right)
+	}
+	if (lt == StringType && rt == ObjectType) || (lt == NumberType && rt == ObjectType) ||
+		(lt == ObjectType && rt == StringType) || (lt == ObjectType && rt == NumberType) {
+		return false, false
+	}
+
+	return false, true
+}
+
+func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) (bool, bool) {
+	// Any strict equality comparison against NaN returns false.
+	if isNaN(left) || isNaN(right) {
+		return false, true
+	}
+	// Special case, typeof a == typeof a is always true.
+	if l, ok := left.Expr.(*ast.UnaryExpression); ok && l.Operator == token.Typeof {
+		if r, ok := right.Expr.(*ast.UnaryExpression); ok && r.Operator == token.Typeof {
+			if lid, lok := l.Operand.Expr.(*ast.Identifier); lok {
+				if rid, rok := r.Operand.Expr.(*ast.Identifier); rok {
+					if lid.ToId() == rid.ToId() {
+						return true, true
+					}
+				}
+			}
+		}
+	}
+	lt, lok := getType(left)
+	rt, rok := getType(right)
+	if !lok || !rok {
+		return false, false
+	}
+	// Strict equality can only be true for values of the same type.
+	if lt != rt {
+		return false, true
+	}
+	switch lt {
+	case UndefinedType, NullType:
+		return true, true
+	case NumberType:
+		lv, lok := asPureNumber(left)
+		rv, rok := asPureNumber(right)
+		if !lok || !rok {
+			return false, false
+		}
+		return lv == rv, true
+	case StringType:
+		lv, lok := asPureString(left)
+		rv, rok := asPureString(right)
+		if !lok || !rok {
+			return false, false
+		}
+		// In JS, browsers parse \v differently. So do not consider strings
+		// equal if one contains \v.
+		if strings.ContainsRune(lv, '\u000B') || strings.ContainsRune(rv, '\u000B') {
+			return false, false
+		}
+		return lv == rv, true
+	case BooleanType:
+		lv, lok := asPureBool(left)
+		rv, rok := asPureBool(right)
+		// lv && rv || !lv && !rv
+		andVal, andOk := and(lv, rv, lok, rok)
+		notAndVal, notAndOk := and(!lv, !rv, lok, rok)
+		return or(andVal, notAndVal, andOk, notAndOk)
+	}
+
+	return false, false
+}
+
+func makeBoolExpr(value bool, orig ast.Expressions) ast.Expression {
+	return preserveEffects(ast.Expression{Expr: &ast.BooleanLiteral{Value: value}}, orig)
+}
+
 func nthChar(s string, idx int) (string, bool) {
 	for _, c := range s {
 		if len(utf16.Encode([]rune{c})) > 1 {

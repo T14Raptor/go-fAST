@@ -328,6 +328,15 @@ const (
 	ObjectType
 )
 
+func (t Type) CastToNumberOnAdd() bool {
+	switch t {
+	case BooleanType, NullType, NumberType, UndefinedType:
+		return true
+	default:
+		return false
+	}
+}
+
 func getType(expr *ast.Expression) (typ Type, ok bool) {
 	switch e := expr.Expr.(type) {
 	case *ast.AssignExpression:
@@ -713,7 +722,7 @@ func mayBeStr(ty Type) bool {
 }
 
 func numFromStr(str string) (value float64, ok bool) {
-	if strings.Contains(str, `\u{000b}`) {
+	if strings.ContainsRune(str, '\u000B') {
 		return 0, false
 	}
 	s := strings.TrimSpace(str)
