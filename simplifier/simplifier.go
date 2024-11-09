@@ -50,11 +50,11 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	case *ast.Identifier:
 		if _, ok := memExpr.Object.Expr.(*ast.ObjectLiteral); !ok && prop.Name == "length" {
 			op = Len{}
-		}
-		if s.inCallee {
+		} else if s.inCallee {
 			return
+		} else {
+			op = IndexStr(prop.Name)
 		}
-		op = IndexStr(prop.Name)
 	case *ast.NumberLiteral:
 		if s.inCallee {
 			return
@@ -846,41 +846,37 @@ func (s *Simplifier) VisitCallExpression(n *ast.CallExpression) {
 	oldInCallee := s.inCallee
 
 	s.inCallee = true
-	switch callee := n.Callee.Expr.(type) {
-	case *ast.SuperExpression:
-	case *ast.Expression:
-		mayInjectZero := needZeroForThis(callee)
+	mayInjectZero := !needZeroForThis(n.Callee)
 
-		switch e := callee.Expr.(type) {
-		case *ast.SequenceExpression:
-			if len(e.Sequence) == 1 {
-				expr := e.Sequence[0]
-				expr.VisitWith(s)
-				callee.Expr = expr.Expr
-			} else if len(e.Sequence) > 0 && directnessMaters(&e.Sequence[len(e.Sequence)-1]) {
-				first := e.Sequence[0]
-				switch first.Expr.(type) {
-				case *ast.NumberLiteral, *ast.Identifier:
-				default:
-					e.Sequence = append([]ast.Expression{{Expr: &ast.NumberLiteral{Value: 0.0}}}, e.Sequence...)
-				}
-				e.VisitWith(s)
+	switch e := n.Callee.Expr.(type) {
+	case *ast.SequenceExpression:
+		if len(e.Sequence) == 1 {
+			expr := e.Sequence[0]
+			expr.VisitWith(s)
+			n.Callee.Expr = expr.Expr
+		} else if len(e.Sequence) > 0 && directnessMaters(&e.Sequence[len(e.Sequence)-1]) {
+			first := e.Sequence[0]
+			switch first.Expr.(type) {
+			case *ast.NumberLiteral, *ast.Identifier:
+			default:
+				e.Sequence = append([]ast.Expression{{Expr: &ast.NumberLiteral{Value: 0.0}}}, e.Sequence...)
 			}
-		default:
 			e.VisitWith(s)
 		}
+	default:
+		e.VisitWith(s)
+	}
 
-		if mayInjectZero && needZeroForThis(callee) {
-			switch e := callee.Expr.(type) {
-			case *ast.SequenceExpression:
-				e.Sequence = append([]ast.Expression{{Expr: &ast.NumberLiteral{Value: 0.0}}}, e.Sequence...)
-			default:
-				callee.Expr = &ast.SequenceExpression{
-					Sequence: []ast.Expression{
-						{Expr: &ast.NumberLiteral{Value: 0.0}},
-						{Expr: e},
-					},
-				}
+	if mayInjectZero && needZeroForThis(n.Callee) {
+		switch e := n.Callee.Expr.(type) {
+		case *ast.SequenceExpression:
+			e.Sequence = append([]ast.Expression{{Expr: &ast.NumberLiteral{Value: 0.0}}}, e.Sequence...)
+		default:
+			n.Callee.Expr = &ast.SequenceExpression{
+				Sequence: []ast.Expression{
+					{Expr: &ast.NumberLiteral{Value: 0.0}},
+					{Expr: e},
+				},
 			}
 		}
 	}
@@ -1013,13 +1009,13 @@ func (s *Simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
 
 	oldInCallee := s.inCallee
 	length := len(n.Sequence)
-	for i, expr := range n.Sequence {
+	for i := range n.Sequence {
 		if i == length-1 {
 			s.inCallee = oldInCallee
 		} else {
 			s.inCallee = false
 		}
-		expr.VisitWith(s)
+		n.Sequence[i].VisitWith(s)
 	}
 	s.inCallee = oldInCallee
 
@@ -1033,6 +1029,7 @@ func (s *Simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
 			if len(exprs) == 0 {
 				exprs = append(exprs, ast.Expression{Expr: &ast.NumberLiteral{Value: 0.0}})
 			}
+			continue
 		}
 		if s.inCallee && !mayHaveSideEffects(&expr) {
 			switch expr.Expr.(type) {
@@ -1041,6 +1038,7 @@ func (s *Simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
 					s.changed = true
 					exprs = append(exprs, ast.Expression{Expr: &ast.NumberLiteral{Value: 0.0}})
 				}
+				continue
 			}
 		}
 		// Drop side-effect free nodes.
