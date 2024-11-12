@@ -3,7 +3,7 @@ package ast
 type (
 	FunctionLiteral struct {
 		Function      Idx
-		Name          *Identifier
+		Name          *Identifier `optional:"true"`
 		ParameterList ParameterList
 		Body          *BlockStatement
 
