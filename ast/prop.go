@@ -13,7 +13,7 @@ type (
 	Properties []Property
 
 	Property struct {
-		Prop
+		Prop Prop
 	}
 
 	Prop interface {

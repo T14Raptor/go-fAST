@@ -7,7 +7,7 @@ type (
 
 	// Expression is a struct to allow defining methods on it.
 	Expression struct {
-		Expr `optional:"true"`
+		Expr Expr `optional:"true"`
 	}
 
 	// All expression nodes implement the Expr interface.
