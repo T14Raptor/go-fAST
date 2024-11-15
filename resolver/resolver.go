@@ -2,6 +2,7 @@ package resolver
 
 import (
 	"fmt"
+
 	"github.com/t14raptor/go-fast/ast"
 )
 
@@ -184,13 +185,11 @@ func (r *Resolver) VisitForStatement(n *ast.ForStatement) {
 	r.popScope()
 }
 
-func (r *Resolver) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
-	r.modify(n.Function.Name, DeclKindFunction)
-
-	n.Function.VisitWith(r)
-}
-
 func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
+	if n.Name != nil {
+		r.modify(n.Name, DeclKindFunction)
+	}
+
 	r.pushScope(ScopeKindFunction)
 
 	n.ScopeContext = r.current.ctx
