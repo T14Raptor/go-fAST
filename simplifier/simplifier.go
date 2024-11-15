@@ -501,6 +501,8 @@ func (s *Simplifier) tryFoldTypeOf(expr *ast.Expression) {
 		case *ast.Identifier:
 			if operand.Name == "undefined" {
 				val = "undefined"
+			} else {
+				return
 			}
 		default:
 			return
@@ -994,11 +996,15 @@ func (s *Simplifier) VisitOptionalChain(n *ast.OptionalChain) {
 }
 
 func (s *Simplifier) VisitVariableDeclarator(n *ast.VariableDeclarator) {
-	if seqExpr, ok := n.Initializer.Expr.(*ast.SequenceExpression); ok {
-		if len(seqExpr.Sequence) == 0 {
-			n = nil
+	if n.Initializer != nil {
+		if seqExpr, ok := n.Initializer.Expr.(*ast.SequenceExpression); ok {
+			if len(seqExpr.Sequence) == 0 {
+				n = nil
+			}
 		}
 	}
+
+	n.VisitChildrenWith(s)
 }
 
 // Drops unused values
