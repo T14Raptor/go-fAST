@@ -1099,8 +1099,12 @@ func (s *Simplifier) VisitWithStatement(n *ast.WithStatement) {
 	n.Object.VisitWith(s)
 }
 
-func Simplify(p *ast.Program) {
-	resolver.Resolve(p)
+// Simplify simplifies the AST by optimizing expressions.
+// By default, it is expected that the AST is already resolved.
+func Simplify(p *ast.Program, resolve ...bool) {
+	if len(resolve) > 0 && resolve[0] {
+		resolver.Resolve(p)
+	}
 
 	visitor := &Simplifier{}
 	visitor.V = visitor
