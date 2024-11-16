@@ -5,9 +5,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode/utf16"
 
 	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/ast/ext"
 	"github.com/t14raptor/go-fast/resolver"
 	"github.com/t14raptor/go-fast/token"
 )
@@ -65,7 +65,7 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 		if s.inCallee {
 			return
 		}
-		if s, ok := asPureString(memExpr.Property); ok {
+		if s, ok := ext.AsPureString(memExpr.Property); ok {
 			if _, ok := memExpr.Object.Expr.(*ast.ObjectLiteral); !ok && s == "length" {
 				// Length of non-object type
 				op = Len{}
@@ -137,7 +137,7 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 		case Len:
 			// do nothing if replacement will have side effects
 			if slices.ContainsFunc(obj.Value, func(e ast.Expression) bool {
-				return mayHaveSideEffects(&e)
+				return ext.MayHaveSideEffects(&e)
 			}) {
 				return
 			}
@@ -154,7 +154,7 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 
 			// Don't change if after has side effects.
 			if slices.ContainsFunc(obj.Value[idx+1:], func(e ast.Expression) bool {
-				return mayHaveSideEffects(&e)
+				return ext.MayHaveSideEffects(&e)
 			}) {
 				return
 			}
@@ -184,7 +184,7 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 
 			// Add before side effects.
 			for _, elem := range before {
-				extractSideEffectsTo(&exprs, &elem)
+				ext.ExtractSideEffectsTo(&exprs, &elem)
 			}
 
 			// Element value.
@@ -192,7 +192,7 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 
 			// Add after side effects.
 			for _, elem := range after {
-				extractSideEffectsTo(&exprs, &elem)
+				ext.ExtractSideEffectsTo(&exprs, &elem)
 			}
 
 			// Note: we always replace with a SeqExpr so that
@@ -227,7 +227,7 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 		case Index:
 			key = strconv.FormatFloat(float64(op), 'f', -1, 64)
 		case IndexStr:
-			if op != "yield" && isLiteral(&obj.Value) {
+			if op != "yield" && ext.IsLiteral(&obj.Value) {
 				key = string(op)
 			}
 		}
@@ -240,32 +240,7 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 		}
 
 		s.changed = true
-		expr.Expr = preserveEffects(ast.Expression{Expr: v}, []ast.Expression{{Expr: obj}}).Expr
-	}
-}
-
-func isNonObj(n *ast.Expression) bool {
-	switch n := n.Expr.(type) {
-	case *ast.StringLiteral, *ast.NumberLiteral, *ast.NullLiteral, *ast.BooleanLiteral:
-		return true
-	case *ast.Identifier:
-		if n.Name == "undefined" || n.Name == "Infinity" || n.Name == "NaN" {
-			return true
-		}
-	case *ast.UnaryExpression:
-		if n.Operator == token.Not || n.Operator == token.Minus || n.Operator == token.Void {
-			return isNonObj(n.Operand)
-		}
-	}
-	return false
-}
-
-func isObj(n *ast.Expression) bool {
-	switch n.Expr.(type) {
-	case *ast.ArrayLiteral, *ast.ObjectLiteral, *ast.FunctionLiteral, *ast.NewExpression:
-		return true
-	default:
-		return false
+		expr.Expr = ext.PreserveEffects(ast.Expression{Expr: v}, []ast.Expression{{Expr: obj}}).Expr
 	}
 }
 
@@ -287,38 +262,38 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 		} else {
 			value = &ast.Identifier{Name: "NaN"}
 		}
-		expr.Expr = preserveEffects(ast.Expression{Expr: value}, []ast.Expression{{Expr: left}, {Expr: right}}).Expr
+		expr.Expr = ext.PreserveEffects(ast.Expression{Expr: value}, []ast.Expression{{Expr: left}, {Expr: right}}).Expr
 	}
 
 	switch binExpr.Operator {
 	case token.Plus:
 		// It's string concatenation if either left or right is string.
-		if isStr(binExpr.Left) || isArrayLiteral(binExpr.Left) || isStr(binExpr.Right) || isArrayLiteral(binExpr.Right) {
-			l, lok := asPureString(binExpr.Left)
-			r, rok := asPureString(binExpr.Right)
+		if ext.IsStr(binExpr.Left) || ext.IsArrayLiteral(binExpr.Left) || ext.IsStr(binExpr.Right) || ext.IsArrayLiteral(binExpr.Right) {
+			l, lok := ext.AsPureString(binExpr.Left)
+			r, rok := ext.AsPureString(binExpr.Right)
 			if lok && rok {
 				s.changed = true
 				expr.Expr = &ast.StringLiteral{Value: l + r}
 			}
 		}
 
-		typ, ok := getType(expr)
+		typ, ok := ext.GetType(expr)
 		if !ok {
 			return
 		}
 		switch typ {
 		// String concatenation
-		case StringType:
-			if !mayHaveSideEffects(binExpr.Left) && !mayHaveSideEffects(binExpr.Right) {
-				l, lok := asPureString(binExpr.Left)
-				r, rok := asPureString(binExpr.Right)
+		case ext.StringType:
+			if !ext.MayHaveSideEffects(binExpr.Left) && !ext.MayHaveSideEffects(binExpr.Right) {
+				l, lok := ext.AsPureString(binExpr.Left)
+				r, rok := ext.AsPureString(binExpr.Right)
 				if lok && rok {
 					s.changed = true
 					expr.Expr = &ast.StringLiteral{Value: l + r}
 				}
 			}
 		// Numerical calculation
-		case BooleanType, NullType, NumberType, UndefinedType:
+		case ext.BoolType, ext.NullType, ext.NumberType, ext.UndefinedType:
 			v, ok := s.performArithmeticOp(token.Plus, binExpr.Left, binExpr.Right)
 			if ok {
 				tryReplaceNum(v, binExpr.Left, binExpr.Right)
@@ -328,7 +303,7 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 		//TODO: try string concat
 
 	case token.LogicalAnd, token.LogicalOr:
-		val, ok, _ := castToBool(binExpr.Left)
+		val, ok, _ := ext.CastToBool(binExpr.Left)
 		if ok {
 			var node ast.Expression
 			if binExpr.Operator == token.LogicalAnd {
@@ -351,7 +326,7 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 				}
 			}
 
-			if !mayHaveSideEffects(binExpr.Left) {
+			if !ext.MayHaveSideEffects(binExpr.Left) {
 				s.changed = true
 				if directnessMaters(&node) {
 					expr.Expr = &ast.SequenceExpression{
@@ -382,7 +357,7 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 			expr.Expr = makeBoolExpr(false, []ast.Expression{{Expr: binExpr.Right}}).Expr
 			return
 		}
-		if isObj(binExpr.Left) && isGlobalRefTo(binExpr.Right, "Object") {
+		if isObj(binExpr.Left) && ext.IsGlobalRefTo(binExpr.Right, "Object") {
 			s.changed = true
 			expr.Expr = makeBoolExpr(true, []ast.Expression{{Expr: binExpr.Left}}).Expr
 		}
@@ -399,8 +374,8 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 				return 0, false
 			}
 
-			lv, lok := asPureNumber(left)
-			rv, rok := asPureNumber(right)
+			lv, lok := ext.AsPureNumber(left)
+			rv, rok := ext.AsPureNumber(right)
 			if !lok || !rok {
 				return 0, false
 			}
@@ -517,7 +492,7 @@ func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
 	if !ok {
 		return
 	}
-	sideEffects := mayHaveSideEffects(unaryExpr.Operand)
+	sideEffects := ext.MayHaveSideEffects(unaryExpr.Operand)
 
 	switch unaryExpr.Operator {
 	case token.Typeof:
@@ -535,18 +510,18 @@ func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
 				return
 			}
 		}
-		if val, ok, _ := castToBool(unaryExpr.Operand); ok {
+		if val, ok, _ := ext.CastToBool(unaryExpr.Operand); ok {
 			s.changed = true
 			expr.Expr = makeBoolExpr(!val, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
 		}
 	case token.Plus:
-		if val, ok := asPureNumber(unaryExpr.Operand); ok {
+		if val, ok := ext.AsPureNumber(unaryExpr.Operand); ok {
 			s.changed = true
 			if math.IsNaN(val) {
-				expr.Expr = preserveEffects(ast.Expression{Expr: &ast.Identifier{Name: "NaN"}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
+				expr.Expr = ext.PreserveEffects(ast.Expression{Expr: &ast.Identifier{Name: "NaN"}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
 				return
 			}
-			expr.Expr = preserveEffects(ast.Expression{Expr: &ast.NumberLiteral{Value: val}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
+			expr.Expr = ext.PreserveEffects(ast.Expression{Expr: &ast.NumberLiteral{Value: val}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
 		}
 	case token.Minus:
 		switch operand := unaryExpr.Operand.Expr.(type) {
@@ -573,7 +548,7 @@ func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
 			expr.Expr = &ast.NumberLiteral{Value: 0.0}
 		}
 	case token.BitwiseNot:
-		if val, ok := asPureNumber(unaryExpr.Operand); ok {
+		if val, ok := ext.AsPureNumber(unaryExpr.Operand); ok {
 			if _, frac := math.Modf(val); frac == 0.0 {
 				s.changed = true
 				var result float64
@@ -590,11 +565,11 @@ func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
 }
 
 func (s *Simplifier) performArithmeticOp(op token.Token, left, right *ast.Expression) (float64, bool) {
-	lv, lok := asPureNumber(left)
-	rv, rok := asPureNumber(right)
+	lv, lok := ext.AsPureNumber(left)
+	rv, rok := ext.AsPureNumber(right)
 
-	typl, _ := getType(left)
-	typr, _ := getType(right)
+	typl, _ := ext.GetType(left)
+	typr, _ := ext.GetType(right)
 	if (!lok && !rok) || op == token.Plus && (!typl.CastToNumberOnAdd() || !typr.CastToNumberOnAdd()) {
 		return 0, false
 	}
@@ -706,11 +681,11 @@ func (s *Simplifier) performAbstractRelCmp(left, right *ast.Expression, willNega
 	}
 
 	// Try to evaluate based on the general type.
-	lt, lok := getType(left)
-	rt, rok := getType(right)
-	if lt == StringType && rt == StringType && lok && rok {
-		lv, lok := asPureString(left)
-		rv, rok := asPureString(right)
+	lt, lok := ext.GetType(left)
+	rt, rok := ext.GetType(right)
+	if lt == ext.StringType && rt == ext.StringType && lok && rok {
+		lv, lok := ext.AsPureString(left)
+		rv, rok := ext.AsPureString(right)
 		if lok && rok {
 			// In JS, browsers parse \v differently. So do not compare strings if one
 			// contains \v.
@@ -724,8 +699,8 @@ func (s *Simplifier) performAbstractRelCmp(left, right *ast.Expression, willNega
 
 	// Then, try to evaluate based on the value of the node. Try comparing as
 	// numbers.
-	lv, lok := asPureNumber(left)
-	rv, rok := asPureNumber(right)
+	lv, lok := ext.AsPureNumber(left)
+	rv, rok := ext.AsPureNumber(right)
 	if lok && rok {
 		if math.IsNaN(lv) || math.IsNaN(rv) {
 			return willNegate, true
@@ -737,8 +712,8 @@ func (s *Simplifier) performAbstractRelCmp(left, right *ast.Expression, willNega
 }
 
 func (s *Simplifier) performAbstractEqCmp(left, right *ast.Expression) (bool, bool) {
-	lt, lok := getType(left)
-	rt, rok := getType(right)
+	lt, lok := ext.GetType(left)
+	rt, rok := ext.GetType(right)
 	if !lok || !rok {
 		return false, false
 	}
@@ -747,25 +722,25 @@ func (s *Simplifier) performAbstractEqCmp(left, right *ast.Expression) (bool, bo
 		return s.performStrictEqCmp(left, right)
 	}
 
-	if (lt == NullType && rt == UndefinedType) || (lt == UndefinedType && rt == NullType) {
+	if (lt == ext.NullType && rt == ext.UndefinedType) || (lt == ext.UndefinedType && rt == ext.NullType) {
 		return true, true
 	}
-	if (lt == NumberType && rt == StringType) || rt == BooleanType {
-		rv, rok := asPureNumber(right)
+	if (lt == ext.NumberType && rt == ext.StringType) || rt == ext.BoolType {
+		rv, rok := ext.AsPureNumber(right)
 		if !rok {
 			return false, false
 		}
 		return s.performAbstractEqCmp(left, &ast.Expression{Expr: &ast.NumberLiteral{Value: rv}})
 	}
-	if (lt == StringType && rt == NumberType) || lt == BooleanType {
-		lv, lok := asPureNumber(left)
+	if (lt == ext.StringType && rt == ext.NumberType) || lt == ext.BoolType {
+		lv, lok := ext.AsPureNumber(left)
 		if !lok {
 			return false, false
 		}
 		return s.performAbstractEqCmp(&ast.Expression{Expr: &ast.NumberLiteral{Value: lv}}, right)
 	}
-	if (lt == StringType && rt == ObjectType) || (lt == NumberType && rt == ObjectType) ||
-		(lt == ObjectType && rt == StringType) || (lt == ObjectType && rt == NumberType) {
+	if (lt == ext.StringType && rt == ext.ObjectType) || (lt == ext.NumberType && rt == ext.ObjectType) ||
+		(lt == ext.ObjectType && rt == ext.StringType) || (lt == ext.ObjectType && rt == ext.NumberType) {
 		return false, false
 	}
 
@@ -774,7 +749,7 @@ func (s *Simplifier) performAbstractEqCmp(left, right *ast.Expression) (bool, bo
 
 func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) (bool, bool) {
 	// Any strict equality comparison against NaN returns false.
-	if isNaN(left) || isNaN(right) {
+	if ext.IsNaN(left) || ext.IsNaN(right) {
 		return false, true
 	}
 	// Special case, typeof a == typeof a is always true.
@@ -789,8 +764,8 @@ func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) (bool, bool
 			}
 		}
 	}
-	lt, lok := getType(left)
-	rt, rok := getType(right)
+	lt, lok := ext.GetType(left)
+	rt, rok := ext.GetType(right)
 	if !lok || !rok {
 		return false, false
 	}
@@ -799,18 +774,18 @@ func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) (bool, bool
 		return false, true
 	}
 	switch lt {
-	case UndefinedType, NullType:
+	case ext.UndefinedType, ext.NullType:
 		return true, true
-	case NumberType:
-		lv, lok := asPureNumber(left)
-		rv, rok := asPureNumber(right)
+	case ext.NumberType:
+		lv, lok := ext.AsPureNumber(left)
+		rv, rok := ext.AsPureNumber(right)
 		if !lok || !rok {
 			return false, false
 		}
 		return lv == rv, true
-	case StringType:
-		lv, lok := asPureString(left)
-		rv, rok := asPureString(right)
+	case ext.StringType:
+		lv, lok := ext.AsPureString(left)
+		rv, rok := ext.AsPureString(right)
 		if !lok || !rok {
 			return false, false
 		}
@@ -820,13 +795,13 @@ func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) (bool, bool
 			return false, false
 		}
 		return lv == rv, true
-	case BooleanType:
-		lv, lok := asPureBool(left)
-		rv, rok := asPureBool(right)
+	case ext.BoolType:
+		lv, lok := ext.AsPureBool(left)
+		rv, rok := ext.AsPureBool(right)
 		// lv && rv || !lv && !rv
-		andVal, andOk := and(lv, rv, lok, rok)
-		notAndVal, notAndOk := and(!lv, !rv, lok, rok)
-		return or(andVal, notAndVal, andOk, notAndOk)
+		andVal, andOk := ext.And(lv, rv, lok, rok)
+		notAndVal, notAndOk := ext.And(!lv, !rv, lok, rok)
+		return ext.Or(andVal, notAndVal, andOk, notAndOk)
 	}
 
 	return false, false
@@ -917,7 +892,7 @@ func (s *Simplifier) VisitExpression(n *ast.Expression) {
 	case *ast.MemberExpression:
 		s.optimizeMemberExpression(n)
 	case *ast.ConditionalExpression:
-		v, ok, pure := castToBool(expr.Test)
+		v, ok, pure := ext.CastToBool(expr.Test)
 		if ok {
 			s.changed = true
 			var val *ast.Expression
@@ -1037,7 +1012,7 @@ func (s *Simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
 			}
 			continue
 		}
-		if s.inCallee && !mayHaveSideEffects(&expr) {
+		if s.inCallee && !ext.MayHaveSideEffects(&expr) {
 			switch expr.Expr.(type) {
 			case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.RegExpLiteral, *ast.Identifier:
 				if len(exprs) == 0 {
@@ -1122,85 +1097,6 @@ func (s *Simplifier) VisitTemplateLiteral(n *ast.TemplateLiteral) {
 
 func (s *Simplifier) VisitWithStatement(n *ast.WithStatement) {
 	n.Object.VisitWith(s)
-}
-
-func makeBoolExpr(value bool, orig ast.Expressions) ast.Expression {
-	return preserveEffects(ast.Expression{Expr: &ast.BooleanLiteral{Value: value}}, orig)
-}
-
-func nthChar(s string, idx int) (string, bool) {
-	for _, c := range s {
-		if len(utf16.Encode([]rune{c})) > 1 {
-			return "", false
-		}
-	}
-
-	if !strings.Contains(s, "\\ud") && !strings.Contains(s, "\\uD") {
-		if idx < len([]rune(s)) {
-			return string([]rune(s)[idx]), true
-		}
-		return "", false
-	}
-
-	iter := []rune(s)
-	for i := 0; i < len(iter); i++ {
-		c := iter[i]
-		if c == '\\' && i+1 < len(iter) && iter[i+1] == 'u' {
-			if idx == 0 {
-				if i+5 < len(iter) {
-					return string(iter[i : i+6]), true
-				}
-				return "", false
-			}
-			i += 5
-		} else {
-			if idx == 0 {
-				return string(c), true
-			}
-		}
-		idx--
-	}
-
-	return "", false
-}
-
-func needZeroForThis(e *ast.Expression) bool {
-	_, ok := e.Expr.(*ast.SequenceExpression)
-	return directnessMaters(e) || ok
-}
-
-func getKeyValue(props []ast.Property, key string) ast.Expr {
-	// It's impossible to know the value for certain if a spread property exists.
-	if slices.ContainsFunc(props, func(p ast.Property) bool {
-		_, ok := p.Prop.(*ast.SpreadElement)
-		return ok
-	}) {
-		return nil
-	}
-
-	for _, prop := range slices.Backward(props) {
-		switch prop := prop.Prop.(type) {
-		case *ast.PropertyShort:
-			if prop.Name.Name == key {
-				return prop.Name
-			}
-		case *ast.PropertyKeyed:
-			if key != "__proto__" && propNameEq(prop.Key, "__proto__") {
-				// If __proto__ is defined, we need to check the contents of it,
-				// as well as any nested __proto__ objects
-				if obj, ok := prop.Value.Expr.(*ast.ObjectLiteral); ok {
-					if v := getKeyValue(obj.Value, key); v != nil {
-						return v
-					}
-				}
-				return nil
-			} else if propNameEq(prop.Key, key) {
-				return prop.Value
-			}
-		}
-	}
-
-	return nil
 }
 
 func Simplify(p *ast.Program) {
