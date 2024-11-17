@@ -425,7 +425,7 @@ func (n *CaseStatements) VisitWith(v Visitor) {
 	v.VisitCaseStatements(n)
 }
 func (n *CaseStatements) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -454,7 +454,7 @@ func (n *ClassElements) VisitWith(v Visitor) {
 	v.VisitClassElements(n)
 }
 func (n *ClassElements) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -533,7 +533,7 @@ func (n *Expressions) VisitWith(v Visitor) {
 	v.VisitExpressions(n)
 }
 func (n *Expressions) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -724,7 +724,7 @@ func (n *Properties) VisitWith(v Visitor) {
 	v.VisitProperties(n)
 }
 func (n *Properties) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -785,7 +785,7 @@ func (n *Statements) VisitWith(v Visitor) {
 	v.VisitStatements(n)
 }
 func (n *Statements) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -815,7 +815,7 @@ func (n *TemplateElements) VisitWith(v Visitor) {
 	v.VisitTemplateElements(n)
 }
 func (n *TemplateElements) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }
@@ -883,7 +883,7 @@ func (n *VariableDeclarators) VisitWith(v Visitor) {
 	v.VisitVariableDeclarators(n)
 }
 func (n *VariableDeclarators) VisitChildrenWith(v Visitor) {
-	for i := range *n {
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v)
 	}
 }

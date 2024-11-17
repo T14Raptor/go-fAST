@@ -115,13 +115,27 @@ func main() {
 				}
 			}
 		case NodeTypeSlice:
-			// for i := range *n {
+			// for i := 0; i < len(*n); i++ {
 			//     (*n)[i].VisitWith(v)
 			// }
-			visitChildrenBlock.List = append(visitChildrenBlock.List, &ast.RangeStmt{
-				Key: ast.NewIdent("i"),
-				Tok: token.DEFINE,
-				X:   &ast.StarExpr{X: ast.NewIdent("n")},
+			visitChildrenBlock.List = append(visitChildrenBlock.List, &ast.ForStmt{
+				Init: &ast.AssignStmt{
+					Lhs: []ast.Expr{ast.NewIdent("i")},
+					Tok: token.DEFINE,
+					Rhs: []ast.Expr{&ast.BasicLit{Value: "0"}},
+				},
+				Cond: &ast.BinaryExpr{
+					X:  ast.NewIdent("i"),
+					Op: token.LSS,
+					Y: &ast.CallExpr{
+						Fun:  ast.NewIdent("len"),
+						Args: []ast.Expr{&ast.StarExpr{X: ast.NewIdent("n")}},
+					},
+				},
+				Post: &ast.IncDecStmt{
+					X:   ast.NewIdent("i"),
+					Tok: token.INC,
+				},
 				Body: &ast.BlockStmt{
 					List: []ast.Stmt{
 						&ast.ExprStmt{X: &ast.CallExpr{

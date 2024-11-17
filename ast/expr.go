@@ -108,7 +108,6 @@ type (
 	}
 
 	Body interface {
-		Node
 		VisitableNode
 		_conciseBody()
 	}

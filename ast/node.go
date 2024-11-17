@@ -113,7 +113,7 @@ func (n *ConditionalExpression) Idx1() Idx { return n.Test.Expr.Idx1() }
 func (p *PrivateDotExpression) Idx1() Idx  { return p.Idx1() }
 func (f *FunctionLiteral) Idx1() Idx       { return f.Body.Idx1() }
 func (c *ClassLiteral) Idx1() Idx          { return c.RightBrace + 1 }
-func (a *ArrowFunctionLiteral) Idx1() Idx  { return a.Body.Body.Idx1() }
+func (a *ArrowFunctionLiteral) Idx1() Idx  { return a.Body.Idx1() }
 func (i *Identifier) Idx1() Idx            { return Idx(int(i.Idx) + len(i.Name)) }
 func (n *NewExpression) Idx1() Idx {
 	if n.ArgumentList != nil {
@@ -229,5 +229,5 @@ func (y *YieldExpression) Idx1() Idx {
 	return y.Yield + 5
 }
 func (n *ForLoopInitializer) Idx1() Idx { return 0 }
-func (n *ConciseBody) Idx0() Idx        { return n.Body.Idx0() }
-func (n *ConciseBody) Idx1() Idx        { return n.Body.Idx1() }
+func (n *ConciseBody) Idx0() Idx        { return n.Idx0() }
+func (n *ConciseBody) Idx1() Idx        { return n.Idx1() }
