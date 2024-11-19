@@ -43,7 +43,7 @@ func classHasSideEffect(class *ast.ClassLiteral) bool {
 
 // mayBeStr returns if the node is possibly a string.
 func mayBeStr(ty Type) bool {
-	switch ty {
+	switch ty.(type) {
 	case BoolType, NullType, NumberType, UndefinedType:
 		return false
 	case ObjectType, StringType:
@@ -55,50 +55,50 @@ func mayBeStr(ty Type) bool {
 }
 
 // numFromStr converts a string to a number.
-func numFromStr(str string) (value float64, ok bool) {
+func numFromStr(str string) Value[float64] {
 	if strings.ContainsRune(str, '\u000B') {
-		return 0, false
+		return Value[float64]{unknown: true}
 	}
 	s := strings.TrimSpace(str)
 	if s == "" {
-		return 0, true
+		return Value[float64]{}
 	}
 	if len(s) >= 2 && s[0] == '0' {
 		switch {
 		case s[1] == 'x' || s[1] == 'X':
 			if n, err := strconv.ParseInt(s[2:], 16, 64); err == nil {
-				return float64(n), true
+				return Value[float64]{val: float64(n)}
 			} else {
-				return math.NaN(), true
+				return Value[float64]{val: math.NaN()}
 			}
 		case s[1] == 'o' || s[1] == 'O':
 			if n, err := strconv.ParseInt(s[2:], 8, 64); err == nil {
-				return float64(n), true
+				return Value[float64]{val: float64(n)}
 			} else {
-				return math.NaN(), true
+				return Value[float64]{val: math.NaN()}
 			}
 		case s[1] == 'b' || s[1] == 'B':
 			if n, err := strconv.ParseInt(s[2:], 2, 64); err == nil {
-				return float64(n), true
+				return Value[float64]{val: float64(n)}
 			} else {
-				return math.NaN(), true
+				return Value[float64]{val: math.NaN()}
 			}
 		}
 	}
 	if (strings.HasPrefix(s, "-") || strings.HasPrefix(s, "+")) &&
 		(strings.HasPrefix(s[1:], "0x") || strings.HasPrefix(s[1:], "0X")) {
-		return 0, false
+		return Value[float64]{unknown: true}
 	}
 	// Firefox and IE treat the "Infinity" differently. Firefox is case
 	// insensitive, but IE treats "infinity" as NaN.  So leave it alone.
 	switch s {
 	case "infinity", "+infinity", "-infinity":
-		return 0, false
+		return Value[float64]{unknown: true}
 	}
 	if n, err := strconv.ParseFloat(s, 64); err == nil {
-		return n, true
+		return Value[float64]{val: n}
 	}
-	return math.NaN(), true
+	return Value[float64]{val: math.NaN()}
 }
 
 // IsLiteral returns true if the node is a literal.

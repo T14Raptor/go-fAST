@@ -11,14 +11,8 @@ import (
 	"github.com/t14raptor/go-fast/token"
 )
 
-// IsNumber returns true if the expression is a number.
-func IsNumber(n *ast.Expression) bool {
-	_, ok := n.Expr.(*ast.NumberLiteral)
-	return ok
-}
-
-// IsStr returns true if the expression is a string.
-func IsStr(n *ast.Expression) bool {
+// IsString returns true if the expression is a potential string value.
+func IsString(n *ast.Expression) bool {
 	switch n := n.Expr.(type) {
 	case *ast.StringLiteral, *ast.TemplateLiteral:
 		return true
@@ -28,19 +22,19 @@ func IsStr(n *ast.Expression) bool {
 		}
 	case *ast.BinaryExpression:
 		if n.Operator == token.Plus {
-			return IsStr(n.Left) || IsStr(n.Right)
+			return IsString(n.Left) || IsString(n.Right)
 		}
 	case *ast.AssignExpression:
 		if n.Operator == token.Assign || n.Operator == token.AddAssign {
-			return IsStr(n.Right)
+			return IsString(n.Right)
 		}
 	case *ast.SequenceExpression:
 		if len(n.Sequence) == 0 {
 			return false
 		}
-		return IsStr(&n.Sequence[len(n.Sequence)-1])
+		return IsString(&n.Sequence[len(n.Sequence)-1])
 	case *ast.ConditionalExpression:
-		return IsStr(n.Consequent) && IsStr(n.Alternate)
+		return IsString(n.Consequent) && IsString(n.Alternate)
 	}
 	return false
 }
@@ -78,215 +72,202 @@ func IsGlobalRefTo(expr *ast.Expression, id string) bool {
 }
 
 // AsPureBool gets the boolean value if it does not have any side effects.
-func AsPureBool(expr *ast.Expression) (value bool, ok bool) {
-	if v, ok, pure := CastToBool(expr); pure {
-		return v, ok
+func AsPureBool(expr *ast.Expression) BoolValue {
+	if v, pure := CastToBool(expr); pure {
+		return v
 	}
-	return false, false
+	return BoolValue{unknown: true}
 }
 
 // CastToBool emulates the Boolean() JavaScript cast function.
-func CastToBool(expr *ast.Expression) (value bool, ok bool, pure bool) {
-	if IsGlobalRefTo(expr, "undefined") {
-		return false, true, true
-	}
-	if IsNaN(expr) {
-		return false, true, true
+func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
+	if IsGlobalRefTo(expr, "undefined") || IsNaN(expr) {
+		return BoolValue{}, true
 	}
 
 	switch e := expr.Expr.(type) {
 	case *ast.AssignExpression:
 		if e.Operator == token.Assign {
-			v, ok, _ := CastToBool(e.Right)
-			return v, ok, false
+			v, _ := CastToBool(e.Right)
+			return v, false
 		}
 	case *ast.UnaryExpression:
 		switch e.Operator {
 		case token.Minus:
-			n, ok := AsPureNumber(e.Operand)
-			if ok {
-				value = !(math.IsNaN(n) || n == 0)
+			if n := AsPureNumber(e.Operand); !n.Unknown() {
+				value = BoolValue{val: !(math.IsNaN(n.Value()) || n.Value() == 0)}
 			} else {
-				return false, false, false
+				return BoolValue{unknown: true}, false
 			}
 		case token.Not:
-			b, ok, pure := CastToBool(e.Operand)
-			return !b, ok, pure
+			b, pure := CastToBool(e.Operand)
+			return b.Not(), pure
 		case token.Void:
-			value = false
-			ok = true
+			value = BoolValue{}
 		}
 	case *ast.SequenceExpression:
 		if len(e.Sequence) != 0 {
-			value, ok, _ = CastToBool(&e.Sequence[len(e.Sequence)-1])
+			value, _ = CastToBool(&e.Sequence[len(e.Sequence)-1])
 		}
 	case *ast.BinaryExpression:
 		switch e.Operator {
 		case token.Minus:
-			nl, okl, pl := CastToNumber(e.Left)
-			nr, okr, pr := CastToNumber(e.Right)
+			nl, pl := CastToNumber(e.Left)
+			nr, pr := CastToNumber(e.Right)
 
-			return nl != nr, okl && okr, pl && pr
+			return BoolValue{val: nl.Value() != nr.Value(), unknown: nl.Unknown() || nr.Unknown()}, pl && pr
 		case token.Slash:
-			nl, okl := AsPureNumber(e.Left)
-			nr, okr := AsPureNumber(e.Right)
-			if okl && okr {
+			nl := AsPureNumber(e.Left)
+			nr := AsPureNumber(e.Right)
+			if !nl.Unknown() && !nr.Unknown() {
 				// NaN is false
-				if nl == 0.0 && nr == 0.0 {
-					return false, true, true
+				if nl.Value() == 0.0 && nr.Value() == 0.0 {
+					return BoolValue{}, true
 				}
 				// Infinity is true
-				if nr == 0.0 {
-					return true, true, true
+				if nr.Value() == 0.0 {
+					return BoolValue{val: true}, true
 				}
-				n := nl / nr
-				return n != 0.0, true, true
+				return BoolValue{val: nl.Value()/nr.Value() != 0.0}, true
 			}
 		case token.And, token.Or:
-			lt, lok := GetType(e.Left)
-			rt, rok := GetType(e.Right)
-			if lok && rok && lt != BoolType && rt != BoolType {
-				return false, false, false
+			lt := GetType(e.Left)
+			rt := GetType(e.Right)
+			if !lt.Unknown() && !lt.Unknown() && (lt.Value() != BoolType{} && rt.Value() != BoolType{}) {
+				return BoolValue{unknown: true}, false
 			}
 
 			// TODO: Ignore purity if value cannot be reached.
-			lv, lok, lp := CastToBool(e.Left)
-			rv, rok, rp := CastToBool(e.Right)
+			lv, lp := CastToBool(e.Left)
+			rv, rp := CastToBool(e.Right)
 
 			if e.Operator == token.And {
-				value, ok = And(lv, rv, lok, rok)
+				value = lv.And(rv)
 			} else {
-				value, ok = Or(lv, rv, lok, rok)
+				value = lv.Or(rv)
 			}
 			if lp && rp {
-				return value, ok, true
+				return value, true
 			}
 		case token.LogicalOr:
-			lv, lok, lp := CastToBool(e.Left)
-			if lok && lv {
-				return lv, lok, lp
+			lv, lp := CastToBool(e.Left)
+			if !lv.unknown && lv.val {
+				return lv, lp
 			}
-			rv, rok, rp := CastToBool(e.Right)
-			if rok && rv {
-				return rv, rok, rp
+			rv, rp := CastToBool(e.Right)
+			if !rv.unknown && rv.val {
+				return rv, rp
 			}
 		case token.LogicalAnd:
-			lv, lok, lp := CastToBool(e.Left)
-			if lok && !lv {
-				return lv, lok, lp
+			lv, lp := CastToBool(e.Left)
+			if !lv.unknown && !lv.val {
+				return lv, lp
 			}
-			rv, rok, rp := CastToBool(e.Right)
-			if rok && !rv {
-				return rv, rok, rp || lp
+			rv, rp := CastToBool(e.Right)
+			if !rv.unknown && !rp {
+				return rv, rp || lp
 			}
 		case token.Plus:
 			if strLit, ok := e.Left.Expr.(*ast.StringLiteral); ok && strLit.Value != "" {
-				return true, true, false
+				return BoolValue{val: true}, false
 			}
 			if strLit, ok := e.Right.Expr.(*ast.StringLiteral); ok && strLit.Value != "" {
-				return true, true, false
+				return BoolValue{val: true}, false
 			}
 		}
 	case *ast.FunctionLiteral, *ast.ClassLiteral, *ast.NewExpression, *ast.ArrayLiteral, *ast.ObjectLiteral:
-		value = true
-		ok = true
+		value = BoolValue{val: true}
 	case *ast.NumberLiteral:
 		if e.Value == 0.0 || math.IsNaN(e.Value) {
-			return false, true, true
+			return BoolValue{}, true
 		}
-		return true, true, true
+		return BoolValue{val: true}, true
 	case *ast.BooleanLiteral:
-		return e.Value, true, true
+		return BoolValue{val: e.Value}, true
 	case *ast.StringLiteral:
-		return e.Value != "", true, true
+		return BoolValue{val: e.Value != ""}, true
 	case *ast.NullLiteral:
-		return false, true, true
+		return BoolValue{}, true
 	case *ast.RegExpLiteral:
-		return true, true, true
+		return BoolValue{val: true}, true
 	}
 
 	if MayHaveSideEffects(expr) {
-		return value, ok, false
+		return value, false
 	} else {
-		return value, ok, true
+		return value, true
 	}
 }
 
 // AsPureNumber gets the number value if it does not have any side effects.
-func AsPureNumber(expr *ast.Expression) (value float64, ok bool) {
-	if v, ok, pure := CastToNumber(expr); pure {
-		return v, ok
+func AsPureNumber(expr *ast.Expression) Value[float64] {
+	if v, pure := CastToNumber(expr); pure {
+		return v
 	}
-	return 0.0, false
+	return Value[float64]{unknown: true}
 }
 
 // CastToNumber emulates the Number() JavaScript cast function.
-func CastToNumber(expr *ast.Expression) (value float64, ok bool, pure bool) {
+func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 	switch e := expr.Expr.(type) {
 	case *ast.BooleanLiteral:
 		if e.Value {
-			return 1.0, true, true
+			return Value[float64]{val: 1.0}, true
 		}
-		return 0.0, true, true
+		return Value[float64]{}, true
 	case *ast.NumberLiteral:
-		return e.Value, true, true
+		return Value[float64]{val: e.Value}, true
 	case *ast.StringLiteral:
-		n, ok := numFromStr(e.Value)
-		return n, ok, true
+		return numFromStr(e.Value), true
 	case *ast.NullLiteral:
-		return 0.0, false, true
+		return Value[float64]{unknown: true}, true
 	case *ast.ArrayLiteral:
 		s, ok := AsPureString(expr)
 		if !ok {
-			return 0.0, false, false
+			return Value[float64]{unknown: true}, false
 		}
-		n, ok := numFromStr(s)
-		return n, ok, true
+		return numFromStr(s), true
 	case *ast.Identifier:
 		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == resolver.UnresolvedMark {
-			return math.NaN(), true, true
+			return Value[float64]{val: math.NaN()}, true
 		}
 		if e.Name == "Infinity" && e.ScopeContext == resolver.UnresolvedMark {
-			return math.Inf(1), true, true
+			return Value[float64]{val: math.Inf(1)}, true
 		}
-		return 0.0, false, true
+		return Value[float64]{unknown: true}, true
 	case *ast.UnaryExpression:
 		switch e.Operator {
 		case token.Minus:
-			n, ok, pure := CastToNumber(e.Operand)
-			if ok && pure {
-				return -n, true, true
+			if n, pure := CastToNumber(e.Operand); !n.unknown && pure {
+				return Value[float64]{val: -n.val}, true
 			}
-			return 0.0, false, false
+			return Value[float64]{unknown: true}, false
 		case token.Not:
-			b, ok, pure := CastToBool(e.Operand)
-			if ok && pure {
-				if b {
-					return 0.0, true, true
+			if b, pure := CastToBool(e.Operand); !b.unknown && pure {
+				if b.val {
+					return Value[float64]{}, true
 				}
-				return 1.0, true, true
+				return Value[float64]{val: 1.0}, true
 			}
-			return 0.0, false, false
+			return Value[float64]{unknown: true}, false
 		case token.Void:
 			if MayHaveSideEffects(e.Operand) {
-				return math.NaN(), true, false
+				return Value[float64]{val: math.NaN()}, false
 			} else {
-				return math.NaN(), true, true
+				return Value[float64]{val: math.NaN()}, true
 			}
 		}
 	case *ast.TemplateLiteral:
-		s, ok := AsPureString(expr)
-		if ok {
-			n, ok := numFromStr(s)
-			return n, ok, true
+		if s, ok := AsPureString(expr); ok {
+			return numFromStr(s), true
 		}
 	case *ast.SequenceExpression:
 		if len(e.Sequence) != 0 {
-			v, ok, _ := CastToNumber(&e.Sequence[len(e.Sequence)-1])
-			return v, ok, false
+			v, _ := CastToNumber(&e.Sequence[len(e.Sequence)-1])
+			return v, false
 		}
 	}
-	return 0.0, false, false
+	return Value[float64]{unknown: true}, false
 }
 
 // AsPureString gets the string value if it does not have any side effects.
@@ -328,8 +309,8 @@ func AsPureString(expr *ast.Expression) (value string, ok bool) {
 		case token.Void:
 			return "undefined", true
 		case token.Not:
-			if b, ok := AsPureBool(e.Operand); ok {
-				return fmt.Sprint(!b), true
+			if b := AsPureBool(e.Operand); ok {
+				return fmt.Sprint(!b.val), true
 			}
 		}
 	case *ast.ArrayLiteral:
@@ -409,31 +390,30 @@ func AsPureString(expr *ast.Expression) (value string, ok bool) {
 }
 
 // GetType returns the type of the expression.
-func GetType(expr *ast.Expression) (typ Type, ok bool) {
+func GetType(expr *ast.Expression) Value[Type] {
 	switch e := expr.Expr.(type) {
 	case *ast.AssignExpression:
 		switch e.Operator {
 		case token.Assign:
 			return GetType(e.Right)
 		case token.AddAssign:
-			rt, rok := GetType(e.Right)
-			if rok && rt == StringType {
-				return StringType, true
+			if rt := GetType(e.Right); !rt.Unknown() && (rt.Value() == StringType{}) {
+				return Value[Type]{val: StringType{}}
 			}
 		case token.AndAssign, token.ExclusiveOrAssign, token.OrAssign,
 			token.ShiftLeftAssign, token.ShiftRightAssign, token.UnsignedShiftRightAssign,
 			token.SubtractAssign, token.MultiplyAssign, token.ExponentAssign, token.QuotientAssign, token.RemainderAssign:
-			return NumberType, true
+			return Value[Type]{val: NumberType{}}
 		}
 	case *ast.MemberExpression:
 		if strLit, ok := e.Property.Expr.(*ast.StringLiteral); ok {
 			if strLit.Value == "length" {
 				switch obj := e.Object.Expr.(type) {
 				case *ast.ArrayLiteral, *ast.StringLiteral:
-					return NumberType, true
+					return Value[Type]{val: NumberType{}}
 				case *ast.Identifier:
 					if obj.Name == "arguments" {
-						return NumberType, true
+						return Value[Type]{val: NumberType{}}
 					}
 				}
 			}
@@ -445,73 +425,72 @@ func GetType(expr *ast.Expression) (typ Type, ok bool) {
 	case *ast.BinaryExpression:
 		switch e.Operator {
 		case token.LogicalAnd, token.LogicalOr:
-			lt, lok := GetType(e.Left)
-			rt, rok := GetType(e.Right)
-			if lok && rok && lt == rt {
-				return lt, true
+			if lt, rt := GetType(e.Left), GetType(e.Right); !lt.Unknown() && !rt.Unknown() && lt == rt {
+				return lt
 			}
 		case token.Plus:
-			rt, rok := GetType(e.Right)
-			if rok && rt == StringType {
-				return StringType, true
+			rt := GetType(e.Right)
+			if !rt.Unknown() && (rt.Value() == StringType{}) {
+				return Value[Type]{val: StringType{}}
 			}
-			lt, lok := GetType(e.Left)
-			if lok && lt == StringType {
-				return StringType, true
+
+			lt := GetType(e.Left)
+			if !lt.Unknown() && (lt.Value() == StringType{}) {
+				return Value[Type]{val: StringType{}}
 			}
 			// There are some pretty weird cases for object types:
 			//   {} + [] === "0"
 			//   [] + {} ==== "[object Object]"
-			if rok && rt == ObjectType {
-				return UndefinedType, false
+			if !rt.Unknown() && (rt.Value() == ObjectType{}) {
+				return Value[Type]{val: UndefinedType{}, unknown: true}
 			}
-			if lok && lt == ObjectType {
-				return UndefinedType, false
+			if !lt.Unknown() && (lt.Value() == ObjectType{}) {
+				return Value[Type]{val: UndefinedType{}, unknown: true}
 			}
-			if rok && lok && !mayBeStr(lt) && !mayBeStr(rt) {
-				return NumberType, true
+			if !rt.Unknown() && !lt.Unknown() && !mayBeStr(lt.Value()) && !mayBeStr(rt.Value()) {
+				return Value[Type]{val: NumberType{}}
 			}
 		case token.Or, token.ExclusiveOr, token.And, token.ShiftLeft, token.ShiftRight, token.UnsignedShiftRight,
 			token.Minus, token.Multiply, token.Remainder, token.Slash, token.Exponent:
-			return NumberType, true
+			return Value[Type]{val: NumberType{}}
 		case token.Equal, token.NotEqual, token.StrictEqual, token.StrictNotEqual, token.Less, token.LessOrEqual,
 			token.Greater, token.GreaterOrEqual, token.In, token.InstanceOf:
-			return BoolType, true
+			return Value[Type]{val: BoolType{}}
 		}
 	case *ast.ConditionalExpression:
-		ct, cok := GetType(e.Consequent)
-		at, aok := GetType(e.Alternate)
-		if cok && aok && ct == at {
-			return ct, true
+		ct := GetType(e.Consequent)
+		at := GetType(e.Alternate)
+		if !ct.Unknown() && !at.Unknown() && ct.Value() == at.Value() {
+			return Value[Type]{val: ct.Value()}
 		}
 	case *ast.NumberLiteral:
-		return NumberType, true
+		return Value[Type]{val: NumberType{}}
 	case *ast.UnaryExpression:
 		switch e.Operator {
 		case token.Minus, token.Plus, token.BitwiseNot:
-			return NumberType, true
+			return Value[Type]{val: NumberType{}}
 		case token.Not, token.Delete:
-			return BoolType, true
+			return Value[Type]{val: BoolType{}}
 		case token.Typeof:
-			return StringType, true
+			return Value[Type]{val: StringType{}}
 		case token.Void:
-			return UndefinedType, true
+			return Value[Type]{val: UndefinedType{}}
 		}
 	case *ast.UpdateExpression:
 		switch e.Operator {
 		case token.Increment, token.Decrement:
-			return NumberType, true
+			return Value[Type]{val: NumberType{}}
 		}
 	case *ast.BooleanLiteral:
-		return BoolType, true
+		return Value[Type]{val: BoolType{}}
 	case *ast.StringLiteral, *ast.TemplateLiteral:
-		return StringType, true
+		return Value[Type]{val: StringType{}}
 	case *ast.NullLiteral:
-		return NullType, true
+		return Value[Type]{val: NullType{}}
 	case *ast.FunctionLiteral, *ast.NewExpression, *ast.ArrayLiteral, *ast.ObjectLiteral, *ast.RegExpLiteral:
-		return ObjectType, true
+		return Value[Type]{val: ObjectType{}}
 	}
-	return UndefinedType, false
+	return Value[Type]{val: UndefinedType{}, unknown: true}
 }
 
 // IsPureCallee returns true if the expression is a pure function.

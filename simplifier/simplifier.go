@@ -268,7 +268,7 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 	switch binExpr.Operator {
 	case token.Plus:
 		// It's string concatenation if either left or right is string.
-		if ext.IsStr(binExpr.Left) || ext.IsArrayLiteral(binExpr.Left) || ext.IsStr(binExpr.Right) || ext.IsArrayLiteral(binExpr.Right) {
+		if ext.IsString(binExpr.Left) || ext.IsArrayLiteral(binExpr.Left) || ext.IsString(binExpr.Right) || ext.IsArrayLiteral(binExpr.Right) {
 			l, lok := ext.AsPureString(binExpr.Left)
 			r, rok := ext.AsPureString(binExpr.Right)
 			if lok && rok {
@@ -277,11 +277,11 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 			}
 		}
 
-		typ, ok := ext.GetType(expr)
-		if !ok {
+		typ := ext.GetType(expr)
+		if typ.Unknown() {
 			return
 		}
-		switch typ {
+		switch typ.Value().(type) {
 		// String concatenation
 		case ext.StringType:
 			if !ext.MayHaveSideEffects(binExpr.Left) && !ext.MayHaveSideEffects(binExpr.Right) {
@@ -303,11 +303,11 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 		//TODO: try string concat
 
 	case token.LogicalAnd, token.LogicalOr:
-		val, ok, _ := ext.CastToBool(binExpr.Left)
-		if ok {
+		val, _ := ext.CastToBool(binExpr.Left)
+		if !val.Unknown() {
 			var node ast.Expression
 			if binExpr.Operator == token.LogicalAnd {
-				if val {
+				if val.Value() {
 					// 1 && $right
 					node = *binExpr.Right
 				} else {
@@ -316,7 +316,7 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 					expr.Expr = binExpr.Left.Expr
 				}
 			} else {
-				if val {
+				if val.Value() {
 					s.changed = true
 					// 1 || $right
 					expr.Expr = binExpr.Left.Expr
@@ -374,20 +374,20 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 				return 0, false
 			}
 
-			lv, lok := ext.AsPureNumber(left)
-			rv, rok := ext.AsPureNumber(right)
-			if !lok || !rok {
+			lv := ext.AsPureNumber(left)
+			rv := ext.AsPureNumber(right)
+			if lv.Unknown() || rv.Unknown() {
 				return 0, false
 			}
 			// Shift
 			// (Masking of 0x1f is to restrict the shift to a maximum of 31 places)
 			switch op {
 			case token.ShiftLeft:
-				return float64(int32(int32(lv) << uint32(rv) & 0x1f)), true
+				return float64(int32(int32(lv.Value()) << uint32(rv.Value()) & 0x1f)), true
 			case token.ShiftRight:
-				return float64(int32(int32(lv)>>uint32(rv)) & 0x1f), true
+				return float64(int32(int32(lv.Value())>>uint32(rv.Value())) & 0x1f), true
 			case token.UnsignedShiftRight:
-				return float64(uint32(uint32(lv) >> uint32(rv) & 0x1f)), true
+				return float64(uint32(uint32(lv.Value()) >> uint32(rv.Value()) & 0x1f)), true
 			}
 			return 0, false
 		}
@@ -510,18 +510,18 @@ func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
 				return
 			}
 		}
-		if val, ok, _ := ext.CastToBool(unaryExpr.Operand); ok {
+		if val, _ := ext.CastToBool(unaryExpr.Operand); !val.Unknown() {
 			s.changed = true
-			expr.Expr = makeBoolExpr(!val, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
+			expr.Expr = makeBoolExpr(val.Not().Value(), []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
 		}
 	case token.Plus:
-		if val, ok := ext.AsPureNumber(unaryExpr.Operand); ok {
+		if val := ext.AsPureNumber(unaryExpr.Operand); !val.Unknown() {
 			s.changed = true
-			if math.IsNaN(val) {
+			if math.IsNaN(val.Value()) {
 				expr.Expr = ext.PreserveEffects(ast.Expression{Expr: &ast.Identifier{Name: "NaN"}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
 				return
 			}
-			expr.Expr = ext.PreserveEffects(ast.Expression{Expr: &ast.NumberLiteral{Value: val}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
+			expr.Expr = ext.PreserveEffects(ast.Expression{Expr: &ast.NumberLiteral{Value: val.Value()}}, []ast.Expression{{Expr: unaryExpr.Operand}}).Expr
 		}
 	case token.Minus:
 		switch operand := unaryExpr.Operand.Expr.(type) {
@@ -548,14 +548,14 @@ func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
 			expr.Expr = &ast.NumberLiteral{Value: 0.0}
 		}
 	case token.BitwiseNot:
-		if val, ok := ext.AsPureNumber(unaryExpr.Operand); ok {
-			if _, frac := math.Modf(val); frac == 0.0 {
+		if val := ext.AsPureNumber(unaryExpr.Operand); !val.Unknown() {
+			if _, frac := math.Modf(val.Value()); frac == 0.0 {
 				s.changed = true
 				var result float64
-				if val < 0.0 {
-					result = float64(^uint32(int32(val)))
+				if val.Value() < 0.0 {
+					result = float64(^uint32(int32(val.Value())))
 				} else {
-					result = float64(^uint32(val))
+					result = float64(^uint32(val.Value()))
 				}
 				expr.Expr = &ast.NumberLiteral{Value: result}
 			}
@@ -722,25 +722,25 @@ func (s *Simplifier) performAbstractEqCmp(left, right *ast.Expression) (bool, bo
 		return s.performStrictEqCmp(left, right)
 	}
 
-	if (lt == ext.NullType && rt == ext.UndefinedType) || (lt == ext.UndefinedType && rt == ext.NullType) {
+	if (lt == ext.NullType{} && rt == ext.UndefinedType{}) || (lt == ext.UndefinedType{} && rt == ext.NullType{}) {
 		return true, true
 	}
-	if (lt == ext.NumberType && rt == ext.StringType) || rt == ext.BoolType {
+	if (lt == ext.NumberType{} && rt == ext.StringType{}) || (rt == ext.BoolType{}) {
 		rv, rok := ext.AsPureNumber(right)
 		if !rok {
 			return false, false
 		}
 		return s.performAbstractEqCmp(left, &ast.Expression{Expr: &ast.NumberLiteral{Value: rv}})
 	}
-	if (lt == ext.StringType && rt == ext.NumberType) || lt == ext.BoolType {
+	if (lt == ext.StringType{} && rt == ext.NumberType{}) || lt == (ext.BoolType{}) {
 		lv, lok := ext.AsPureNumber(left)
 		if !lok {
 			return false, false
 		}
 		return s.performAbstractEqCmp(&ast.Expression{Expr: &ast.NumberLiteral{Value: lv}}, right)
 	}
-	if (lt == ext.StringType && rt == ext.ObjectType) || (lt == ext.NumberType && rt == ext.ObjectType) ||
-		(lt == ext.ObjectType && rt == ext.StringType) || (lt == ext.ObjectType && rt == ext.NumberType) {
+	if (lt == ext.StringType{} && rt == ext.ObjectType{}) || (lt == ext.NumberType{} && rt == ext.ObjectType{}) ||
+		(lt == ext.ObjectType{} && rt == ext.StringType{}) || (lt == ext.ObjectType{} && rt == ext.NumberType{}) {
 		return false, false
 	}
 
@@ -773,7 +773,7 @@ func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) (bool, bool
 	if lt != rt {
 		return false, true
 	}
-	switch lt {
+	switch lt.Value().(type) {
 	case ext.UndefinedType, ext.NullType:
 		return true, true
 	case ext.NumberType:
@@ -796,12 +796,12 @@ func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) (bool, bool
 		}
 		return lv == rv, true
 	case ext.BoolType:
-		lv, lok := ext.AsPureBool(left)
-		rv, rok := ext.AsPureBool(right)
+		lv := ext.AsPureBool(left)
+		rv := ext.AsPureBool(right)
 		// lv && rv || !lv && !rv
-		andVal, andOk := ext.And(lv, rv, lok, rok)
-		notAndVal, notAndOk := ext.And(!lv, !rv, lok, rok)
-		return ext.Or(andVal, notAndVal, andOk, notAndOk)
+		andVal := lv.And(rv)
+		notAndVal := lv.Not().And(rv.Not())
+		return andVal.Or(notAndVal)
 	}
 
 	return false, false
