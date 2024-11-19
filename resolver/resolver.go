@@ -200,7 +200,7 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 
 	if rest, ok := n.ParameterList.Rest.(*ast.Identifier); ok {
 		rest.VisitWith(r)
-	} else if rest != nil {
+	} else {
 		panic(fmt.Sprintf("Unexpected rest type: %T\n", n.ParameterList.Rest))
 	}
 
