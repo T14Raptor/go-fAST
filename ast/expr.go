@@ -74,7 +74,16 @@ type (
 
 	MemberExpression struct {
 		Object   *Expression
-		Property *Expression
+		Property *MemberProperty
+	}
+
+	MemberProperty struct {
+		Prop MemberProp
+	}
+
+	MemberProp interface {
+		VisitableNode
+		_memberProperty()
 	}
 
 	CallExpression struct {

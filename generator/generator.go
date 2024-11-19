@@ -270,12 +270,18 @@ func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	default:
 		g.gen(n.Object.Expr)
 	}
-	if st, ok := n.Property.Expr.(*ast.StringLiteral); ok && valid(st.Value) {
+
+	g.gen(n.Property)
+}
+
+func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
+	switch prop := n.Prop.(type) {
+	case *ast.Identifier:
 		g.out.WriteString(".")
-		g.out.WriteString(st.Value)
-	} else {
+		g.gen(prop)
+	case *ast.ComputedProperty:
 		g.out.WriteString("[")
-		g.gen(n.Property.Expr)
+		g.gen(prop.Expr)
 		g.out.WriteString("]")
 	}
 }

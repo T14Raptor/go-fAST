@@ -111,6 +111,9 @@ func (n *ClassLiteral) Clone() *ClassLiteral {
 func (n *ClassStaticBlock) Clone() *ClassStaticBlock {
 	return &ClassStaticBlock{Static: n.Static, Block: n.Block.Clone()}
 }
+func (n *ComputedProperty) Clone() *ComputedProperty {
+	return &ComputedProperty{Expr: n.Expr.Clone()}
+}
 func (n *ConciseBody) Clone() *ConciseBody {
 	var clonedBody Body
 	switch body := n.Body.(type) {
@@ -274,7 +277,11 @@ func (n *FunctionDeclaration) Clone() *FunctionDeclaration {
 	return &FunctionDeclaration{Function: n.Function.Clone()}
 }
 func (n *FunctionLiteral) Clone() *FunctionLiteral {
-	return &FunctionLiteral{Function: n.Function, Name: n.Name.Clone(), ParameterList: *n.ParameterList.Clone(), Body: n.Body.Clone(), Async: n.Async, ScopeContext: n.ScopeContext}
+	var name *Identifier
+	if n.Name != nil {
+		name = n.Name.Clone()
+	}
+	return &FunctionLiteral{Function: n.Function, Name: name, ParameterList: *n.ParameterList.Clone(), Body: n.Body.Clone(), Async: n.Async, ScopeContext: n.ScopeContext}
 }
 func (n *Identifier) Clone() *Identifier {
 	return &Identifier{Idx: n.Idx, Name: n.Name, ScopeContext: n.ScopeContext}
@@ -294,6 +301,16 @@ func (n *LabelledStatement) Clone() *LabelledStatement {
 }
 func (n *MemberExpression) Clone() *MemberExpression {
 	return &MemberExpression{Object: n.Object.Clone(), Property: n.Property.Clone()}
+}
+func (n *MemberProperty) Clone() *MemberProperty {
+	var clonedMemberProp MemberProp
+	switch memberProp := n.Prop.(type) {
+	case *ComputedProperty:
+		clonedMemberProp = memberProp.Clone()
+	case *Identifier:
+		clonedMemberProp = memberProp.Clone()
+	}
+	return &MemberProperty{Prop: clonedMemberProp}
 }
 func (n *MetaProperty) Clone() *MetaProperty {
 	return &MetaProperty{Meta: n.Meta.Clone(), Idx: n.Idx}

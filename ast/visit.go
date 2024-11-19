@@ -22,6 +22,7 @@ type Visitor interface {
 	VisitClassElements(n *ClassElements)
 	VisitClassLiteral(n *ClassLiteral)
 	VisitClassStaticBlock(n *ClassStaticBlock)
+	VisitComputedProperty(n *ComputedProperty)
 	VisitConciseBody(n *ConciseBody)
 	VisitConditionalExpression(n *ConditionalExpression)
 	VisitContinueStatement(n *ContinueStatement)
@@ -44,6 +45,7 @@ type Visitor interface {
 	VisitInvalidExpression(n *InvalidExpression)
 	VisitLabelledStatement(n *LabelledStatement)
 	VisitMemberExpression(n *MemberExpression)
+	VisitMemberProperty(n *MemberProperty)
 	VisitMetaProperty(n *MetaProperty)
 	VisitMethodDefinition(n *MethodDefinition)
 	VisitNewExpression(n *NewExpression)
@@ -149,6 +151,9 @@ func (nv *NoopVisitor) VisitClassLiteral(n *ClassLiteral) {
 func (nv *NoopVisitor) VisitClassStaticBlock(n *ClassStaticBlock) {
 	n.VisitChildrenWith(nv.V)
 }
+func (nv *NoopVisitor) VisitComputedProperty(n *ComputedProperty) {
+	n.VisitChildrenWith(nv.V)
+}
 func (nv *NoopVisitor) VisitConciseBody(n *ConciseBody) {
 	n.VisitChildrenWith(nv.V)
 }
@@ -213,6 +218,9 @@ func (nv *NoopVisitor) VisitLabelledStatement(n *LabelledStatement) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitMemberExpression(n *MemberExpression) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitMemberProperty(n *MemberProperty) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitMetaProperty(n *MetaProperty) {
@@ -476,6 +484,12 @@ func (n *ClassStaticBlock) VisitWith(v Visitor) {
 func (n *ClassStaticBlock) VisitChildrenWith(v Visitor) {
 	n.Block.VisitWith(v)
 }
+func (n *ComputedProperty) VisitWith(v Visitor) {
+	v.VisitComputedProperty(n)
+}
+func (n *ComputedProperty) VisitChildrenWith(v Visitor) {
+	n.Expr.VisitWith(v)
+}
 func (n *ConciseBody) VisitWith(v Visitor) {
 	v.VisitConciseBody(n)
 }
@@ -634,6 +648,12 @@ func (n *MemberExpression) VisitWith(v Visitor) {
 func (n *MemberExpression) VisitChildrenWith(v Visitor) {
 	n.Object.VisitWith(v)
 	n.Property.VisitWith(v)
+}
+func (n *MemberProperty) VisitWith(v Visitor) {
+	v.VisitMemberProperty(n)
+}
+func (n *MemberProperty) VisitChildrenWith(v Visitor) {
+	n.Prop.VisitWith(v)
 }
 func (n *MetaProperty) VisitWith(v Visitor) {
 	v.VisitMetaProperty(n)
