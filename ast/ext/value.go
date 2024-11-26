@@ -19,57 +19,73 @@ type Value[T any] struct {
 	unknown bool
 }
 
-func (v Value[T]) Value() T {
+func Known[T any](val T) Value[T] {
+	return Value[T]{val: val}
+}
+
+func Unknown[T any]() Value[T] {
+	return Value[T]{unknown: true}
+}
+
+func (v Value[T]) Val() T {
 	return v.val
+}
+
+func (v Value[T]) Known() bool {
+	return !v.unknown
 }
 
 func (v Value[T]) Unknown() bool {
 	return v.unknown
 }
 
-type TypeValue = Value[Type]
+type TypeValue struct {
+	Value[Type]
+}
 
 func (v TypeValue) CastToNumberOnAdd() bool {
-	switch any(v.Value()).(type) {
+	switch v.val.(type) {
 	case BoolType, NullType, NumberType, UndefinedType:
 		return true
 	}
 	return false
 }
 
-type BoolValue = Value[bool]
+type BoolValue struct {
+	Value[bool]
+}
 
 func (v BoolValue) And(other BoolValue) BoolValue {
-	if v.Unknown() {
-		if other.Unknown() {
-			return BoolValue{unknown: true}
+	if v.unknown {
+		if other.unknown || other.val {
+			return BoolValue{Unknown[bool]()}
 		}
-		return other
+		return BoolValue{Known(false)}
 	}
-	if v.Value() {
-		return other
+	if !v.val {
+		return BoolValue{Known(false)}
 	}
-	return BoolValue{}
+	return other
 }
 
 func (v BoolValue) Or(other BoolValue) BoolValue {
-	if v.Unknown() {
-		if other.Unknown() || !other.Value() {
-			return BoolValue{unknown: true}
+	if v.unknown {
+		if other.unknown || !other.val {
+			return BoolValue{Unknown[bool]()}
 		}
-		return other
+		return BoolValue{Known(true)}
 	}
-	if v.Value() {
-		return v
+	if v.val {
+		return BoolValue{Known(true)}
 	}
 	return other
 }
 
 func (v BoolValue) Not() BoolValue {
-	if v.Unknown() {
+	if v.unknown {
 		return v
 	}
-	return BoolValue{val: !v.Value()}
+	return BoolValue{Known(!v.val)}
 }
 
 func (UndefinedType) _type() {}
