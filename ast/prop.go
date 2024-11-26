@@ -13,7 +13,7 @@ type (
 	Properties []Property
 
 	Property struct {
-		Prop
+		Prop Prop
 	}
 
 	Prop interface {
@@ -32,8 +32,14 @@ type (
 		Value    *Expression
 		Computed bool
 	}
+
+	ComputedProperty struct {
+		Expr *Expression
+	}
 )
 
 func (*PropertyShort) _property() {}
 func (*PropertyKeyed) _property() {}
 func (*SpreadElement) _property() {}
+
+func (*ComputedProperty) _memberProperty() {}

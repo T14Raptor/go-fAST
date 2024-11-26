@@ -121,10 +121,10 @@ func (p *parser) parseSuperProperty() ast.Expr {
 			Object: ptrExpr(&ast.SuperExpression{
 				Idx: idx,
 			}),
-			Property: ptrExpr(&ast.Identifier{
+			Property: &ast.MemberProperty{Prop: &ast.Identifier{
 				Idx:  idIdx,
 				Name: parsedLiteral,
-			}),
+			}},
 		}
 	case token.LeftBracket:
 		return p.parseBracketMember(&ast.SuperExpression{
@@ -652,10 +652,12 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 
 	return &ast.MemberExpression{
 		Object: ptrExpr(left),
-		Property: ptrExpr(&ast.StringLiteral{
-			Idx:   idx,
-			Value: literal,
-		}),
+		Property: &ast.MemberProperty{
+			Prop: &ast.Identifier{
+				Idx:  idx,
+				Name: literal,
+			},
+		},
 	}
 }
 
@@ -664,8 +666,12 @@ func (p *parser) parseBracketMember(left ast.Expr) ast.Expr {
 	member := p.parseExpression()
 	p.expect(token.RightBracket)
 	return &ast.MemberExpression{
-		Object:   ptrExpr(left),
-		Property: ptrExpr(member),
+		Object: ptrExpr(left),
+		Property: &ast.MemberProperty{
+			Prop: &ast.ComputedProperty{
+				Expr: ptrExpr(member),
+			},
+		},
 	}
 }
 

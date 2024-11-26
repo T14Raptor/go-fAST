@@ -4,7 +4,7 @@ type (
 	Statements []Statement
 
 	Statement struct {
-		Stmt `optional:"true"`
+		Stmt Stmt `optional:"true"`
 	}
 
 	// All statement nodes implement the Stmt interface.
