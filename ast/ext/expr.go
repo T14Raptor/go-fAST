@@ -131,9 +131,7 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 				return BoolValue{Known(nl.Val()/nr.Val() != 0.0)}, true
 			}
 		case token.And, token.Or:
-			lt := GetType(e.Left)
-			rt := GetType(e.Right)
-			if !lt.Unknown() && !lt.Unknown() && (lt.Val() != BoolType{} && rt.Val() != BoolType{}) {
+			if GetType(e.Left).Value != Known[Type](BoolType{}) || GetType(e.Right).Value != Known[Type](BoolType{}) {
 				return BoolValue{Unknown[bool]()}, false
 			}
 
