@@ -8,8 +8,8 @@ import (
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/ast/ext"
-	"github.com/t14raptor/go-fast/resolver"
 	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/transform/resolver"
 )
 
 type Simplifier struct {
