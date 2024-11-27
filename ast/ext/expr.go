@@ -235,7 +235,7 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 		return Unknown[float64](), true
 	case *ast.ArrayLiteral:
 		s := AsPureString(expr)
-		if s.Known() {
+		if s.Unknown() {
 			return Unknown[float64](), false
 		}
 		return numFromStr(s.Val()), true

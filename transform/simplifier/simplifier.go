@@ -113,9 +113,10 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 			expr.Expr = &ast.StringLiteral{Value: value}
 
 		// 'foo'['']
-		//
-		// Handled in compress
 		case IndexStr:
+			if !ext.IsStringSymbol(string(op)) {
+				expr.Expr = &ast.Identifier{Name: "undefined"}
+			}
 		}
 
 	// [1, 2, 3].length
@@ -210,8 +211,10 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 			exprs = append(exprs, ast.Expression{Expr: val})
 			expr.Expr = &ast.SequenceExpression{Sequence: exprs}
 
-		// Handled in compress
 		case IndexStr:
+			if len(obj.Value) == 0 && !ext.IsArraySymbol(string(op)) {
+				expr.Expr = &ast.Identifier{Name: "undefined"}
+			}
 		}
 
 	// { foo: true }['foo']
