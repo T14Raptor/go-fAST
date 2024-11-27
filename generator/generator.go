@@ -1,6 +1,7 @@
 package generator
 
 import (
+	"math"
 	"strconv"
 	"strings"
 	"unicode"
@@ -152,7 +153,9 @@ func (g *GenVisitor) VisitBlockStatement(n *ast.BlockStatement) {
 	}
 	g.indent--
 
-	g.lineAndPad()
+	if len(n.List) > 0 {
+		g.lineAndPad()
+	}
 	g.out.WriteString("}")
 }
 
@@ -373,7 +376,7 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 		g.out.WriteString("...")
 		g.gen(n.Rest)
 	}
-	g.out.WriteString(") ")
+	g.out.WriteString(")")
 }
 
 func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
@@ -381,8 +384,12 @@ func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 		g.out.WriteString("async ")
 	}
 
-	g.out.WriteString("function ")
-	g.gen(n.Name)
+	if n.Name != nil {
+		g.out.WriteString("function ")
+		g.gen(n.Name)
+	} else {
+		g.out.WriteString("function")
+	}
 	g.gen(&n.ParameterList)
 	g.out.WriteString(" ")
 	g.gen(n.Body)
@@ -456,12 +463,22 @@ func (g *GenVisitor) VisitNullLiteral(n *ast.NullLiteral) {
 func (g *GenVisitor) VisitNumberLiteral(n *ast.NumberLiteral) {
 	if n.Raw != nil {
 		g.out.WriteString(*n.Raw)
-		return
+	} else if math.IsInf(n.Value, 1) {
+		g.out.WriteString("Infinity")
+	} else if math.IsInf(n.Value, -1) {
+		g.out.WriteString("-Infinity")
+	} else {
+		g.out.WriteString(strconv.FormatFloat(n.Value, 'f', -1, 64))
 	}
-	g.out.WriteString(strconv.FormatFloat(n.Value, 'f', -1, 64))
 }
 
 func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
+	switch g.p.(type) {
+	case *ast.BinaryExpression, *ast.ArrowFunctionLiteral:
+		g.out.WriteString("(")
+		defer g.out.WriteString(")")
+	}
+
 	g.out.WriteString("{")
 
 	g.indent++
