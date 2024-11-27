@@ -355,8 +355,15 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		}
 		return Known(sb.String())
 	case *ast.MemberExpression:
-		ident, ok := e.Property.Prop.(*ast.Identifier)
-		if !ok {
+		var sym string
+		switch prop := e.Property.Prop.(type) {
+		case *ast.Identifier:
+			sym = prop.Name
+		case *ast.ComputedProperty:
+			if strLit, ok := prop.Expr.Expr.(*ast.StringLiteral); ok {
+				sym = strLit.Value
+			}
+		default:
 			return Unknown[string]()
 		}
 		// Convert some built-in funcs to string.
@@ -364,37 +371,37 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		case *ast.Identifier:
 			switch obj.Name {
 			case "Math":
-				if slices.Contains([]string{"abs", "acos", "acosh", "asin", "asinh", "atan", "atan2", "atanh", "cbrt", "ceil", "clz32", "cos", "cosh", "exp", "expm1", "floor", "fround", "hypot", "imul", "log", "log10", "log1p", "log2", "max", "min", "pow", "random", "round", "sign", "sin", "sinh", "sqrt", "tan", "tanh", "trunc"}, ident.Name) {
-					return Known(funcToStr(ident.Name))
+				if slices.Contains([]string{"abs", "acos", "acosh", "asin", "asinh", "atan", "atan2", "atanh", "cbrt", "ceil", "clz32", "cos", "cosh", "exp", "expm1", "floor", "fround", "hypot", "imul", "log", "log10", "log1p", "log2", "max", "min", "pow", "random", "round", "sign", "sin", "sinh", "sqrt", "tan", "tanh", "trunc"}, sym) {
+					return Known(funcToStr(sym))
 				}
 			case "JSON":
-				if slices.Contains([]string{"parse", "stringify"}, ident.Name) {
-					return Known(funcToStr(ident.Name))
+				if slices.Contains([]string{"parse", "stringify"}, sym) {
+					return Known(funcToStr(sym))
 				}
 			case "Date":
-				if slices.Contains([]string{"now", "parse", "UTC"}, ident.Name) {
-					return Known(funcToStr(ident.Name))
+				if slices.Contains([]string{"now", "parse", "UTC"}, sym) {
+					return Known(funcToStr(sym))
 				}
 			}
 		case *ast.StringLiteral:
-			if slices.Contains([]string{"anchor", "at", "big", "blink", "bold", "charAt", "charCodeAt", "codePointAt", "concat", "endsWith", "fixed", "fontcolor", "fontsize", "includes", "indexOf", "isWellFormed", "italics", "lastIndexOf", "link", "localeCompare", "match", "matchAll", "normalize", "padEnd", "padStart", "repeat", "replace", "replaceAll", "search", "slice", "small", "split", "startsWith", "strike", "sub", "substr", "substring", "sup", "toLocaleLowerCase", "toLocaleUpperCase", "toLowerCase", "toString", "toUpperCase", "toWellFormed", "trim", "trimEnd", "trimStart", "valueOf"}, ident.Name) {
-				return Known(funcToStr(ident.Name))
+			if slices.Contains([]string{"anchor", "at", "big", "blink", "bold", "charAt", "charCodeAt", "codePointAt", "concat", "endsWith", "fixed", "fontcolor", "fontsize", "includes", "indexOf", "isWellFormed", "italics", "lastIndexOf", "link", "localeCompare", "match", "matchAll", "normalize", "padEnd", "padStart", "repeat", "replace", "replaceAll", "search", "slice", "small", "split", "startsWith", "strike", "sub", "substr", "substring", "sup", "toLocaleLowerCase", "toLocaleUpperCase", "toLowerCase", "toString", "toUpperCase", "toWellFormed", "trim", "trimEnd", "trimStart", "valueOf"}, sym) {
+				return Known(funcToStr(sym))
 			}
 		case *ast.NumberLiteral:
-			if slices.Contains([]string{"toExponential", "toFixed", "toLocaleString", "toPrecision", "toString", "valueOf"}, ident.Name) {
-				return Known(funcToStr(ident.Name))
+			if slices.Contains([]string{"toExponential", "toFixed", "toLocaleString", "toPrecision", "toString", "valueOf"}, sym) {
+				return Known(funcToStr(sym))
 			}
 		case *ast.BooleanLiteral:
-			if slices.Contains([]string{"toString", "valueOf"}, ident.Name) {
-				return Known(funcToStr(ident.Name))
+			if slices.Contains([]string{"toString", "valueOf"}, sym) {
+				return Known(funcToStr(sym))
 			}
 		case *ast.ArrayLiteral:
-			if slices.Contains([]string{"at", "concat", "copyWithin", "entries", "every", "fill", "filter", "find", "findIndex", "findLast", "findLastIndex", "flat", "flatMap", "forEach", "includes", "indexOf", "join", "keys", "lastIndexOf", "map", "pop", "push", "reduce", "reduceRight", "reverse", "shift", "slice", "some", "sort", "splice", "toLocaleString", "toReversed", "toSorted", "toSpliced", "toString", "unshift", "values", "with"}, ident.Name) {
-				return Known(funcToStr(ident.Name))
+			if slices.Contains([]string{"at", "concat", "copyWithin", "entries", "every", "fill", "filter", "find", "findIndex", "findLast", "findLastIndex", "flat", "flatMap", "forEach", "includes", "indexOf", "join", "keys", "lastIndexOf", "map", "pop", "push", "reduce", "reduceRight", "reverse", "shift", "slice", "some", "sort", "splice", "toLocaleString", "toReversed", "toSorted", "toSpliced", "toString", "unshift", "values", "with"}, sym) {
+				return Known(funcToStr(sym))
 			}
 		case *ast.ObjectLiteral:
-			if slices.Contains([]string{"hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "toLocaleString", "toString", "valueOf"}, ident.Name) {
-				return Known(funcToStr(ident.Name))
+			if slices.Contains([]string{"hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "toLocaleString", "toString", "valueOf"}, sym) {
+				return Known(funcToStr(sym))
 			}
 		}
 	}
