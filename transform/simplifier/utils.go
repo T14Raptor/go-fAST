@@ -116,7 +116,7 @@ func getKeyValue(props []ast.Property, key string) ast.Expr {
 				}
 				return nil
 			} else if ext.PropNameEq(prop.Key, key) {
-				return prop.Value
+				return prop.Value.Expr
 			}
 		}
 	}
