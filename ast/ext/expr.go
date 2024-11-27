@@ -66,7 +66,7 @@ func IsVoid(expr *ast.Expression) bool {
 // IsGlobalRefTo returns true if id references a global object.
 func IsGlobalRefTo(expr *ast.Expression, id string) bool {
 	if ident, ok := expr.Expr.(*ast.Identifier); ok {
-		return ident.Name == id && ident.ScopeContext == resolver.UnresolvedMark
+		return ident.Name == id && ident.ScopeContext == resolver.TopLevelMark
 	}
 	return false
 }
@@ -226,13 +226,13 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 		if e.Value {
 			return Known(1.0), true
 		}
-		return Value[float64]{}, true
+		return Known(0.0), true
 	case *ast.NumberLiteral:
 		return Known(e.Value), true
 	case *ast.StringLiteral:
 		return numFromStr(e.Value), true
 	case *ast.NullLiteral:
-		return Unknown[float64](), true
+		return Known(0.0), true
 	case *ast.ArrayLiteral:
 		s := AsPureString(expr)
 		if s.Unknown() {
@@ -240,10 +240,10 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 		}
 		return numFromStr(s.Val()), true
 	case *ast.Identifier:
-		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == resolver.UnresolvedMark {
+		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == resolver.TopLevelMark {
 			return Known(math.NaN()), true
 		}
-		if e.Name == "Infinity" && e.ScopeContext == resolver.UnresolvedMark {
+		if e.Name == "Infinity" && e.ScopeContext == resolver.TopLevelMark {
 			return Known(math.Inf(1)), true
 		}
 		return Unknown[float64](), true
@@ -332,25 +332,28 @@ func AsPureString(expr *ast.Expression) Value[string] {
 			if idx > 0 {
 				sb.WriteString(",")
 			}
-			switch elem := elem.Expr.(type) {
+			switch e := elem.Expr.(type) {
 			case *ast.NullLiteral:
 				sb.WriteString("")
 			case *ast.UnaryExpression:
-				if elem.Operator == token.Void {
-					if MayHaveSideEffects(elem.Operand) {
+				if e.Operator == token.Void {
+					if MayHaveSideEffects(e.Operand) {
 						return Unknown[string]()
 					}
 					sb.WriteString("")
 				}
 			case *ast.Identifier:
-				if elem.Name == "undefined" {
+				if e.Name == "undefined" {
 					sb.WriteString("")
 				}
-			}
-			if s := AsPureString(&elem); s.Known() {
-				sb.WriteString(s.Val())
-			} else {
-				return Unknown[string]()
+			case nil:
+				sb.WriteString("")
+			default:
+				if s := AsPureString(&elem); s.Known() {
+					sb.WriteString(s.Val())
+				} else {
+					return Unknown[string]()
+				}
 			}
 		}
 		return Known(sb.String())
@@ -479,8 +482,18 @@ func GetType(expr *ast.Expression) TypeValue {
 	case *ast.ConditionalExpression:
 		ct := GetType(e.Consequent)
 		at := GetType(e.Alternate)
-		if !ct.Unknown() && !at.Unknown() && ct.Val() == at.Val() {
-			return TypeValue{Known(ct.Val())}
+		if ct == at {
+			return ct
+		}
+		return TypeValue{Unknown[Type]()}
+	case *ast.Identifier:
+		switch e.Name {
+		case "undefined":
+			return TypeValue{Known[Type](UndefinedType{})}
+		case "Infinity", "NaN":
+			return TypeValue{Known[Type](NumberType{})}
+		default:
+			return TypeValue{Unknown[Type]()}
 		}
 	case *ast.NumberLiteral:
 		return TypeValue{Known[Type](NumberType{})}
@@ -680,6 +693,8 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 		return false
 	case *ast.InvalidExpression:
 		return true
+	case nil:
+		return false
 	}
 	return true
 }

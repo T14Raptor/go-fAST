@@ -264,17 +264,17 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 		e.Value = slices.DeleteFunc(e.Value, func(prop ast.Property) bool {
 			switch p := prop.Prop.(type) {
 			case *ast.PropertyShort:
-				return false
+				return true
 			case *ast.PropertyKeyed:
 				if p.Computed && MayHaveSideEffects(p.Key) {
-					return true
+					return false
 				}
-				return MayHaveSideEffects(p.Value)
+				return !MayHaveSideEffects(p.Value)
 			case *ast.SpreadElement:
 				hasSpread = true
-				return true
+				return false
 			}
-			return false
+			return true
 		})
 		if hasSpread {
 			*to = append(*to, *expr)
