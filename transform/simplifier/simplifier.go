@@ -53,15 +53,10 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	case *ast.Identifier:
 		if _, ok := memExpr.Object.Expr.(*ast.ObjectLiteral); !ok && prop.Name == "length" {
 			op = Len{}
-		} else if s.inCallee {
-			return
 		} else {
 			op = IndexStr(prop.Name)
 		}
 	case *ast.ComputedProperty:
-		if s.inCallee {
-			return
-		}
 		if numLit, ok := prop.Expr.Expr.(*ast.NumberLiteral); ok {
 			// x[5]
 			op = Index(numLit.Value)
