@@ -29,9 +29,6 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	if !ok {
 		return
 	}
-	if s.isModifying {
-		return
-	}
 
 	// [a, b].length
 	type Len struct{}
@@ -53,6 +50,8 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	case *ast.Identifier:
 		if _, ok := memExpr.Object.Expr.(*ast.ObjectLiteral); !ok && prop.Name == "length" {
 			op = Len{}
+		} else if s.inCallee {
+			return
 		} else {
 			op = IndexStr(prop.Name)
 		}
@@ -133,6 +132,10 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	//
 	// [1, 2, 3][0]
 	case *ast.ArrayLiteral:
+		if _, ok := op.(IndexStr); !ok && (s.inCallee || s.isModifying) {
+			return
+		}
+
 		// do nothing if spread exists
 		if slices.ContainsFunc(obj.Value, func(e ast.Expression) bool {
 			_, ok := e.Expr.(*ast.SpreadElement)
@@ -233,6 +236,10 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	//
 	// { 0.5: true }[0.5]
 	case *ast.ObjectLiteral:
+		if s.inCallee || s.isModifying {
+			return
+		}
+
 		// get key
 		var key string
 		switch op := op.(type) {
