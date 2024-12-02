@@ -958,10 +958,7 @@ func (s *Simplifier) VisitExpression(n *ast.Expression) {
 	case *ast.ArrayLiteral:
 		var exprs []ast.Expression
 		for _, elem := range expr.Value {
-			if arrLit, ok := elem.Expr.(*ast.ArrayLiteral); ok {
-				s.changed = true
-				exprs = append(exprs, arrLit.Value...)
-			} else if spread, ok := elem.Expr.(*ast.SpreadElement); ok {
+			if spread, ok := elem.Expr.(*ast.SpreadElement); ok {
 				if arrLit, ok := spread.Expression.Expr.(*ast.ArrayLiteral); ok {
 					s.changed = true
 					exprs = append(exprs, arrLit.Value...)

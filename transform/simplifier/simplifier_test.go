@@ -907,7 +907,7 @@ func TestFoldTypeof(t *testing.T) {
 	fold("x = typeof {}", "x = \"object\"", t)
 	fold("x = typeof function() {}", "x = \"function\"", t)
 
-	fold("x = typeof [1, [foo()]]", "x = typeof [1, foo()]", t)
+	fold("x = typeof [1, [foo()]]", "x = typeof [1, [foo()]]", t)
 	fold("x = typeof { bathwater: baby() }", "x = typeof { bathwater: baby() }", t)
 }
 
