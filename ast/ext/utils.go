@@ -194,9 +194,20 @@ func (v *literalVisitor) VisitProperty(n *ast.Property) {
 func (v *literalVisitor) VisitSequenceExpression(n *ast.SequenceExpression) { v.isLit = false }
 func (v *literalVisitor) VisitSpreadElement(n *ast.SpreadElement)           { v.isLit = false }
 func (v *literalVisitor) VisitThisExpression(n *ast.ThisExpression)         { v.isLit = false }
-func (v *literalVisitor) VisitUnaryExpression(n *ast.UnaryExpression)       { v.isLit = false }
-func (v *literalVisitor) VisitUpdateExpression(n *ast.UpdateExpression)     { v.isLit = false }
-func (v *literalVisitor) VisitYieldExpression(n *ast.YieldExpression)       { v.isLit = false }
+func (v *literalVisitor) VisitUnaryExpression(n *ast.UnaryExpression) {
+	if !v.isLit {
+		return
+	}
+	switch n.Operator {
+	case token.Minus, token.Plus, token.BitwiseNot, token.Not:
+		v.cost++
+		n.VisitChildrenWith(v)
+	default:
+		v.isLit = false
+	}
+}
+func (v *literalVisitor) VisitUpdateExpression(n *ast.UpdateExpression) { v.isLit = false }
+func (v *literalVisitor) VisitYieldExpression(n *ast.YieldExpression)   { v.isLit = false }
 
 // PreserveEffects makes a new expression which evaluates val preserving side effects, if any.
 func PreserveEffects(val ast.Expression, exprs []ast.Expression) ast.Expression {
