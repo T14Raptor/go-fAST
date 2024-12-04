@@ -80,6 +80,10 @@ func main() {
 			},
 			Body: &ast.BlockStmt{
 				List: []ast.Stmt{
+					&ast.IfStmt{
+						Cond: newSelectorExpr(ast.NewIdent("nv"), "stop"),
+						Body: &ast.BlockStmt{List: []ast.Stmt{&ast.ReturnStmt{}}},
+					},
 					&ast.ExprStmt{X: &ast.CallExpr{
 						Fun:  newSelectorExpr(ast.NewIdent("n"), "VisitChildrenWith"),
 						Args: []ast.Expr{newSelectorExpr(ast.NewIdent("nv"), "V")},
@@ -175,13 +179,36 @@ func main() {
 					&ast.TypeSpec{
 						Name: ast.NewIdent("NoopVisitor"),
 						Type: &ast.StructType{
-							Fields: newFieldList("V", ast.NewIdent("Visitor")),
+							Fields: &ast.FieldList{
+								List: []*ast.Field{{
+									Names: []*ast.Ident{ast.NewIdent("V")},
+									Type:  ast.NewIdent("Visitor"),
+								}, {
+									Names: []*ast.Ident{ast.NewIdent("stop")},
+									Type:  ast.NewIdent("bool"),
+								}},
+							},
 						},
 					},
 				},
 			},
 		},
 	}
+
+	genPkg.Decls = append(genPkg.Decls, &ast.FuncDecl{
+		Recv: newFieldList("nv", &ast.StarExpr{X: ast.NewIdent("NoopVisitor")}),
+		Name: ast.NewIdent("Stop"),
+		Type: &ast.FuncType{},
+		Body: &ast.BlockStmt{
+			List: []ast.Stmt{
+				&ast.AssignStmt{
+					Lhs: []ast.Expr{newSelectorExpr(ast.NewIdent("nv"), "stop")},
+					Tok: token.ASSIGN,
+					Rhs: []ast.Expr{ast.NewIdent("true")},
+				},
+			},
+		},
+	})
 
 	genPkg.Decls = append(genPkg.Decls, noopVisitorMethods...)
 	genPkg.Decls = append(genPkg.Decls, visitMethods...)

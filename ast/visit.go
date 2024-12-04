@@ -86,253 +86,503 @@ type Visitor interface {
 	VisitYieldExpression(n *YieldExpression)
 }
 type NoopVisitor struct {
-	V Visitor
+	V    Visitor
+	stop bool
 }
 
+func (nv *NoopVisitor) Stop() {
+	nv.stop = true
+}
 func (nv *NoopVisitor) VisitArrayLiteral(n *ArrayLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitArrayPattern(n *ArrayPattern) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitArrowFunctionLiteral(n *ArrowFunctionLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitAssignExpression(n *AssignExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitAwaitExpression(n *AwaitExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBadStatement(n *BadStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBinaryExpression(n *BinaryExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBindingTarget(n *BindingTarget) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBlockStatement(n *BlockStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBooleanLiteral(n *BooleanLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBreakStatement(n *BreakStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitCallExpression(n *CallExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitCaseStatement(n *CaseStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitCaseStatements(n *CaseStatements) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitCatchStatement(n *CatchStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitClassDeclaration(n *ClassDeclaration) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitClassElement(n *ClassElement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitClassElements(n *ClassElements) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitClassLiteral(n *ClassLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitClassStaticBlock(n *ClassStaticBlock) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitConciseBody(n *ConciseBody) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitConditionalExpression(n *ConditionalExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitContinueStatement(n *ContinueStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitDebuggerStatement(n *DebuggerStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitDoWhileStatement(n *DoWhileStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitEmptyStatement(n *EmptyStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitExpression(n *Expression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitExpressionStatement(n *ExpressionStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitExpressions(n *Expressions) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitFieldDefinition(n *FieldDefinition) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitForInStatement(n *ForInStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitForInto(n *ForInto) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitForLoopInitializer(n *ForLoopInitializer) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitForOfStatement(n *ForOfStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitForStatement(n *ForStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitFunctionDeclaration(n *FunctionDeclaration) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitFunctionLiteral(n *FunctionLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitIdentifier(n *Identifier) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitIfStatement(n *IfStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitInvalidExpression(n *InvalidExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitLabelledStatement(n *LabelledStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitMemberExpression(n *MemberExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitMetaProperty(n *MetaProperty) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitMethodDefinition(n *MethodDefinition) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitNewExpression(n *NewExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitNullLiteral(n *NullLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitNumberLiteral(n *NumberLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitObjectLiteral(n *ObjectLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitObjectPattern(n *ObjectPattern) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitOptional(n *Optional) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitOptionalChain(n *OptionalChain) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitParameterList(n *ParameterList) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitPrivateDotExpression(n *PrivateDotExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitPrivateIdentifier(n *PrivateIdentifier) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitProgram(n *Program) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitProperties(n *Properties) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitProperty(n *Property) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitPropertyKeyed(n *PropertyKeyed) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitPropertyShort(n *PropertyShort) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitRegExpLiteral(n *RegExpLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitReturnStatement(n *ReturnStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitSequenceExpression(n *SequenceExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitSpreadElement(n *SpreadElement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitStatement(n *Statement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitStatements(n *Statements) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitStringLiteral(n *StringLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitSuperExpression(n *SuperExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitSwitchStatement(n *SwitchStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitTemplateElement(n *TemplateElement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitTemplateElements(n *TemplateElements) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitTemplateLiteral(n *TemplateLiteral) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitThisExpression(n *ThisExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitThrowStatement(n *ThrowStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitTryStatement(n *TryStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitUnaryExpression(n *UnaryExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitUpdateExpression(n *UpdateExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitVariableDeclaration(n *VariableDeclaration) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitVariableDeclarator(n *VariableDeclarator) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitVariableDeclarators(n *VariableDeclarators) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitWhileStatement(n *WhileStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitWithStatement(n *WithStatement) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitYieldExpression(n *YieldExpression) {
+	if nv.stop {
+		return
+	}
 	n.VisitChildrenWith(nv.V)
 }
 func (n *ArrayLiteral) VisitWith(v Visitor) {
