@@ -55,6 +55,10 @@ func (t Token) Precedence(in bool) int {
 	return 0
 }
 
+func (t Token) MayShortCircuit() bool {
+	return t == Coalesce || t == LogicalOr || t == LogicalAnd
+}
+
 // keyword ...
 type keyword struct {
 	token         Token
