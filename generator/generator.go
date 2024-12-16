@@ -281,7 +281,7 @@ func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
 		g.gen(prop)
 	case *ast.ComputedProperty:
 		g.out.WriteString("[")
-		g.gen(prop.Expr)
+		g.gen(prop.Expr.Expr)
 		g.out.WriteString("]")
 	}
 }
