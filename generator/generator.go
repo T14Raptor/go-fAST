@@ -74,13 +74,17 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 
 	switch n.Left.Expr.(type) {
 	case *ast.ObjectPattern, *ast.ArrayPattern:
-		if _, ok := g.p.(*ast.ExpressionStatement); ok {
-			needsParens = true
+		if ps, ok := g.p.(*ast.Statement); ok {
+			if _, ok := ps.Stmt.(*ast.ExpressionStatement); ok {
+				needsParens = true
+			}
 		}
 	}
 	// we also need parentheses if parent is binary expression
-	if _, ok := g.p.(*ast.BinaryExpression); ok {
-		needsParens = true
+	if pe, ok := g.p.(*ast.Expression); ok {
+		if _, ok := pe.Expr.(*ast.BinaryExpression); ok {
+			needsParens = true
+		}
 	}
 
 	if needsParens {
@@ -130,12 +134,14 @@ func (g *GenVisitor) VisitObjectPattern(n *ast.ObjectPattern) {
 }
 
 func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
-	if pn, ok := g.p.(*ast.BinaryExpression); ok {
-		operatorPrecedence := n.Operator.Precedence(true)
-		parentOperatorPrecedence := pn.Operator.Precedence(true)
-		if operatorPrecedence < parentOperatorPrecedence || operatorPrecedence == parentOperatorPrecedence && pn.Right.Expr == n {
-			g.out.WriteString("(")
-			defer g.out.WriteString(")")
+	if pe, ok := g.p.(*ast.Expression); ok {
+		if pn, ok := pe.Expr.(*ast.BinaryExpression); ok {
+			operatorPrecedence := n.Operator.Precedence(true)
+			parentOperatorPrecedence := pn.Operator.Precedence(true)
+			if operatorPrecedence < parentOperatorPrecedence || operatorPrecedence == parentOperatorPrecedence && pn.Right.Expr == n {
+				g.out.WriteString("(")
+				defer g.out.WriteString(")")
+			}
 		}
 	}
 	g.gen(n.Left.Expr)
@@ -233,10 +239,12 @@ func (g *GenVisitor) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 }
 
 func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
-	switch g.p.(type) {
-	case *ast.BinaryExpression, *ast.NewExpression:
-		g.out.WriteString("(")
-		defer g.out.WriteString(")")
+	if pe, ok := g.p.(*ast.Expression); ok {
+		switch pe.Expr.(type) {
+		case *ast.BinaryExpression, *ast.NewExpression:
+			g.out.WriteString("(")
+			defer g.out.WriteString(")")
+		}
 	}
 	switch n.Test.Expr.(type) {
 	case *ast.AssignExpression, *ast.ConditionalExpression:
@@ -534,10 +542,12 @@ func (g *GenVisitor) VisitReturnStatement(n *ast.ReturnStatement) {
 }
 
 func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
-	switch g.p.(type) {
-	case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.UpdateExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.ArrayLiteral:
-		g.out.WriteString("(")
-		defer g.out.WriteString(")")
+	if pe, ok := g.p.(*ast.Expression); ok {
+		switch pe.Expr.(type) {
+		case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.UpdateExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.ArrayLiteral:
+			g.out.WriteString("(")
+			defer g.out.WriteString(")")
+		}
 	}
 	for i, e := range n.Sequence {
 		g.gen(e.Expr)
