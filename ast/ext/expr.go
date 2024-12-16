@@ -545,10 +545,19 @@ func IsPureCallee(expr *ast.Expression) bool {
 			}
 		}
 	case *ast.FunctionLiteral:
-		if !slices.ContainsFunc(e.ParameterList.List, func(decl ast.VariableDeclarator) bool {
-			_, ok := decl.Initializer.Expr.(*ast.Identifier)
-			return !ok
-		}) && len(e.Body.List) == 0 {
+		all := true
+		for _, decl := range e.ParameterList.List {
+			_, ok := decl.Target.Target.(*ast.Identifier)
+			if !ok {
+				all = false
+				break
+			}
+			if decl.Initializer != nil {
+				all = false
+				break
+			}
+		}
+		if all && len(e.Body.List) == 0 {
 			return true
 		}
 	}
