@@ -118,7 +118,7 @@ func (p *parser) parseSuperProperty() ast.Expr {
 		parsedLiteral := p.parsedLiteral
 		p.next()
 		return &ast.MemberExpression{
-			Object: ptrExpr(&ast.SuperExpression{
+			Object: p.makeExpr(&ast.SuperExpression{
 				Idx: idx,
 			}),
 			Property: &ast.MemberProperty{Prop: &ast.Identifier{
@@ -301,7 +301,7 @@ func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarato
 
 	if p.token == token.Assign {
 		p.next()
-		node.Initializer = ptrExpr(p.parseAssignmentExpression())
+		node.Initializer = p.makeExpr(p.parseAssignmentExpression())
 	}
 
 	if declarationList != nil {
@@ -379,7 +379,7 @@ func (p *parser) parseObjectProperty() ast.Prop {
 	if p.token == token.Ellipsis {
 		p.next()
 		return &ast.SpreadElement{
-			Expression: &ast.Expression{Expr: p.parseAssignmentExpression()},
+			Expression: p.makeExpr(p.parseAssignmentExpression()),
 		}
 	}
 	keyStartIdx := p.idx
@@ -395,18 +395,18 @@ func (p *parser) parseObjectProperty() ast.Prop {
 	if token.ID(tkn) || tkn == token.String || tkn == token.Number || tkn == token.Illegal {
 		if generator {
 			return &ast.PropertyKeyed{
-				Key:      ptrExpr(value),
+				Key:      p.makeExpr(value),
 				Kind:     ast.PropertyKindMethod,
-				Value:    ptrExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, true, false)),
+				Value:    p.makeExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, true, false)),
 				Computed: tkn == token.Illegal,
 			}
 		}
 		switch {
 		case p.token == token.LeftParenthesis:
 			return &ast.PropertyKeyed{
-				Key:      ptrExpr(value),
+				Key:      p.makeExpr(value),
 				Kind:     ast.PropertyKindMethod,
-				Value:    ptrExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, false, false)),
+				Value:    p.makeExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, false, false)),
 				Computed: tkn == token.Illegal,
 			}
 		case p.token == token.Comma || p.token == token.RightBrace || p.token == token.Assign: // shorthand property
@@ -423,7 +423,7 @@ func (p *parser) parseObjectProperty() ast.Prop {
 						Name: parsedLiteral,
 						Idx:  value.Idx0(),
 					},
-					Initializer: ptrExpr(initializer),
+					Initializer: p.makeExpr(initializer),
 				}
 			} else {
 				p.errorUnexpectedToken(p.token)
@@ -446,9 +446,9 @@ func (p *parser) parseObjectProperty() ast.Prop {
 			}
 
 			return &ast.PropertyKeyed{
-				Key:      ptrExpr(keyValue),
+				Key:      p.makeExpr(keyValue),
 				Kind:     kind,
-				Value:    ptrExpr(p.parseMethodDefinition(keyStartIdx, kind, false, async)),
+				Value:    p.makeExpr(p.parseMethodDefinition(keyStartIdx, kind, false, async)),
 				Computed: tkn1 == token.Illegal,
 			}
 		}
@@ -456,9 +456,9 @@ func (p *parser) parseObjectProperty() ast.Prop {
 
 	p.expect(token.Colon)
 	return &ast.PropertyKeyed{
-		Key:      ptrExpr(value),
+		Key:      p.makeExpr(value),
 		Kind:     ast.PropertyKindValue,
-		Value:    ptrExpr(p.parseAssignmentExpression()),
+		Value:    p.makeExpr(p.parseAssignmentExpression()),
 		Computed: tkn == token.Illegal,
 	}
 }
@@ -532,7 +532,7 @@ func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 		if p.token == token.Ellipsis {
 			p.next()
 			value = append(value, ast.Expression{Expr: &ast.SpreadElement{
-				Expression: &ast.Expression{Expr: p.parseAssignmentExpression()},
+				Expression: p.makeExpr(p.parseAssignmentExpression()),
 			}})
 		} else {
 			value = append(value, ast.Expression{Expr: p.parseAssignmentExpression()})
@@ -586,7 +586,7 @@ func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 
 func (p *parser) parseTaggedTemplateLiteral(tag ast.Expr) *ast.TemplateLiteral {
 	l := p.parseTemplateLiteral(true)
-	l.Tag = ptrExpr(tag)
+	l.Tag = p.makeExpr(tag)
 	return l
 }
 
@@ -597,7 +597,7 @@ func (p *parser) parseArgumentList() (argumentList ast.Expressions, idx0, idx1 a
 		if p.token == token.Ellipsis {
 			p.next()
 			item = &ast.SpreadElement{
-				Expression: &ast.Expression{Expr: p.parseAssignmentExpression()},
+				Expression: p.makeExpr(p.parseAssignmentExpression()),
 			}
 		} else {
 			item = p.parseAssignmentExpression()
@@ -615,7 +615,7 @@ func (p *parser) parseArgumentList() (argumentList ast.Expressions, idx0, idx1 a
 func (p *parser) parseCallExpression(left ast.Expr) ast.Expr {
 	argumentList, idx0, idx1 := p.parseArgumentList()
 	return &ast.CallExpression{
-		Callee:           ptrExpr(left),
+		Callee:           p.makeExpr(left),
 		LeftParenthesis:  idx0,
 		ArgumentList:     argumentList,
 		RightParenthesis: idx1,
@@ -632,7 +632,7 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 	if p.token == token.PrivateIdentifier {
 		p.next()
 		return &ast.PrivateDotExpression{
-			Left: ptrExpr(left),
+			Left: p.makeExpr(left),
 			Identifier: &ast.PrivateIdentifier{
 				Identifier: &ast.Identifier{
 					Idx:  idx,
@@ -651,7 +651,7 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 	p.next()
 
 	return &ast.MemberExpression{
-		Object: ptrExpr(left),
+		Object: p.makeExpr(left),
 		Property: &ast.MemberProperty{
 			Prop: &ast.Identifier{
 				Idx:  idx,
@@ -661,15 +661,15 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 	}
 }
 
-func (p *parser) parseBracketMember(left ast.Expr) ast.Expr {
+func (p *parser) parseBracketMember(left ast.Expr) *ast.MemberExpression {
 	p.expect(token.LeftBracket)
 	member := p.parseExpression()
 	p.expect(token.RightBracket)
 	return &ast.MemberExpression{
-		Object: ptrExpr(left),
+		Object: p.makeExpr(left),
 		Property: &ast.MemberProperty{
 			Prop: &ast.ComputedProperty{
-				Expr: ptrExpr(member),
+				Expr: p.makeExpr(member),
 			},
 		},
 	}
@@ -697,7 +697,7 @@ func (p *parser) parseNewExpression() ast.Expr {
 	}
 	node := &ast.NewExpression{
 		New:    idx,
-		Callee: ptrExpr(callee),
+		Callee: p.makeExpr(callee),
 	}
 	if p.token == token.LeftParenthesis {
 		argumentList, idx0, idx1 := p.parseArgumentList()
@@ -766,7 +766,7 @@ L:
 			left = p.parseTaggedTemplateLiteral(left)
 		case token.QuestionDot:
 			optionalChain = true
-			left = &ast.Optional{Expr: ptrExpr(left)}
+			left = &ast.Optional{Expr: p.makeExpr(left)}
 
 			switch p.peek() {
 			case token.LeftBracket, token.LeftParenthesis, token.Backtick:
@@ -780,7 +780,7 @@ L:
 	}
 
 	if optionalChain {
-		left = &ast.OptionalChain{Base: ptrExpr(left)}
+		left = &ast.OptionalChain{Base: p.makeExpr(left)}
 	}
 	return left
 }
@@ -802,7 +802,7 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 		return &ast.UpdateExpression{
 			Operator: tkn,
 			Idx:      idx,
-			Operand:  ptrExpr(operand),
+			Operand:  p.makeExpr(operand),
 		}
 	default:
 		operand := p.parseLeftHandSideExpressionAllowCall()
@@ -824,7 +824,7 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 			return &ast.UpdateExpression{
 				Operator: tkn,
 				Idx:      idx,
-				Operand:  ptrExpr(operand),
+				Operand:  p.makeExpr(operand),
 				Postfix:  true,
 			}
 		}
@@ -843,7 +843,7 @@ func (p *parser) parseUnaryExpression() ast.Expr {
 		return &ast.UnaryExpression{
 			Operator: tkn,
 			Idx:      idx,
-			Operand:  ptrExpr(p.parseUnaryExpression()),
+			Operand:  p.makeExpr(p.parseUnaryExpression()),
 		}
 	case token.Await:
 		if p.scope.allowAwait {
@@ -861,7 +861,7 @@ func (p *parser) parseUnaryExpression() ast.Expr {
 			}
 			return &ast.AwaitExpression{
 				Await:    idx,
-				Argument: ptrExpr(p.parseUnaryExpression()),
+				Argument: p.makeExpr(p.parseUnaryExpression()),
 			}
 		}
 	}
@@ -884,8 +884,8 @@ func (p *parser) parseExponentiationExpression() ast.Expr {
 			p.next()
 			left = &ast.BinaryExpression{
 				Operator: token.Exponent,
-				Left:     ptrExpr(left),
-				Right:    ptrExpr(p.parseExponentiationExpression()),
+				Left:     p.makeExpr(left),
+				Right:    p.makeExpr(p.parseExponentiationExpression()),
 			}
 			if p.token != token.Exponent {
 				break
@@ -905,8 +905,8 @@ func (p *parser) parseMultiplicativeExpression() ast.Expr {
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseExponentiationExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseExponentiationExpression()),
 		}
 	}
 
@@ -921,8 +921,8 @@ func (p *parser) parseAdditiveExpression() ast.Expr {
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseMultiplicativeExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseMultiplicativeExpression()),
 		}
 	}
 
@@ -938,8 +938,8 @@ func (p *parser) parseShiftExpression() ast.Expr {
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseAdditiveExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseAdditiveExpression()),
 		}
 	}
 
@@ -959,8 +959,8 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 			p.next()
 			return &ast.BinaryExpression{
 				Operator: p.token,
-				Left:     ptrExpr(left),
-				Right:    ptrExpr(p.parseShiftExpression()),
+				Left:     p.makeExpr(left),
+				Right:    p.makeExpr(p.parseShiftExpression()),
 			}
 		}
 		return left
@@ -979,8 +979,8 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 		p.next()
 		return &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseRelationalExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseRelationalExpression()),
 		}
 	case token.In:
 		if !allowIn {
@@ -990,8 +990,8 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 		p.next()
 		return &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseRelationalExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseRelationalExpression()),
 		}
 	}
 
@@ -1007,8 +1007,8 @@ func (p *parser) parseEqualityExpression() ast.Expr {
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseRelationalExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseRelationalExpression()),
 		}
 	}
 
@@ -1023,8 +1023,8 @@ func (p *parser) parseBitwiseAndExpression() ast.Expr {
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseEqualityExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseEqualityExpression()),
 		}
 	}
 
@@ -1039,8 +1039,8 @@ func (p *parser) parseBitwiseExclusiveOrExpression() ast.Expr {
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseBitwiseAndExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseBitwiseAndExpression()),
 		}
 	}
 
@@ -1055,8 +1055,8 @@ func (p *parser) parseBitwiseOrExpression() ast.Expr {
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseBitwiseExclusiveOrExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseBitwiseExclusiveOrExpression()),
 		}
 	}
 
@@ -1071,8 +1071,8 @@ func (p *parser) parseLogicalAndExpression() ast.Expr {
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
-			Left:     ptrExpr(left),
-			Right:    ptrExpr(p.parseBitwiseOrExpression()),
+			Left:     p.makeExpr(left),
+			Right:    p.makeExpr(p.parseBitwiseOrExpression()),
 		}
 	}
 
@@ -1097,8 +1097,8 @@ func (p *parser) parseLogicalOrExpression() ast.Expr {
 				p.next()
 				left = &ast.BinaryExpression{
 					Operator: token.LogicalOr,
-					Left:     ptrExpr(left),
-					Right:    ptrExpr(p.parseLogicalAndExpression()),
+					Left:     p.makeExpr(left),
+					Right:    p.makeExpr(p.parseLogicalAndExpression()),
 				}
 			case token.Coalesce:
 				goto mixed
@@ -1120,8 +1120,8 @@ func (p *parser) parseLogicalOrExpression() ast.Expr {
 
 				left = &ast.BinaryExpression{
 					Operator: token.Coalesce,
-					Left:     ptrExpr(left),
-					Right:    ptrExpr(right),
+					Left:     p.makeExpr(left),
+					Right:    p.makeExpr(right),
 				}
 			case token.LogicalOr:
 				goto mixed
@@ -1147,9 +1147,9 @@ func (p *parser) parseConditionalExpression() ast.Expr {
 		p.scope.allowIn = allowIn
 		p.expect(token.Colon)
 		return &ast.ConditionalExpression{
-			Test:       ptrExpr(left),
-			Consequent: ptrExpr(consequent),
-			Alternate:  ptrExpr(p.parseAssignmentExpression()),
+			Test:       p.makeExpr(left),
+			Consequent: p.makeExpr(consequent),
+			Alternate:  p.makeExpr(p.parseAssignmentExpression()),
 		}
 	}
 
@@ -1314,9 +1314,9 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 		}
 		if ok {
 			return &ast.AssignExpression{
-				Left:     ptrExpr(left),
+				Left:     p.makeExpr(left),
 				Operator: operator,
-				Right:    ptrExpr(p.parseAssignmentExpression()),
+				Right:    p.makeExpr(p.parseAssignmentExpression()),
 			}
 		}
 		p.error("Invalid left-hand side in assignment")
@@ -1327,7 +1327,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 	return left
 }
 
-func (p *parser) parseYieldExpression() ast.Expr {
+func (p *parser) parseYieldExpression() *ast.YieldExpression {
 	idx := p.expect(token.Yield)
 
 	if p.scope.inFuncParams {
@@ -1351,7 +1351,7 @@ func (p *parser) parseYieldExpression() ast.Expr {
 			expr = nil
 			p.restore(&state)
 		}
-		node.Argument = ptrExpr(expr)
+		node.Argument = p.makeExpr(expr)
 	}
 
 	return node
@@ -1403,7 +1403,7 @@ func (p *parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) ast
 		LeftBracket:  left.LeftBracket,
 		RightBracket: left.RightBracket,
 		Elements:     value,
-		Rest:         ptrExpr(rest),
+		Rest:         p.makeExpr(rest),
 	}
 }
 
@@ -1412,7 +1412,7 @@ func (p *parser) reinterpretArrayAssignPatternAsBinding(pattern *ast.ArrayPatter
 		pattern.Elements[i] = ast.Expression{Expr: p.reinterpretAsDestructBindingTarget(item.Expr)}
 	}
 	if pattern.Rest != nil {
-		pattern.Rest = ptrExpr(p.reinterpretAsDestructBindingTarget(pattern.Rest.Expr))
+		pattern.Rest = p.makeExpr(p.reinterpretAsDestructBindingTarget(pattern.Rest.Expr))
 	}
 	return pattern
 }
@@ -1437,7 +1437,7 @@ func (p *parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) ast.Ta
 		LeftBracket:  left.LeftBracket,
 		RightBracket: left.RightBracket,
 		Elements:     value,
-		Rest:         &ast.Expression{Expr: rest},
+		Rest:         p.makeExpr(rest),
 	}
 }
 
@@ -1452,7 +1452,7 @@ func (p *parser) parseObjectBindingPattern() ast.Target {
 func (p *parser) reinterpretArrayObjectPatternAsBinding(pattern *ast.ObjectPattern) *ast.ObjectPattern {
 	for _, prop := range pattern.Properties {
 		if keyed, ok := prop.Prop.(*ast.PropertyKeyed); ok {
-			keyed.Value = ptrExpr(p.reinterpretAsBindingElement(keyed.Value.Expr))
+			keyed.Value = p.makeExpr(p.reinterpretAsBindingElement(keyed.Value.Expr))
 		}
 	}
 	if pattern.Rest != nil {
@@ -1469,7 +1469,7 @@ func (p *parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) ast.
 		switch prop := prop.Prop.(type) {
 		case *ast.PropertyKeyed:
 			if prop.Kind == ast.PropertyKindValue {
-				prop.Value = ptrExpr(p.reinterpretAsBindingElement(prop.Value.Expr))
+				prop.Value = p.makeExpr(p.reinterpretAsBindingElement(prop.Value.Expr))
 				ok = true
 			}
 		case *ast.PropertyShort:
@@ -1505,7 +1505,7 @@ func (p *parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) ast.
 		switch prop := prop.Prop.(type) {
 		case *ast.PropertyKeyed:
 			if prop.Kind == ast.PropertyKindValue {
-				prop.Value = ptrExpr(p.reinterpretAsAssignmentElement(prop.Value.Expr))
+				prop.Value = p.makeExpr(p.reinterpretAsAssignmentElement(prop.Value.Expr))
 				ok = true
 			}
 		case *ast.PropertyShort:
@@ -1537,7 +1537,7 @@ func (p *parser) reinterpretAsAssignmentElement(expr ast.Expr) ast.Expr {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
 		if expr.Operator == token.Assign {
-			expr.Left = ptrExpr(p.reinterpretAsDestructAssignTarget(expr.Left.Expr))
+			expr.Left = p.makeExpr(p.reinterpretAsDestructAssignTarget(expr.Left.Expr))
 			return expr
 		} else {
 			p.error("Invalid destructuring assignment target")
@@ -1552,7 +1552,7 @@ func (p *parser) reinterpretAsBindingElement(expr ast.Expr) ast.Expr {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
 		if expr.Operator == token.Assign {
-			expr.Left = ptrExpr(p.reinterpretAsDestructBindingTarget(expr.Left.Expr))
+			expr.Left = p.makeExpr(p.reinterpretAsDestructBindingTarget(expr.Left.Expr))
 			return expr
 		} else {
 			p.error("Invalid destructuring assignment target")
@@ -1626,8 +1626,4 @@ func (p *parser) reinterpretAsBindingRestElement(expr ast.Expr) ast.Expr {
 	}
 	p.error("Invalid binding rest")
 	return &ast.InvalidExpression{From: expr.Idx0(), To: expr.Idx1()}
-}
-
-func ptrExpr(expr ast.Expr) *ast.Expression {
-	return &ast.Expression{Expr: expr}
 }

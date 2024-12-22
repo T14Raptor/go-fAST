@@ -30,6 +30,9 @@ type parser struct {
 		idx   ast.Idx
 		count int
 	}
+
+	exprArena *miniArena[ast.Expression]
+	stmtArena *miniArena[ast.Statement]
 }
 
 // newParser ...
@@ -38,24 +41,16 @@ func newParser(src string) *parser {
 		chr:    ' ',
 		str:    src,
 		length: len(src),
+
+		exprArena: newArena[ast.Expression](1024),
+		stmtArena: newArena[ast.Statement](1024),
 	}
 }
 
 // ParseFile parses the source code of a single JavaScript/ECMAScript source file and returns
 // the corresponding ast.Program node.
 func ParseFile(src string) (*ast.Program, error) {
-	p := newParser(src)
-	return p.parse()
-}
-
-// slice ...
-func (p *parser) slice(idx0, idx1 ast.Idx) string {
-	from := int(idx0) - 1
-	to := int(idx1) - 1
-	if from >= 0 && to <= len(p.str) {
-		return p.str[from:to]
-	}
-	return ""
+	return newParser(src).parse()
 }
 
 // parse ...
@@ -110,4 +105,16 @@ func (p *parser) expect(value token.Token) ast.Idx {
 	}
 	p.next()
 	return idx
+}
+
+func (p *parser) makeExpr(expr ast.Expr) *ast.Expression {
+	expression := p.exprArena.make()
+	expression.Expr = expr
+	return expression
+}
+
+func (p *parser) makeStmt(stmt ast.Stmt) *ast.Statement {
+	statement := p.stmtArena.make()
+	statement.Stmt = stmt
+	return statement
 }

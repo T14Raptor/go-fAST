@@ -40,25 +40,46 @@ func isDigit(chr rune, base int) bool {
 	return digitValue(chr) < base
 }
 
-func isIdStartUnicode(r rune) bool {
-	return unicode.Is(unicodeRangeIdStartPos, r) && !unicode.Is(unicodeRangeIdNeg, r)
-}
-
-func isIdPartUnicode(r rune) bool {
-	return unicode.Is(unicodeRangeIdContPos, r) && !unicode.Is(unicodeRangeIdNeg, r) || r == '\u200C' || r == '\u200D'
-}
-
+// Fast path for checking “start” of an identifier.
 func isIdentifierStart(chr rune) bool {
-	return chr == '$' || chr == '_' || chr == '\\' ||
-		'a' <= chr && chr <= 'z' || 'A' <= chr && chr <= 'Z' ||
-		chr >= utf8.RuneSelf && isIdStartUnicode(chr)
+	// 1) ASCII range fast path
+	// a-z / A-Z
+	if (chr >= 'a' && chr <= 'z') || (chr >= 'A' && chr <= 'Z') {
+		return true
+	}
+	// $ _ \
+	if chr == '$' || chr == '_' || chr == '\\' {
+		return true
+	}
+
+	// 2) Non-ASCII path
+	return chr >= utf8.RuneSelf && unicode.Is(unicodeRangeIdStartPos, chr) && !unicode.Is(unicodeRangeIdNeg, chr)
 }
 
+// Fast path for checking “continuation” of an identifier.
 func isIdentifierPart(chr rune) bool {
-	return chr == '$' || chr == '_' || chr == '\\' ||
-		'a' <= chr && chr <= 'z' || 'A' <= chr && chr <= 'Z' ||
-		'0' <= chr && chr <= '9' ||
-		chr >= utf8.RuneSelf && isIdPartUnicode(chr)
+	// 1) ASCII path
+	// a-z / A-Z / 0-9
+	if (chr >= 'a' && chr <= 'z') ||
+		(chr >= 'A' && chr <= 'Z') ||
+		(chr >= '0' && chr <= '9') {
+		return true
+	}
+	// $ _ \
+	if chr == '$' || chr == '_' || chr == '\\' {
+		return true
+	}
+
+	if chr < utf8.RuneSelf {
+		return false
+	}
+
+	// 2) Non-ASCII path
+	if unicode.Is(unicodeRangeIdContPos, chr) && !unicode.Is(unicodeRangeIdNeg, chr) {
+		return true
+	}
+	// Special additions (\u200C / \u200D)
+	return chr == '\u200C' || chr == '\u200D'
 }
 
 func (p *parser) scanIdentifier() (string, string, bool, string) {
@@ -76,12 +97,15 @@ func (p *parser) scanIdentifier() (string, string, bool, string) {
 			if p.chr != 'u' {
 				return "", "", false, fmt.Sprintf("Invalid identifier escape character: %c (%s)", p.chr, string(p.chr))
 			}
+
+			p.read()
+
 			var value rune
-			if p._peek() == '{' {
+			if p.chr == '{' {
 				p.read()
 				value = -1
-				for value <= utf8.MaxRune {
-					p.read()
+				for {
+					// If we hit '}' before reading any hex digits, break out
 					if p.chr == '}' {
 						break
 					}
@@ -92,20 +116,32 @@ func (p *parser) scanIdentifier() (string, string, bool, string) {
 					if value == -1 {
 						value = decimal
 					} else {
-						value = value<<4 | decimal
+						value = (value << 4) | decimal
 					}
+					// Exceeds max rune?
+					if value > utf8.MaxRune {
+						return "", "", false, "Invalid Unicode escape sequence"
+					}
+					p.read()
 				}
 				if value == -1 {
 					return "", "", false, "Invalid Unicode escape sequence"
 				}
 			} else {
-				for j := 0; j < 4; j++ {
+				// Classic \uXXXX (4 hex digits).
+				decimal, ok := hex2decimal(byte(p.chr))
+				if !ok {
+					return "", "", false,
+						"Invalid identifier escape character: " + string(p.chr)
+				}
+				value = decimal
+				for i := 0; i < 3; i++ {
 					p.read()
-					decimal, ok := hex2decimal(byte(p.chr))
+					decimal, ok = hex2decimal(byte(p.chr))
 					if !ok {
-						return "", "", false, fmt.Sprintf("Invalid identifier escape character: %c (%s)", p.chr, string(p.chr))
+						return "", "", false, "Invalid identifier escape character: " + string(p.chr)
 					}
-					value = value<<4 | decimal
+					value = (value << 4) | decimal
 				}
 			}
 			if value == '\\' {
@@ -121,6 +157,7 @@ func (p *parser) scanIdentifier() (string, string, bool, string) {
 			}
 			r = value
 		}
+
 		if r >= utf8.RuneSelf {
 			isUnicode = true
 			if r > 0xFFFF {
@@ -131,19 +168,16 @@ func (p *parser) scanIdentifier() (string, string, bool, string) {
 	}
 
 	literal := p.str[offset:p.chrOffset]
-	var parsed string
+
 	if hasEscape || isUnicode {
-		var err string
-		// TODO strict
-		parsed, err = parseStringLiteral(literal, length, isUnicode, false)
-		if err != "" {
-			return "", "", false, err
+		parsed, parseErr := parseStringLiteral(literal, length, isUnicode, false)
+		if parseErr != "" {
+			return "", "", false, parseErr
 		}
-	} else {
-		parsed = string(literal)
+		return literal, parsed, hasEscape, ""
 	}
 
-	return literal, parsed, hasEscape, ""
+	return literal, literal, hasEscape, ""
 }
 
 // 7.2
@@ -207,24 +241,35 @@ func (p *parser) scan() (tkn token.Token, literal string, parsedLiteral string, 
 	p.implicitSemicolon = false
 
 	for {
+		// Skip all whitespace and line terminators up front
 		p.skipWhiteSpace()
 
+		// Record the position after skipping whitespace
 		idx = p.idxOf(p.chrOffset)
+
+		// By default, we don't insert a semicolon unless we decide so below
 		insertSemicolon := false
 
-		switch chr := p.chr; {
-		case isIdentifierStart(chr):
+		// Cache current character locally to avoid repeated p.chr lookups
+		c := p.chr
+
+		// Check if we're starting with an identifier (common case)
+		if isIdentifierStart(c) {
 			var err string
 			var hasEscape bool
 			literal, parsedLiteral, hasEscape, err = p.scanIdentifier()
 			if err != "" {
 				tkn = token.Illegal
-				break
+				p.insertSemicolon = insertSemicolon
+				return
 			}
+
 			if len(parsedLiteral) > 1 {
-				// Keywords are longer than 1 character, avoid lookup otherwise
+				// Potentially a keyword
 				var strict bool
-				tkn, strict = token.LiteralKeyword(string(parsedLiteral))
+				tkn, strict = token.LiteralKeyword(parsedLiteral)
+
+				// If we had an escape, turn it into either Identifier or EscapedReservedWord
 				if hasEscape {
 					p.insertSemicolon = true
 					if tkn == 0 || p.isBindingId(tkn) {
@@ -234,203 +279,234 @@ func (p *parser) scan() (tkn token.Token, literal string, parsedLiteral string, 
 					}
 					return
 				}
+
 				switch tkn {
-				case 0: // Not a keyword
-					// no-op
+				case 0:
+					// Not a recognized keyword; remains an identifier
+					break
 				case token.Keyword:
+					// If it's a keyword, return immediately (unless you have extra strict-mode checks)
 					if strict {
-						// TODO If strict and in strict mode, then this is not a break
-						break
+						// Implementation-specific: do whatever is needed in strict mode
 					}
 					return
-				case
-					token.Boolean,
+				case token.Boolean,
 					token.Null,
 					token.This,
 					token.Break,
-					token.Throw, // A newline after a throw is not allowed, but we need to detect it
+					token.Throw,
 					token.Yield,
 					token.Return,
 					token.Continue,
 					token.Debugger:
+					// For these tokens, set semicolon insertion and return immediately
 					p.insertSemicolon = true
 					return
 				case token.Async:
-					// async only has special meaning if not followed by a LineTerminator
+					// `async` is special; check if next is line terminator
 					if p.skipWhiteSpaceCheckLineTerminator() {
 						p.insertSemicolon = true
 						tkn = token.Identifier
 					}
 					return
 				default:
+					// Any other recognized keyword
 					return
 				}
 			}
+
+			// It's an identifier
 			p.insertSemicolon = true
 			tkn = token.Identifier
 			return
-		case '0' <= chr && chr <= '9':
+		}
+
+		// Check numeric literal
+		if c >= '0' && c <= '9' {
 			p.insertSemicolon = true
 			tkn, literal = p.scanNumericLiteral(false)
 			return
-		default:
-			p.read()
-			switch chr {
-			case -1:
-				if p.insertSemicolon {
+		}
+
+		// Otherwise, handle punctuation, operators, strings, etc.
+		// Move past the current character
+		p.read()
+
+		switch c {
+		case -1:
+			// EOF
+			if p.insertSemicolon {
+				// Insert semicolon on EOF if needed
+				p.insertSemicolon = false
+				p.implicitSemicolon = true
+			}
+			tkn = token.Eof
+			p.insertSemicolon = insertSemicolon
+			return
+		case '\r', '\n', '\u2028', '\u2029':
+			// Line terminator => implicit semicolon
+			p.insertSemicolon = false
+			p.implicitSemicolon = true
+			// Loop again to skip whitespace and decide next token
+			continue
+		case ':':
+			tkn = token.Colon
+		case '.':
+			if digitValue(p.chr) < 10 {
+				insertSemicolon = true
+				tkn, literal = p.scanNumericLiteral(true)
+			} else {
+				if p.chr == '.' {
+					p.read()
+					if p.chr == '.' {
+						p.read()
+						tkn = token.Ellipsis
+					} else {
+						tkn = token.Illegal
+					}
+				} else {
+					tkn = token.Period
+				}
+			}
+		case ',':
+			tkn = token.Comma
+		case ';':
+			tkn = token.Semicolon
+		case '(':
+			tkn = token.LeftParenthesis
+		case ')':
+			tkn = token.RightParenthesis
+			insertSemicolon = true
+		case '[':
+			tkn = token.LeftBracket
+		case ']':
+			tkn = token.RightBracket
+			insertSemicolon = true
+		case '{':
+			tkn = token.LeftBrace
+		case '}':
+			tkn = token.RightBrace
+			insertSemicolon = true
+		case '+':
+			tkn = p.switch3(token.Plus, token.AddAssign, '+', token.Increment)
+			if tkn == token.Increment {
+				insertSemicolon = true
+			}
+		case '-':
+			tkn = p.switch3(token.Minus, token.SubtractAssign, '-', token.Decrement)
+			if tkn == token.Decrement {
+				insertSemicolon = true
+			}
+		case '*':
+			if p.chr == '*' {
+				p.read()
+				tkn = p.switch2(token.Exponent, token.ExponentAssign)
+			} else {
+				tkn = p.switch2(token.Multiply, token.MultiplyAssign)
+			}
+		case '/':
+			if p.chr == '/' {
+				// Single-line comment
+				p.skipSingleLineComment()
+				continue
+			} else if p.chr == '*' {
+				// Multi-line comment
+				if p.skipMultiLineComment() {
 					p.insertSemicolon = false
 					p.implicitSemicolon = true
 				}
-				tkn = token.Eof
-			case '\r', '\n', '\u2028', '\u2029':
-				p.insertSemicolon = false
-				p.implicitSemicolon = true
 				continue
-			case ':':
-				tkn = token.Colon
-			case '.':
-				if digitValue(p.chr) < 10 {
-					insertSemicolon = true
-					tkn, literal = p.scanNumericLiteral(true)
-				} else {
-					if p.chr == '.' {
-						p.read()
-						if p.chr == '.' {
-							p.read()
-							tkn = token.Ellipsis
-						} else {
-							tkn = token.Illegal
-						}
-					} else {
-						tkn = token.Period
-					}
-				}
-			case ',':
-				tkn = token.Comma
-			case ';':
-				tkn = token.Semicolon
-			case '(':
-				tkn = token.LeftParenthesis
-			case ')':
-				tkn = token.RightParenthesis
+			} else {
+				// Division or QuotientAssign
+				tkn = p.switch2(token.Slash, token.QuotientAssign)
 				insertSemicolon = true
-			case '[':
-				tkn = token.LeftBracket
-			case ']':
-				tkn = token.RightBracket
-				insertSemicolon = true
-			case '{':
-				tkn = token.LeftBrace
-			case '}':
-				tkn = token.RightBrace
-				insertSemicolon = true
-			case '+':
-				tkn = p.switch3(token.Plus, token.AddAssign, '+', token.Increment)
-				if tkn == token.Increment {
-					insertSemicolon = true
-				}
-			case '-':
-				tkn = p.switch3(token.Minus, token.SubtractAssign, '-', token.Decrement)
-				if tkn == token.Decrement {
-					insertSemicolon = true
-				}
-			case '*':
-				if p.chr == '*' {
-					p.read()
-					tkn = p.switch2(token.Exponent, token.ExponentAssign)
-				} else {
-					tkn = p.switch2(token.Multiply, token.MultiplyAssign)
-				}
-			case '/':
-				if p.chr == '/' {
-					p.skipSingleLineComment()
-					continue
-				} else if p.chr == '*' {
-					if p.skipMultiLineComment() {
-						p.insertSemicolon = false
-						p.implicitSemicolon = true
-					}
-					continue
-				} else {
-					// Could be division, could be RegExp literal
-					tkn = p.switch2(token.Slash, token.QuotientAssign)
-					insertSemicolon = true
-				}
-			case '%':
-				tkn = p.switch2(token.Remainder, token.RemainderAssign)
-			case '^':
-				tkn = p.switch2(token.ExclusiveOr, token.ExclusiveOrAssign)
-			case '<':
-				tkn = p.switch4(token.Less, token.LessOrEqual, '<', token.ShiftLeft, token.ShiftLeftAssign)
-			case '>':
-				tkn = p.switch6(token.Greater, token.GreaterOrEqual, '>', token.ShiftRight, token.ShiftRightAssign, '>', token.UnsignedShiftRight, token.UnsignedShiftRightAssign)
-			case '=':
-				if p.chr == '>' {
-					p.read()
-					if p.implicitSemicolon {
-						tkn = token.Illegal
-					} else {
-						tkn = token.Arrow
-					}
-				} else {
-					tkn = p.switch2(token.Assign, token.Equal)
-					if tkn == token.Equal && p.chr == '=' {
-						p.read()
-						tkn = token.StrictEqual
-					}
-				}
-			case '!':
-				tkn = p.switch2(token.Not, token.NotEqual)
-				if tkn == token.NotEqual && p.chr == '=' {
-					p.read()
-					tkn = token.StrictNotEqual
-				}
-			case '&':
-				tkn = p.switch3(token.And, token.AndAssign, '&', token.LogicalAnd)
-			case '|':
-				tkn = p.switch3(token.Or, token.OrAssign, '|', token.LogicalOr)
-			case '~':
-				tkn = token.BitwiseNot
-			case '?':
-				if p.chr == '.' && !isDecimalDigit(p._peek()) {
-					p.read()
-					tkn = token.QuestionDot
-				} else if p.chr == '?' {
-					p.read()
-					tkn = token.Coalesce
-				} else {
-					tkn = token.QuestionMark
-				}
-			case '"', '\'':
-				insertSemicolon = true
-				tkn = token.String
-				var err string
-				literal, parsedLiteral, err = p.scanString(p.chrOffset-1, true)
-				if err != "" {
+			}
+		case '%':
+			tkn = p.switch2(token.Remainder, token.RemainderAssign)
+		case '^':
+			tkn = p.switch2(token.ExclusiveOr, token.ExclusiveOrAssign)
+		case '<':
+			tkn = p.switch4(token.Less, token.LessOrEqual, '<', token.ShiftLeft, token.ShiftLeftAssign)
+		case '>':
+			// Potential >>, >>>, >= ...
+			tkn = p.switch6(
+				token.Greater, token.GreaterOrEqual,
+				'>', token.ShiftRight, token.ShiftRightAssign,
+				'>', token.UnsignedShiftRight, token.UnsignedShiftRightAssign,
+			)
+		case '=':
+			if p.chr == '>' {
+				p.read()
+				// Arrow function
+				if p.implicitSemicolon {
 					tkn = token.Illegal
+				} else {
+					tkn = token.Arrow
 				}
-			case '`':
-				tkn = token.Backtick
-			case '#':
-				if p.chrOffset == 1 && p.chr == '!' {
-					p.skipSingleLineComment()
-					continue
+			} else {
+				tkn = p.switch2(token.Assign, token.Equal)
+				if tkn == token.Equal && p.chr == '=' {
+					p.read()
+					tkn = token.StrictEqual
 				}
-
-				var err string
-				literal, parsedLiteral, _, err = p.scanIdentifier()
-				if err != "" || literal == "" {
-					tkn = token.Illegal
-					break
-				}
-				p.insertSemicolon = true
-				tkn = token.PrivateIdentifier
-				return
-			default:
-				p.errorUnexpected(chr)
+			}
+		case '!':
+			tkn = p.switch2(token.Not, token.NotEqual)
+			if tkn == token.NotEqual && p.chr == '=' {
+				p.read()
+				tkn = token.StrictNotEqual
+			}
+		case '&':
+			tkn = p.switch3(token.And, token.AndAssign, '&', token.LogicalAnd)
+		case '|':
+			tkn = p.switch3(token.Or, token.OrAssign, '|', token.LogicalOr)
+		case '~':
+			tkn = token.BitwiseNot
+		case '?':
+			// Could be ?. or ?? or just ?
+			if p.chr == '.' && !isDecimalDigit(p._peek()) {
+				p.read()
+				tkn = token.QuestionDot
+			} else if p.chr == '?' {
+				p.read()
+				tkn = token.Coalesce
+			} else {
+				tkn = token.QuestionMark
+			}
+		case '"', '\'':
+			// String literal
+			insertSemicolon = true
+			tkn = token.String
+			var err string
+			literal, parsedLiteral, err = p.scanString(p.chrOffset-1, true)
+			if err != "" {
 				tkn = token.Illegal
 			}
+		case '`':
+			// Template literal
+			tkn = token.Backtick
+		case '#':
+			// Possible shebang (#!)
+			if p.chrOffset == 1 && p.chr == '!' {
+				p.skipSingleLineComment()
+				continue
+			}
+			// Otherwise, private identifier
+			var err string
+			literal, parsedLiteral, _, err = p.scanIdentifier()
+			if err != "" || literal == "" {
+				tkn = token.Illegal
+			} else {
+				p.insertSemicolon = true
+				tkn = token.PrivateIdentifier
+			}
+		default:
+			// Unexpected character
+			p.errorUnexpected(c)
+			tkn = token.Illegal
 		}
+
+		// Update insertSemicolon and return
 		p.insertSemicolon = insertSemicolon
 		return
 	}
@@ -584,28 +660,41 @@ func (p *parser) skipWhiteSpaceCheckLineTerminator() bool {
 
 func (p *parser) skipWhiteSpace() {
 	for {
-		switch p.chr {
-		case ' ', '\t', '\f', '\v', '\u00a0', '\ufeff':
+		c := p.chr
+
+		// Fast path for common ASCII whitespace
+		if c == ' ' || c == '\t' || c == '\f' || c == '\v' || c == '\u00a0' || c == '\ufeff' {
 			p.read()
 			continue
-		case '\r':
-			if p._peek() == '\n' {
+		}
+
+		// Handle line terminators
+		if c == '\r' {
+			// Check if the next character is '\n' without calling p._peek()
+			if p.chrOffset < len(p.str) && p.str[p.chrOffset] == '\n' {
 				p.read()
 			}
-			fallthrough
-		case '\u2028', '\u2029', '\n':
 			if p.insertSemicolon {
 				return
 			}
 			p.read()
 			continue
 		}
-		if p.chr >= utf8.RuneSelf {
-			if unicode.IsSpace(p.chr) {
-				p.read()
-				continue
+		if c == '\n' || c == '\u2028' || c == '\u2029' {
+			if p.insertSemicolon {
+				return
 			}
+			p.read()
+			continue
 		}
+
+		// Handle non-ASCII whitespace
+		if c >= utf8.RuneSelf && unicode.IsSpace(c) {
+			p.read()
+			continue
+		}
+
+		// If none of the above matched, we're done
 		break
 	}
 }
