@@ -14,35 +14,18 @@ import (
 	"github.com/t14raptor/go-fast/token"
 )
 
-const (
-	XX = true
-	__ = false
-)
+var asciiStart, asciiContinue [128]bool
 
-// ASCII_START: a-z, A-Z, $ (0x24), _ (0x5F)
-var ASCII_START = [128]bool{
-	// 0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
-	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 0
-	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 1
-	__, __, __, __, XX, __, __, __, __, __, __, __, __, __, __, __, // 2
-	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 3
-	__, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, // 4
-	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, XX, // 5
-	__, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, // 6
-	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, __, // 7
-}
-
-// ASCII_CONTINUE: [ASCII_START] + 0-9
-var ASCII_CONTINUE = [128]bool{
-	// 0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
-	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 0
-	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 1
-	__, __, __, __, XX, __, __, __, __, __, __, __, __, __, __, __, // 2
-	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, __, __, // 3
-	__, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, // 4
-	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, XX, // 5
-	__, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, // 6
-	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, __, // 7
+func init() {
+	for i := 0; i < 128; i++ {
+		if i >= 'a' && i <= 'z' || i >= 'A' && i <= 'Z' || i == '$' || i == '_' {
+			asciiStart[i] = true
+			asciiContinue[i] = true
+		}
+		if i >= '0' && i <= '9' {
+			asciiContinue[i] = true
+		}
+	}
 }
 
 func isDecimalDigit(chr rune) bool {
@@ -73,7 +56,7 @@ func isIdentifierStart(chr rune) bool {
 	}
 	// 1) ASCII path
 	if chr < utf8.RuneSelf {
-		return ASCII_START[chr]
+		return asciiStart[chr]
 	}
 
 	// 2) Non-ASCII path
@@ -88,7 +71,7 @@ func isIdentifierPart(chr rune) bool {
 	}
 	// 1) ASCII path
 	if chr < utf8.RuneSelf {
-		return ASCII_CONTINUE[chr]
+		return asciiContinue[chr]
 	}
 
 	// 2) Non-ASCII path
