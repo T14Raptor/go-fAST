@@ -9,16 +9,41 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/nukilabs/unicodeid"
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"golang.org/x/text/unicode/rangetable"
 )
 
-var (
-	unicodeRangeIdNeg      = rangetable.Merge(unicode.Pattern_Syntax, unicode.Pattern_White_Space)
-	unicodeRangeIdStartPos = rangetable.Merge(unicode.Letter, unicode.Nl, unicode.Other_ID_Start)
-	unicodeRangeIdContPos  = rangetable.Merge(unicodeRangeIdStartPos, unicode.Mn, unicode.Mc, unicode.Nd, unicode.Pc, unicode.Other_ID_Continue)
+const (
+	XX = true
+	__ = false
 )
+
+// ASCII_START: a-z, A-Z, $ (0x24), _ (0x5F)
+var ASCII_START = [128]bool{
+	// 0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 0
+	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 1
+	__, __, __, __, XX, __, __, __, __, __, __, __, __, __, __, __, // 2
+	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 3
+	__, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, // 4
+	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, XX, // 5
+	__, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, // 6
+	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, __, // 7
+}
+
+// ASCII_CONTINUE: [ASCII_START] + 0-9
+var ASCII_CONTINUE = [128]bool{
+	// 0   1   2   3   4   5   6   7   8   9   A   B   C   D   E   F
+	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 0
+	__, __, __, __, __, __, __, __, __, __, __, __, __, __, __, __, // 1
+	__, __, __, __, XX, __, __, __, __, __, __, __, __, __, __, __, // 2
+	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, __, __, // 3
+	__, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, // 4
+	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, XX, // 5
+	__, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, // 6
+	XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, XX, __, __, __, __, __, // 7
+}
 
 func isDecimalDigit(chr rune) bool {
 	return '0' <= chr && chr <= '9'
@@ -42,44 +67,32 @@ func isDigit(chr rune, base int) bool {
 
 // Fast path for checking “start” of an identifier.
 func isIdentifierStart(chr rune) bool {
-	// 1) ASCII range fast path
-	// a-z / A-Z
-	if (chr >= 'a' && chr <= 'z') || (chr >= 'A' && chr <= 'Z') {
-		return true
+	// 0) Invalid path
+	if chr == -1 {
+		return false
 	}
-	// $ _ \
-	if chr == '$' || chr == '_' || chr == '\\' {
-		return true
+	// 1) ASCII path
+	if chr < utf8.RuneSelf {
+		return ASCII_START[chr]
 	}
 
 	// 2) Non-ASCII path
-	return chr >= utf8.RuneSelf && unicode.Is(unicodeRangeIdStartPos, chr) && !unicode.Is(unicodeRangeIdNeg, chr)
+	return unicodeid.IsIDStartUnicode(chr)
 }
 
 // Fast path for checking “continuation” of an identifier.
 func isIdentifierPart(chr rune) bool {
-	// 1) ASCII path
-	// a-z / A-Z / 0-9
-	if (chr >= 'a' && chr <= 'z') ||
-		(chr >= 'A' && chr <= 'Z') ||
-		(chr >= '0' && chr <= '9') {
-		return true
-	}
-	// $ _ \
-	if chr == '$' || chr == '_' || chr == '\\' {
-		return true
-	}
-
-	if chr < utf8.RuneSelf {
+	// 0) Invalid path
+	if chr == -1 {
 		return false
+	}
+	// 1) ASCII path
+	if chr < utf8.RuneSelf {
+		return ASCII_CONTINUE[chr]
 	}
 
 	// 2) Non-ASCII path
-	if unicode.Is(unicodeRangeIdContPos, chr) && !unicode.Is(unicodeRangeIdNeg, chr) {
-		return true
-	}
-	// Special additions (\u200C / \u200D)
-	return chr == '\u200C' || chr == '\u200D'
+	return unicodeid.IsIDContinueUnicode(chr)
 }
 
 func (p *parser) scanIdentifier() (string, string, bool, string) {
