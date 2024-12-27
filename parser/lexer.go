@@ -575,6 +575,13 @@ func (p *parser) _peek() rune {
 	return -1
 }
 
+func (p *parser) _peekByte() (byte, bool) {
+	if p.offset < p.length {
+		return p.str[p.offset], false
+	}
+	return 0, true
+}
+
 func (p *parser) read() {
 	if p.offset < p.length {
 		p.chrOffset = p.offset
