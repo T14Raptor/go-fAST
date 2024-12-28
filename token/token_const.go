@@ -1,7 +1,9 @@
 package token
 
 const (
-	_ Token = iota
+	Undetermined Token = iota
+
+	Skip
 
 	Illegal
 	Eof
