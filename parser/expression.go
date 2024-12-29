@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/t14raptor/go-fast/ast"
@@ -20,6 +21,7 @@ func (p *parser) parseIdentifier() *ast.Identifier {
 func (p *parser) parsePrimaryExpression() ast.Expr {
 	literal, parsedLiteral := p.literal, p.parsedLiteral
 	idx := p.idx
+	fmt.Println(p.token == token.Function)
 	switch p.token {
 	case token.Identifier:
 		p.next()

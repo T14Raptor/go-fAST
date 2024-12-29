@@ -64,7 +64,7 @@ func (p *parser) parse() (*ast.Program, error) {
 
 // next ...
 func (p *parser) next() {
-	p.token, p.literal, p.parsedLiteral, p.idx = p.scan()
+	p.token, p.literal, p.idx = p.scan()
 }
 
 func (p *parser) optionalSemicolon() {

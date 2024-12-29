@@ -1,6 +1,11 @@
 package parser
 
-import "github.com/t14raptor/go-fast/token"
+import (
+	"fmt"
+	"github.com/nukilabs/unicodeid"
+	"github.com/t14raptor/go-fast/token"
+	"unicode"
+)
 
 type byteHandler func(p *parser) token.Token
 
@@ -10,10 +15,10 @@ var byteHandlers = [256]byteHandler{
 	err, err, err, err, err, err, err, err, err, err, err, err, err, err, err, err, // 1
 	sps, exl, qod, has, idt, prc, amp, qos, pno, pnc, atr, pls, com, min, prd, slh, // 2
 	zer, dig, dig, dig, dig, dig, dig, dig, dig, dig, col, sem, lss, eql, gtr, qst, // 3
-	at_, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, // 4
+	err, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, // 4
 	idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, bto, esc, btc, crt, idt, // 5
-	tpl, l_a, l_b, l_c, l_d, l_e, l_f, l_g, idt, l_i, idt, l_k, l_l, l_m, l_n, l_o, // 6
-	l_p, idt, l_r, l_s, l_t, l_u, l_v, l_w, idt, l_y, idt, beo, pip, bec, tld, err, // 7
+	tpl, l_a, l_b, l_c, l_d, l_e, l_f, idt, idt, l_i, idt, idt, l_l, idt, l_n, l_o, // 6
+	idt, idt, l_r, l_s, l_t, idt, l_v, l_w, idt, l_y, idt, beo, pip, bec, tld, err, // 7
 	uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, // 8
 	uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, // 9
 	uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, // A
@@ -26,28 +31,27 @@ var byteHandlers = [256]byteHandler{
 
 // `\0` `\1` etc
 func err(p *parser) token.Token {
- c = p.read()
-p.error(diagnostics::invalid_character(c, p.unterminated_range())
-return token.Undetermined
+	p.read()
+	p.errorUnexpected(p.chr)
+	return token.Undetermined
 }
 
 // <SPACE> <TAB> Normal Whitespace
 func sps(p *parser) token.Token {
-p.read()
-return token.Skip
+	p.read()
+	return token.Skip
 }
 
 // <VT> <FF> Irregular Whitespace
 func isp(p *parser) token.Token {
-p.read()
-p.trivia_builder.add_irregular_whitespace(p.token.start, p.offset());
+	p.read()
 	return token.Skip
 }
 
 // '\r' '\n'
 func lin(p *parser) token.Token {
 	p.read()
-	return p.line_break_handler()
+	return token.Skip
 }
 
 // !
@@ -66,10 +70,8 @@ func exl(p *parser) token.Token {
 func qod(p *parser) token.Token {
 	// SAFETY: This function is only called for `"`
 	// String literal
-	insertSemicolon = true
-	tkn = token.String
 	var err string
-	literal, parsedLiteral, err = p.scanString(p.chrOffset-1, true)
+	p.literal, p.parsedLiteral, err = p.scanString(p.chrOffset-1, true)
 	if err != "" {
 		return token.Illegal
 	}
@@ -78,24 +80,37 @@ func qod(p *parser) token.Token {
 
 // '
 func qos(p *parser) token.Token {
-	// SAFETY: This function is only called for `'`
-	unsafe{p.read_string_literal_single_quote()}
+	// SAFETY: This function is only called for `"`
+	// String literal
+	p.insertSemicolon = true
+	var err string
+	p.literal, p.parsedLiteral, err = p.scanString(p.chrOffset-1, true)
+	if err != "" {
+		return token.Illegal
+	}
+	return token.String
 }
 
 // #
 func has(p *parser) token.Token {
-	p.read()
-	// HashbangComment ::
-	//     `#!` SingleLineCommentChars?
-	if p.token.start == 0 && p.advanceIfAsciiEquals('!') {
-		return p.read_hashbang_comment()
-	} else {
-		return p.private_identifier()
+	// Possible shebang (#!)
+	if p.chrOffset == 1 && p.chr == '!' {
+		p.skipSingleLineComment()
+		return token.Skip
 	}
+	// Otherwise, private identifier
+	var err string
+	literal, _, err := p.scanIdentifierTail(p.offset)
+	if err != "" || literal == "" {
+		return token.Illegal
+	}
+	p.insertSemicolon = true
+	return token.PrivateIdentifier
 }
 
 // `A..=Z`, `a..=z` (except special cases below), `_`, `$`
 func idt(p *parser) token.Token {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
 	return token.Identifier
 }
 
@@ -124,14 +139,14 @@ func amp(p *parser) token.Token {
 
 // (
 func pno(p *parser) token.Token {
-p.read()
-return token.LeftParenthesis
+	p.read()
+	return token.LeftParenthesis
 }
 
 // )
 func pnc(p *parser) token.Token {
-p.read()
-return token.RightParenthesis
+	p.read()
+	return token.RightParenthesis
 }
 
 // *
@@ -168,63 +183,94 @@ func com(p *parser) token.Token {
 // -
 func min(p *parser) token.Token {
 	p.read()
-	return p.read_minus().unwrap_or_else( || p.skip_single_line_comment())
+	if p.advanceIfAsciiEquals('-') {
+		return token.Decrement
+	} else if p.advanceIfAsciiEquals('=') {
+		return token.SubtractAssign
+	}
+	return token.Minus
 }
 
 // .
 func prd(p *parser) token.Token {
 	p.read()
+
+	if digitValue(p.chr) < 10 {
+		p.insertSemicolon = true
+		tkn, literal := p.scanNumericLiteral(true)
+		p.literal = literal
+		return tkn
+	}
+	if p.advanceIfAsciiEquals('.') {
+		if p.advanceIfAsciiEquals('.') {
+			return token.Ellipsis
+		}
+		return token.Illegal
+	}
 	return token.Period
-	p.read_dot()
 }
 
 // /
 func slh(p *parser) token.Token {
 	p.read()
-	switch p._peekByte() {
+	b, ok := p._peekByte()
+	if !ok {
+		return token.Eof
+	}
+	switch b {
 	case '/':
 		p.read()
-		return p.skip_single_line_comment()
+		p.skipSingleLineComment()
+		return token.Skip
 	case '*':
 		p.read()
-		return p.skip_multi_line_comment()
-	default:
-		// regex is handled separately, see `next_regex`
-		if p.advanceIfAsciiEquals('=') {
-			return token.QuotientAssign
-		}
-		return token.Slash
+		p.skipMultiLineComment()
+		return token.Skip
 	}
+	// regex is handled separately, see `next_regex`
+	if p.advanceIfAsciiEquals('=') {
+		return token.QuotientAssign
+	}
+	return token.Slash
 }
 
 // 0
 func zer(p *parser) token.Token {
 	p.read()
-	return p.read_zero()
+	return p.readZero()
 }
 
 // 1 to 9
 func dig(p *parser) token.Token {
-p.read()
-return p.decimal_literal_after_first_digit()
+	p.scanNumericLiteral(false)
+	return token.Number
 }
 
 // :
 func col(p *parser) token.Token {
-p.read()
-return token.Colon
+	p.read()
+	return token.Colon
 }
 
 // ;
 func sem(p *parser) token.Token {
-p.read()
-return token.Semicolon
+	p.read()
+	return token.Semicolon
 }
 
 // <
 func lss(p *parser) token.Token {
-p.read()
-return p.read_left_angle().unwrap_or_else(|| p.skip_single_line_comment())
+	p.read()
+
+	if p.advanceIfAsciiEquals('=') {
+		return token.ShiftLeft
+	} else if p.advanceIfAsciiEquals('<') {
+		if p.advanceIfAsciiEquals('=') {
+			return token.ShiftLeftAssign
+		}
+		return token.LessOrEqual
+	}
+	return token.Less
 }
 
 // =
@@ -243,69 +289,82 @@ func eql(p *parser) token.Token {
 
 // >
 func gtr(p *parser) token.Token {
-p.read()
-// `>=` is re-lexed with [Lexer::next_jsx_child]
-return token.Greater
+	p.read()
+	if p.advanceIfAsciiEquals('=') {
+		return token.GreaterOrEqual
+	}
+	if p.advanceIfAsciiEquals('>') {
+		if p.advanceIfAsciiEquals('=') {
+			return token.ShiftRightAssign
+		}
+		if p.advanceIfAsciiEquals('>') {
+			if p.advanceIfAsciiEquals('=') {
+				return token.UnsignedShiftRightAssign
+			}
+			return token.UnsignedShiftRight
+		}
+		return token.ShiftRight
+	}
+	return token.Greater
 }
 
 // ?
 func qst(p *parser) token.Token {
-p.read()
+	p.read()
 
-if let next_2_bytes) = p.peek_2_bytes() {
-switch next_2_bytes[0] {
-case '?':
-if next_2_bytes[1] == '=' {
-p.consume_2_chars()
-token.Question2Eq
-} else {
-p.read()
-token.Question2
-}
-// parse `?.1` as `?` `.1`
-'.' if !next_2_bytes[1].is_ascii_digit(): {
-p.read()
-token.QuestionDot
-}
-_: token.Question,
-}
-} else {
-// At EOF, or only 1 byte left
-switch p.peek_byte() {
-'?'): {
-p.read()
-token.Question2
-}
-'.'): {
-p.read()
-token.QuestionDot
-}
-_: token.Question,
-}
-}
-}
+	next2Bytes, ok := p.peek2Bytes()
+	if ok {
+		switch next2Bytes[0] {
+		case '?':
+			if next2Bytes[1] == '=' {
+				p.read()
+				p.read()
+				return token.Coalesce
+			}
+			p.read()
+			return token.Coalesce
+			// parse `?.1` as `?` `.1`
+		case '.':
+			if !unicode.IsDigit(rune(next2Bytes[1])) {
+				p.read()
+				return token.QuestionDot
+			}
+		}
+		return token.QuestionMark
+	}
 
-// @
-func at_(p *parser) token.Token {
-p.read()
-token.At
+	// At EOF, or only 1 byte left
+	nextByte, ok := p._peekByte()
+	if !ok {
+		return token.Eof
+	}
+	switch nextByte {
+	case '?':
+		p.read()
+		return token.Coalesce
+	case '.':
+		p.read()
+		return token.QuestionDot
+	}
+	return token.QuestionMark
 }
 
 // [
 func bto(p *parser) token.Token {
-p.read()
+	p.read()
 	return token.LeftBracket
 }
 
 // \
 func esc(p *parser) token.Token {
-p.identifier_backslash_handler()
+	// todo
+	return token.Identifier
 }
 
 // ]
 func btc(p *parser) token.Token {
-p.read()
-return token.RightBracket
+	p.read()
+	return token.RightBracket
 }
 
 // ^
@@ -320,8 +379,7 @@ func crt(p *parser) token.Token {
 // `
 func tpl(p *parser) token.Token {
 	p.read()
-	p.parseTemplateCharacters()
-	p.read_template_literal(token.TemplateHead, token.NoSubstitutionTemplate)
+	return token.Backtick
 }
 
 // {
@@ -334,55 +392,57 @@ func beo(p *parser) token.Token {
 func pip(p *parser) token.Token {
 	p.read()
 
-	switch p._peekByte() {
+	b, ok := p._peekByte()
+	if !ok {
+		return token.Eof
+	}
+	switch b {
 	case '|':
 		p.read()
 		return token.LogicalOr
 	case '=':
 		p.read()
 		return token.OrAssign
-	default:
-		return token.Or
 	}
+	return token.Or
 }
 
 // }
 func bec(p *parser) token.Token {
-p.read()
-return token.RightBrace
+	p.read()
+	return token.RightBrace
 }
 
 // ~
 func tld(p *parser) token.Token {
-p.read()
-return token.BitwiseNot
+	p.read()
+	return token.BitwiseNot
 }
 
 func l_a(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "await":
 		return token.Await
 	case "async":
 		return token.Async
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_b(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "break":
 		return token.Break
 	case "boolean":
 		return token.Boolean
-	case "bigint":
-		return token.BigInt
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_c(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "case":
 		return token.Case
@@ -394,12 +454,12 @@ func l_c(p *parser) token.Token {
 		return token.Const
 	case "continue":
 		return token.Continue
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_d(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "debugger":
 		return token.Debugger
@@ -409,23 +469,28 @@ func l_d(p *parser) token.Token {
 		return token.Delete
 	case "do":
 		return token.Do
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_e(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "else":
 		return token.Else
+	case "enum":
+		return token.Keyword
+	case "export":
+		return token.Keyword
 	case "extends":
 		return token.Extends
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_f(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
+	fmt.Println(s, "hellooo")
 	switch s {
 	case "false":
 		return token.Boolean
@@ -435,71 +500,36 @@ func l_f(p *parser) token.Token {
 		return token.For
 	case "function":
 		return token.Function
-	default:
-		return token.Identifier
 	}
-}
-
-func l_g(p *parser) token.Token {
-	switch s {
-	default:
-		return token.Identifier
-	}
+	return token.Identifier
 }
 
 func l_i(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "if":
 		return token.If
 	case "import":
-		return token.Import
+		return token.Keyword
 	case "in":
 		return token.In
 	case "instanceof":
 		return token.InstanceOf
-	case "is":
-		return token.Is
-	case "infer":
-		return token.Infer
-	case "interface":
-		return token.Interface
-	case "implements":
-		return token.Implements
-	case "intrinsic":
-		return token.Instrinsoc
-	default:
-		return token.Identifier
 	}
-}
-
-func l_k(p *parser) token.Token {
-	switch s {
-	case "keyof":
-		return token.I
-	default:
-		return token.Identifier
-	}
+	return token.Identifier
 }
 
 func l_l(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "let":
 		return token.Let
-	default:
-		return token.Identifier
 	}
-}
-
-func l_m(p *parser) token.Token {
-	switch s {
-	case "meta":
-		return token.Meta
-	default:
-		return token.Identifier
-	}
+	return token.Identifier
 }
 
 func l_n(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "new":
 		return token.New
@@ -507,55 +537,30 @@ func l_n(p *parser) token.Token {
 		return token.Null
 	case "number":
 		return token.Number
-	case "never":
-		return token.Never
-	case "namespace":
-		return token.Namespace
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_o(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "of":
 		return token.Of
-	case "object":
-		return token.Object
-	default:
-		return token.Identifier
 	}
-}
-
-func l_p(p *parser) token.Token {
-	switch s {
-	case "public":
-		return token.Public
-	case "package":
-		return token.Package
-	case "protected":
-		return token.Protected
-	case "private":
-		return token.Private
-	default:
-		return token.Identifier
-	}
+	return token.Identifier
 }
 
 func l_r(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "return":
 		return token.Return
-	case "readonly":
-		return token.Readonly
-	case "require":
-		return token.Require
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_s(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "super":
 		return token.Super
@@ -563,20 +568,14 @@ func l_s(p *parser) token.Token {
 		return token.Static
 	case "switch":
 		return token.Switch
-	case "symbol":
-		return token.Symbol
-	case "set":
-		return token.Set
 	case "string":
 		return token.String
-	case "satisfies":
-		return token.Satisfies
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_t(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "this":
 		return token.This
@@ -588,65 +587,59 @@ func l_t(p *parser) token.Token {
 		return token.Typeof
 	case "try":
 		return token.Try
-	case "type":
-		return token.Type
-	case "target":
-		return token.Target
-	default:
-		return token.Identifier
 	}
-}
-
-func l_u(p *parser) token.Token {
-	switch s {
-	case "using":
-		return token.Using
-	case "unique":
-		return token.Unique
-	case "undefined":
-		return token.Undefined
-	case "unknown":
-		return token.Unknown
-	default:
-		return token.Identifier
-	}
+	return token.Identifier
 }
 
 func l_v(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "var":
 		return token.Var
 	case "void":
 		return token.Void
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_w(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "while":
 		return token.While
 	case "with":
 		return token.With
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 func l_y(p *parser) token.Token {
+	s, _, _ := p.scanIdentifierTail(p.offset)
 	switch s {
 	case "yield":
 		return token.Yield
-	default:
-		return token.Identifier
 	}
+	return token.Identifier
 }
 
 // Non-ASCII characters.
 // NB: Must not use `ascii_byte_handler!` macro, as this handler is for non-ASCII chars.
 func uni(p *parser) token.Token {
-	return p.handleUnicodeChar()
+	switch c := p._peek(); {
+	case unicodeid.IsIDStartUnicode(c):
+		p.scanIdentifierTail(p.offset)
+		return token.Identifier
+	case unicode.IsSpace(c):
+		p.read()
+		return token.Skip
+	case isLineTerminator(c):
+		p.read()
+		return token.Skip
+	default:
+		p.read()
+		p.errorUnexpected(c)
+		return token.Undetermined
+	}
 }
 
 // UTF-8 continuation bytes (0x80 - 0xBF) (i.e. middle of a multi-byte UTF-8 sequence)
