@@ -78,20 +78,19 @@ func isIdentifierPart(chr rune) bool {
 	return unicodeid.IsIDContinueUnicode(chr)
 }
 
-func (p *parser) scanIdentifier() (string, string, bool, string) {
-	offset := p.chrOffset
+func (p *parser) scanIdentifierTail(startOffset int) (string, bool, string) {
 	hasEscape := false
-	isUnicode := false
 	length := 0
-	for isIdentifierPart(p.chr) {
-		r := p.chr
+	for chr := p._peek(); isIdentifierPart(chr); chr = p._peek() {
+		p.read()
+
 		length++
-		if r == '\\' {
+		if chr == '\\' {
 			hasEscape = true
-			distance := p.chrOffset - offset
+			distance := p.chrOffset - startOffset
 			p.read()
 			if p.chr != 'u' {
-				return "", "", false, fmt.Sprintf("Invalid identifier escape character: %c (%s)", p.chr, string(p.chr))
+				return "", false, fmt.Sprintf("Invalid identifier escape character: %c (%s)", p.chr, string(p.chr))
 			}
 
 			p.read()
@@ -107,7 +106,7 @@ func (p *parser) scanIdentifier() (string, string, bool, string) {
 					}
 					decimal, ok := hex2decimal(byte(p.chr))
 					if !ok {
-						return "", "", false, "Invalid Unicode escape sequence"
+						return "", false, "Invalid Unicode escape sequence"
 					}
 					if value == -1 {
 						value = decimal
@@ -116,18 +115,18 @@ func (p *parser) scanIdentifier() (string, string, bool, string) {
 					}
 					// Exceeds max rune?
 					if value > utf8.MaxRune {
-						return "", "", false, "Invalid Unicode escape sequence"
+						return "", false, "Invalid Unicode escape sequence"
 					}
 					p.read()
 				}
 				if value == -1 {
-					return "", "", false, "Invalid Unicode escape sequence"
+					return "", false, "Invalid Unicode escape sequence"
 				}
 			} else {
 				// Classic \uXXXX (4 hex digits).
 				decimal, ok := hex2decimal(byte(p.chr))
 				if !ok {
-					return "", "", false,
+					return "", false,
 						"Invalid identifier escape character: " + string(p.chr)
 				}
 				value = decimal
@@ -135,45 +134,29 @@ func (p *parser) scanIdentifier() (string, string, bool, string) {
 					p.read()
 					decimal, ok = hex2decimal(byte(p.chr))
 					if !ok {
-						return "", "", false, "Invalid identifier escape character: " + string(p.chr)
+						return "", false, "Invalid identifier escape character: " + string(p.chr)
 					}
 					value = (value << 4) | decimal
 				}
 			}
 			if value == '\\' {
-				return "", "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
+				return "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
 			} else if distance == 0 {
 				if !isIdentifierStart(value) {
-					return "", "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
+					return "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
 				}
 			} else if distance > 0 {
 				if !isIdentifierPart(value) {
-					return "", "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
+					return "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
 				}
 			}
-			r = value
+			chr = value
 		}
 
-		if r >= utf8.RuneSelf {
-			isUnicode = true
-			if r > 0xFFFF {
-				length++
-			}
-		}
 		p.read()
 	}
 
-	literal := p.str[offset:p.chrOffset]
-
-	if hasEscape || isUnicode {
-		parsed, parseErr := parseStringLiteral(literal, length, isUnicode, false)
-		if parseErr != "" {
-			return "", "", false, parseErr
-		}
-		return literal, parsed, hasEscape, ""
-	}
-
-	return literal, literal, hasEscape, ""
+	return p.str[startOffset:p.chrOffset], hasEscape, ""
 }
 
 // 7.2
@@ -253,7 +236,7 @@ func (p *parser) scan() (tkn token.Token, literal string, parsedLiteral string, 
 		if isIdentifierStart(c) {
 			var err string
 			var hasEscape bool
-			literal, parsedLiteral, hasEscape, err = p.scanIdentifier()
+			literal, hasEscape, err = p.scanIdentifierTail()
 			if err != "" {
 				tkn = token.Illegal
 				p.insertSemicolon = insertSemicolon
@@ -489,7 +472,7 @@ func (p *parser) scan() (tkn token.Token, literal string, parsedLiteral string, 
 			}
 			// Otherwise, private identifier
 			var err string
-			literal, parsedLiteral, _, err = p.scanIdentifier()
+			literal, parsedLiteral, _, err = p.scanIdentifierTail()
 			if err != "" || literal == "" {
 				tkn = token.Illegal
 			} else {
@@ -575,11 +558,19 @@ func (p *parser) _peek() rune {
 	return -1
 }
 
-func (p *parser) _peekByte() (byte, bool) {
+func (p *parser) _peekByte() byte {
 	if p.offset < p.length {
-		return p.str[p.offset], false
+		return p.str[p.offset]
 	}
-	return 0, true
+	return 0
+}
+
+func (p *parser) advanceIfAsciiEquals(b byte) (matched bool) {
+	if matched = p._peekByte() == b; matched {
+		p.chrOffset = p.offset
+		p.offset++
+	}
+	return matched
 }
 
 func (p *parser) read() {

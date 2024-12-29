@@ -25,7 +25,7 @@ func (p *parser) parseStatementList() (list ast.Statements) {
 		list = append(list, ast.Statement{Stmt: p.parseStatement()})
 	}
 
-	return
+	return list
 }
 
 func (p *parser) parseStatement() ast.Stmt {
