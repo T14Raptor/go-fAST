@@ -26,35 +26,35 @@ var byteHandlers = [256]byteHandler{
 
 // `\0` `\1` etc
 func err(p *parser) token.Token {
-let c = p.consume_char();
+ c = p.read()
 p.error(diagnostics::invalid_character(c, p.unterminated_range())
 return token.Undetermined
 }
 
 // <SPACE> <TAB> Normal Whitespace
 func sps(p *parser) token.Token {
-p.consume_char();
+p.read()
 return token.Skip
 }
 
 // <VT> <FF> Irregular Whitespace
 func isp(p *parser) token.Token {
-p.consume_char();
+p.read()
 p.trivia_builder.add_irregular_whitespace(p.token.start, p.offset());
 	return token.Skip
 }
 
 // '\r' '\n'
 func lin(p *parser) token.Token {
-p.consume_char();
-p.line_break_handler()
+	p.read()
+	return p.line_break_handler()
 }
 
 // !
 func exl(p *parser) token.Token {
-	p.consume_char();
-	if p.next_ascii_byte_eq('=') {
-		if p.next_ascii_byte_eq('=') {
+	p.read()
+	if p.advanceIfAsciiEquals('=') {
+		if p.advanceIfAsciiEquals('=') {
 			return token.StrictNotEqual
 		}
 		return token.NotEqual
@@ -78,46 +78,45 @@ func qod(p *parser) token.Token {
 
 // '
 func qos(p *parser) token.Token {
-// SAFETY: This function is only called for `'`
-unsafe { p.read_string_literal_single_quote() }
+	// SAFETY: This function is only called for `'`
+	unsafe{p.read_string_literal_single_quote()}
 }
 
 // #
 func has(p *parser) token.Token {
-p.consume_char();
-// HashbangComment ::
-//     `#!` SingleLineCommentChars?
-if p.token.start == 0 && p.next_ascii_byte_eq('!') {
-p.read_hashbang_comment()
-} else {
-p.private_identifier()
-}
+	p.read()
+	// HashbangComment ::
+	//     `#!` SingleLineCommentChars?
+	if p.token.start == 0 && p.advanceIfAsciiEquals('!') {
+		return p.read_hashbang_comment()
+	} else {
+		return p.private_identifier()
+	}
 }
 
 // `A..=Z`, `a..=z` (except special cases below), `_`, `$`
-ascii_identifier_handler!(IDT(_id_without_first_char) {
-token.Ident
+func idt(p *parser) token.Token {
+	return token.Identifier
 }
 
 // %
 func prc(p *parser) token.Token {
-	p.consume_char();
-	if p.next_ascii_byte_eq('=') {
+	p.read()
+	if p.advanceIfAsciiEquals('=') {
 		return token.RemainderAssign
 	}
-
 	return token.Remainder
 }
 
 // &
 func amp(p *parser) token.Token {
-	p.consume_char();
-	if p.next_ascii_byte_eq('&') {
-		if p.next_ascii_byte_eq('=') {
+	p.read()
+	if p.advanceIfAsciiEquals('&') {
+		if p.advanceIfAsciiEquals('=') {
 			return token.LogicalAnd
 		}
 		return token.LogicalAnd
-	} else if p.next_ascii_byte_eq('=') {
+	} else if p.advanceIfAsciiEquals('=') {
 		return token.AndAssign
 	}
 	return token.And
@@ -125,25 +124,25 @@ func amp(p *parser) token.Token {
 
 // (
 func pno(p *parser) token.Token {
-p.consume_char();
+p.read()
 return token.LeftParenthesis
 }
 
 // )
 func pnc(p *parser) token.Token {
-p.consume_char();
+p.read()
 return token.RightParenthesis
 }
 
 // *
 func atr(p *parser) token.Token {
-	p.consume_char();
-	if p.next_ascii_byte_eq('*') {
-		if p.next_ascii_byte_eq('=') {
+	p.read()
+	if p.advanceIfAsciiEquals('*') {
+		if p.advanceIfAsciiEquals('=') {
 			return token.ExponentAssign
 		}
 		return token.Exponent
-	} else if p.next_ascii_byte_eq('=') {
+	} else if p.advanceIfAsciiEquals('=') {
 		return token.MultiplyAssign
 	}
 	return token.Multiply
@@ -151,10 +150,10 @@ func atr(p *parser) token.Token {
 
 // +
 func pls(p *parser) token.Token {
-	p.consume_char();
-	if p.next_ascii_byte_eq('+') {
+	p.read()
+	if p.advanceIfAsciiEquals('+') {
 		return token.Increment
-	} else if p.next_ascii_byte_eq('=') {
+	} else if p.advanceIfAsciiEquals('=') {
 		return token.AddAssign
 	}
 	return token.Plus
@@ -162,36 +161,36 @@ func pls(p *parser) token.Token {
 
 // ,
 func com(p *parser) token.Token {
-p.consume_char();
-return token.Comma
+	p.read()
+	return token.Comma
 }
 
 // -
 func min(p *parser) token.Token {
-p.consume_char();
-p.read_minus().unwrap_or_else(|| p.skip_single_line_comment())
+	p.read()
+	return p.read_minus().unwrap_or_else( || p.skip_single_line_comment())
 }
 
 // .
 func prd(p *parser) token.Token {
-p.consume_char();
-return token.Period
-p.read_dot()
+	p.read()
+	return token.Period
+	p.read_dot()
 }
 
 // /
 func slh(p *parser) token.Token {
-	p.consume_char();
-	switch p.peek_byte() {
+	p.read()
+	switch p._peekByte() {
 	case '/':
-		p.consume_char();
+		p.read()
 		return p.skip_single_line_comment()
 	case '*':
-		p.consume_char();
+		p.read()
 		return p.skip_multi_line_comment()
 	default:
 		// regex is handled separately, see `next_regex`
-		if p.next_ascii_byte_eq('=') {
+		if p.advanceIfAsciiEquals('=') {
 			return token.QuotientAssign
 		}
 		return token.Slash
@@ -200,43 +199,43 @@ func slh(p *parser) token.Token {
 
 // 0
 func zer(p *parser) token.Token {
-p.consume_char();
-return p.read_zero()
+	p.read()
+	return p.read_zero()
 }
 
 // 1 to 9
 func dig(p *parser) token.Token {
-p.consume_char();
+p.read()
 return p.decimal_literal_after_first_digit()
 }
 
 // :
 func col(p *parser) token.Token {
-p.consume_char();
+p.read()
 return token.Colon
 }
 
 // ;
 func sem(p *parser) token.Token {
-p.consume_char();
+p.read()
 return token.Semicolon
 }
 
 // <
 func lss(p *parser) token.Token {
-p.consume_char();
+p.read()
 return p.read_left_angle().unwrap_or_else(|| p.skip_single_line_comment())
 }
 
 // =
 func eql(p *parser) token.Token {
-	p.consume_char();
-	if p.next_ascii_byte_eq('=') {
-		if p.next_ascii_byte_eq('=') {
+	p.read()
+	if p.advanceIfAsciiEquals('=') {
+		if p.advanceIfAsciiEquals('=') {
 			return token.StrictEqual
 		}
 		return token.Equal
-	} else if p.next_ascii_byte_eq('>') {
+	} else if p.advanceIfAsciiEquals('>') {
 		return token.Arrow
 	}
 	return token.Assign
@@ -244,57 +243,57 @@ func eql(p *parser) token.Token {
 
 // >
 func gtr(p *parser) token.Token {
-p.consume_char();
+p.read()
 // `>=` is re-lexed with [Lexer::next_jsx_child]
 return token.Greater
 }
 
 // ?
 func qst(p *parser) token.Token {
-p.consume_char();
+p.read()
 
-if let Some(next_2_bytes) = p.peek_2_bytes() {
+if let next_2_bytes) = p.peek_2_bytes() {
 switch next_2_bytes[0] {
 case '?':
 if next_2_bytes[1] == '=' {
-p.consume_2_chars();
+p.consume_2_chars()
 token.Question2Eq
 } else {
-p.consume_char();
+p.read()
 token.Question2
 }
 // parse `?.1` as `?` `.1`
-'.' if !next_2_bytes[1].is_ascii_digit() => {
-p.consume_char();
+'.' if !next_2_bytes[1].is_ascii_digit(): {
+p.read()
 token.QuestionDot
 }
-_ => token.Question,
+_: token.Question,
 }
 } else {
 // At EOF, or only 1 byte left
-match p.peek_byte() {
-Some('?') => {
-p.consume_char();
+switch p.peek_byte() {
+'?'): {
+p.read()
 token.Question2
 }
-Some('.') => {
-p.consume_char();
+'.'): {
+p.read()
 token.QuestionDot
 }
-_ => token.Question,
+_: token.Question,
 }
 }
 }
 
 // @
 func at_(p *parser) token.Token {
-p.consume_char();
+p.read()
 token.At
 }
 
 // [
 func bto(p *parser) token.Token {
-p.consume_char();
+p.read()
 	return token.LeftBracket
 }
 
@@ -305,14 +304,14 @@ p.identifier_backslash_handler()
 
 // ]
 func btc(p *parser) token.Token {
-p.consume_char();
+p.read()
 return token.RightBracket
 }
 
 // ^
 func crt(p *parser) token.Token {
-	p.consume_char();
-	if p.next_ascii_byte_eq('=') {
+	p.read()
+	if p.advanceIfAsciiEquals('=') {
 		return token.ExclusiveOrAssign
 	}
 	return token.ExclusiveOr
@@ -320,224 +319,334 @@ func crt(p *parser) token.Token {
 
 // `
 func tpl(p *parser) token.Token {
-p.consume_char();
-p.read_template_literal(token.TemplateHead, token.NoSubstitutionTemplate)
+	p.read()
+	p.parseTemplateCharacters()
+	p.read_template_literal(token.TemplateHead, token.NoSubstitutionTemplate)
 }
 
 // {
 func beo(p *parser) token.Token {
-p.consume_char();
+	p.read()
 	return token.LeftBrace
 }
 
 // |
 func pip(p *parser) token.Token {
-p.consume_char();
+	p.read()
 
-match p.peek_byte() {
-Some('|') => {
-p.consume_char();
-if p.next_ascii_byte_eq('=') {
-token.Pipe2Eq
-} else {
-token.Pipe2
-}
-}
-Some('=') => {
-p.consume_char();
-token.PipeEq
-}
-_ => token.Pipe
-}
+	switch p._peekByte() {
+	case '|':
+		p.read()
+		return token.LogicalOr
+	case '=':
+		p.read()
+		return token.OrAssign
+	default:
+		return token.Or
+	}
 }
 
 // }
 func bec(p *parser) token.Token {
-p.consume_char();
+p.read()
 return token.RightBrace
 }
 
 // ~
 func tld(p *parser) token.Token {
-p.consume_char();
+p.read()
 return token.BitwiseNot
 }
 
-ascii_identifier_handler!(L_A(id_without_first_char) match id_without_first_char {
-"wait" => token.Await,
-"sync" => token.Async,
-"bstract" => token.Abstract,
-"ccessor" => token.Accessor,
-"ny" => token.Any,
-"s" => token.As,
-"ssert" => token.Assert,
-"sserts" => token.Asserts,
-_ => token.Ident,
+func l_a(p *parser) token.Token {
+	switch s {
+	case "await":
+		return token.Await
+	case "async":
+		return token.Async
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_B(id_without_first_char) match id_without_first_char {
-"reak" => token.Break,
-"oolean" => token.Boolean,
-"igint" => token.BigInt,
-_ => token.Ident,
+func l_b(p *parser) token.Token {
+	switch s {
+	case "break":
+		return token.Break
+	case "boolean":
+		return token.Boolean
+	case "bigint":
+		return token.BigInt
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_C(id_without_first_char) match id_without_first_char {
-"onst" => token.Const,
-"lass" => token.Class,
-"ontinue" => token.Continue,
-"atch" => token.Catch,
-"ase" => token.Case,
-"onstructor" => token.Constructor,
-_ => token.Ident,
+func l_c(p *parser) token.Token {
+	switch s {
+	case "case":
+		return token.Case
+	case "catch":
+		return token.Catch
+	case "class":
+		return token.Class
+	case "const":
+		return token.Const
+	case "continue":
+		return token.Continue
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_D(id_without_first_char) match id_without_first_char {
-"o" => token.Do,
-"elete" => token.Delete,
-"eclare" => token.Declare,
-"efault" => token.Default,
-"ebugger" => token.Debugger,
-"efer" => token.Defer,
-_ => token.Ident,
+func l_d(p *parser) token.Token {
+	switch s {
+	case "debugger":
+		return token.Debugger
+	case "default":
+		return token.Default
+	case "delete":
+		return token.Delete
+	case "do":
+		return token.Do
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_E(id_without_first_char) match id_without_first_char {
-"lse" => token.Else,
-"num" => token.Enum,
-"xport" => token.Export,
-"xtends" => token.Extends,
-_ => token.Ident,
+func l_e(p *parser) token.Token {
+	switch s {
+	case "else":
+		return token.Else
+	case "extends":
+		return token.Extends
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_F(id_without_first_char) match id_without_first_char {
-"unction" => token.Function,
-"alse" => token.False,
-"or" => token.For,
-"inally" => token.Finally,
-"rom" => token.From,
-_ => token.Ident,
+func l_f(p *parser) token.Token {
+	switch s {
+	case "false":
+		return token.Boolean
+	case "finally":
+		return token.Finally
+	case "for":
+		return token.For
+	case "function":
+		return token.Function
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_G(id_without_first_char) match id_without_first_char {
-"et" => token.Get,
-"lobal" => token.Global,
-_ => token.Ident,
+func l_g(p *parser) token.Token {
+	switch s {
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_I(id_without_first_char) match id_without_first_char {
-"f" => token.If,
-"nstanceof" => token.Instanceof,
-"n" => token.In,
-"mplements" => token.Implements,
-"mport" => token.Import,
-"nfer" => token.Infer,
-"nterface" => token.Interface,
-"ntrinsic" => token.Intrinsic,
-"s" => token.Is,
-_ => token.Ident,
+func l_i(p *parser) token.Token {
+	switch s {
+	case "if":
+		return token.If
+	case "import":
+		return token.Import
+	case "in":
+		return token.In
+	case "instanceof":
+		return token.InstanceOf
+	case "is":
+		return token.Is
+	case "infer":
+		return token.Infer
+	case "interface":
+		return token.Interface
+	case "implements":
+		return token.Implements
+	case "intrinsic":
+		return token.Instrinsoc
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_K(id_without_first_char) match id_without_first_char {
-"eyof" => token.KeyOf,
-_ => token.Ident,
+func l_k(p *parser) token.Token {
+	switch s {
+	case "keyof":
+		return token.I
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_L(id_without_first_char) match id_without_first_char {
-"et" => token.Let,
-_ => token.Ident,
+func l_l(p *parser) token.Token {
+	switch s {
+	case "let":
+		return token.Let
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_M(id_without_first_char) match id_without_first_char {
-"eta" => token.Meta,
-"odule" => token.Module,
-_ => token.Ident,
+func l_m(p *parser) token.Token {
+	switch s {
+	case "meta":
+		return token.Meta
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_N(id_without_first_char) match id_without_first_char {
-"ull" => token.Null,
-"ew" => token.New,
-"umber" => token.Number,
-"amespace" => token.Namespace,
-"ever" => token.Never,
-_ => token.Ident,
+func l_n(p *parser) token.Token {
+	switch s {
+	case "new":
+		return token.New
+	case "null":
+		return token.Null
+	case "number":
+		return token.Number
+	case "never":
+		return token.Never
+	case "namespace":
+		return token.Namespace
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_O(id_without_first_char) match id_without_first_char {
-"f" => token.Of,
-"bject" => token.Object,
-"ut" => token.Out,
-"verride" => token.Override,
-_ => token.Ident,
+func l_o(p *parser) token.Token {
+	switch s {
+	case "of":
+		return token.Of
+	case "object":
+		return token.Object
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_P(id_without_first_char) match id_without_first_char {
-"ackage" => token.Package,
-"rivate" => token.Private,
-"rotected" => token.Protected,
-"ublic" => token.Public,
-_ => token.Ident,
+func l_p(p *parser) token.Token {
+	switch s {
+	case "public":
+		return token.Public
+	case "package":
+		return token.Package
+	case "protected":
+		return token.Protected
+	case "private":
+		return token.Private
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_R(id_without_first_char) match id_without_first_char {
-"eturn" => token.Return,
-"equire" => token.Require,
-"eadonly" => token.Readonly,
-_ => token.Ident,
+func l_r(p *parser) token.Token {
+	switch s {
+	case "return":
+		return token.Return
+	case "readonly":
+		return token.Readonly
+	case "require":
+		return token.Require
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_S(id_without_first_char) match id_without_first_char {
-"et" => token.Set,
-"uper" => token.Super,
-"witch" => token.Switch,
-"tatic" => token.Static,
-"ymbol" => token.Symbol,
-"tring" => token.String,
-"atisfies" => token.Satisfies,
-"ource" => token.Source,
-_ => token.Ident,
+func l_s(p *parser) token.Token {
+	switch s {
+	case "super":
+		return token.Super
+	case "static":
+		return token.Static
+	case "switch":
+		return token.Switch
+	case "symbol":
+		return token.Symbol
+	case "set":
+		return token.Set
+	case "string":
+		return token.String
+	case "satisfies":
+		return token.Satisfies
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_T(id_without_first_char) match id_without_first_char {
-"his" => token.This,
-"rue" => token.True,
-"hrow" => token.Throw,
-"ry" => token.Try,
-"ypeof" => token.Typeof,
-"arget" => token.Target,
-"ype" => token.Type,
-_ => token.Ident,
+func l_t(p *parser) token.Token {
+	switch s {
+	case "this":
+		return token.This
+	case "throw":
+		return token.Throw
+	case "true":
+		return token.Boolean
+	case "typeof":
+		return token.Typeof
+	case "try":
+		return token.Try
+	case "type":
+		return token.Type
+	case "target":
+		return token.Target
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_U(id_without_first_char) match id_without_first_char {
-"ndefined" => token.Undefined,
-"sing" => token.Using,
-"nique" => token.Unique,
-"nknown" => token.Unknown,
-_ => token.Ident,
+func l_u(p *parser) token.Token {
+	switch s {
+	case "using":
+		return token.Using
+	case "unique":
+		return token.Unique
+	case "undefined":
+		return token.Undefined
+	case "unknown":
+		return token.Unknown
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_V(id_without_first_char) match id_without_first_char {
-"ar" => token.Var,
-"oid" => token.Void,
-_ => token.Ident,
+func l_v(p *parser) token.Token {
+	switch s {
+	case "var":
+		return token.Var
+	case "void":
+		return token.Void
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_W(id_without_first_char) match id_without_first_char {
-"hile" => token.While,
-"ith" => token.With,
-_ => token.Ident,
+func l_w(p *parser) token.Token {
+	switch s {
+	case "while":
+		return token.While
+	case "with":
+		return token.With
+	default:
+		return token.Identifier
+	}
 }
 
-ascii_identifier_handler!(L_Y(id_without_first_char) match id_without_first_char {
-"ield" => token.Yield,
-_ => token.Ident,
+func l_y(p *parser) token.Token {
+	switch s {
+	case "yield":
+		return token.Yield
+	default:
+		return token.Identifier
+	}
 }
 
 // Non-ASCII characters.
 // NB: Must not use `ascii_byte_handler!` macro, as this handler is for non-ASCII chars.
-byte_handler!(UNI(p) {
-p.unicode_char_handler()
+func uni(p *parser) token.Token {
+	return p.handleUnicodeChar()
 }
 
 // UTF-8 continuation bytes (0x80 - 0xBF) (i.e. middle of a multi-byte UTF-8 sequence)
@@ -546,6 +655,6 @@ p.unicode_char_handler()
 // so something has gone wrong if we get here.
 // https://datatracker.ietf.org/doc/html/rfc3629
 // NB: Must not use `ascii_byte_handler!` macro, as this handler is for non-ASCII bytes.
-byte_handler!(UER(_p) {
-unreachable!();
+func uer(p *parser) token.Token {
+	panic("unreachable")
 }
