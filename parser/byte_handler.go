@@ -70,6 +70,9 @@ func exl(p *parser) token.Token {
 func qod(p *parser) token.Token {
 	// SAFETY: This function is only called for `"`
 	// String literal
+	p.read()
+
+	p.read()
 	var err string
 	p.literal, p.parsedLiteral, err = p.scanString(p.chrOffset-1, true)
 	if err != "" {
@@ -83,6 +86,9 @@ func qos(p *parser) token.Token {
 	// SAFETY: This function is only called for `"`
 	// String literal
 	p.insertSemicolon = true
+	p.read()
+
+	p.read()
 	var err string
 	p.literal, p.parsedLiteral, err = p.scanString(p.chrOffset-1, true)
 	if err != "" {
@@ -420,8 +426,8 @@ func tld(p *parser) token.Token {
 }
 
 func l_a(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "await":
 		return token.Await
 	case "async":
@@ -431,8 +437,8 @@ func l_a(p *parser) token.Token {
 }
 
 func l_b(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "break":
 		return token.Break
 	case "boolean":
@@ -442,8 +448,8 @@ func l_b(p *parser) token.Token {
 }
 
 func l_c(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "case":
 		return token.Case
 	case "catch":
@@ -459,8 +465,8 @@ func l_c(p *parser) token.Token {
 }
 
 func l_d(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "debugger":
 		return token.Debugger
 	case "default":
@@ -474,8 +480,8 @@ func l_d(p *parser) token.Token {
 }
 
 func l_e(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "else":
 		return token.Else
 	case "enum":
@@ -489,9 +495,9 @@ func l_e(p *parser) token.Token {
 }
 
 func l_f(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	fmt.Println(s, "hellooo")
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	fmt.Println(p.literal, "hellooo")
+	switch p.literal {
 	case "false":
 		return token.Boolean
 	case "finally":
@@ -505,8 +511,8 @@ func l_f(p *parser) token.Token {
 }
 
 func l_i(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "if":
 		return token.If
 	case "import":
@@ -520,8 +526,8 @@ func l_i(p *parser) token.Token {
 }
 
 func l_l(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "let":
 		return token.Let
 	}
@@ -529,8 +535,8 @@ func l_l(p *parser) token.Token {
 }
 
 func l_n(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "new":
 		return token.New
 	case "null":
@@ -542,8 +548,8 @@ func l_n(p *parser) token.Token {
 }
 
 func l_o(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "of":
 		return token.Of
 	}
@@ -551,8 +557,8 @@ func l_o(p *parser) token.Token {
 }
 
 func l_r(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "return":
 		return token.Return
 	}
@@ -560,8 +566,8 @@ func l_r(p *parser) token.Token {
 }
 
 func l_s(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "super":
 		return token.Super
 	case "static":
@@ -575,8 +581,8 @@ func l_s(p *parser) token.Token {
 }
 
 func l_t(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "this":
 		return token.This
 	case "throw":
@@ -592,8 +598,8 @@ func l_t(p *parser) token.Token {
 }
 
 func l_v(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "var":
 		return token.Var
 	case "void":
@@ -603,8 +609,8 @@ func l_v(p *parser) token.Token {
 }
 
 func l_w(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "while":
 		return token.While
 	case "with":
@@ -614,8 +620,8 @@ func l_w(p *parser) token.Token {
 }
 
 func l_y(p *parser) token.Token {
-	s, _, _ := p.scanIdentifierTail(p.offset)
-	switch s {
+	p.literal, _, _ = p.scanIdentifierTail(p.offset)
+	switch p.literal {
 	case "yield":
 		return token.Yield
 	}

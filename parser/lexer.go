@@ -82,8 +82,6 @@ func (p *parser) scanIdentifierTail(startOffset int) (string, bool, string) {
 	hasEscape := false
 	length := 0
 	for chr := p._peek(); isIdentifierPart(chr); chr = p._peek() {
-		p.read()
-
 		length++
 		if chr == '\\' {
 			hasEscape = true
@@ -234,66 +232,6 @@ func (p *parser) scan() (tkn token.Token, literal string, idx ast.Idx) {
 			return kind, p.literal, p.idx
 		}
 	}
-}
-
-func (p *parser) switch2(tkn0, tkn1 token.Token) token.Token {
-	if p.chr == '=' {
-		p.read()
-		return tkn1
-	}
-	return tkn0
-}
-
-func (p *parser) switch3(tkn0, tkn1 token.Token, chr2 rune, tkn2 token.Token) token.Token {
-	if p.chr == '=' {
-		p.read()
-		return tkn1
-	}
-	if p.chr == chr2 {
-		p.read()
-		return tkn2
-	}
-	return tkn0
-}
-
-func (p *parser) switch4(tkn0, tkn1 token.Token, chr2 rune, tkn2, tkn3 token.Token) token.Token {
-	if p.chr == '=' {
-		p.read()
-		return tkn1
-	}
-	if p.chr == chr2 {
-		p.read()
-		if p.chr == '=' {
-			p.read()
-			return tkn3
-		}
-		return tkn2
-	}
-	return tkn0
-}
-
-func (p *parser) switch6(tkn0, tkn1 token.Token, chr2 rune, tkn2, tkn3 token.Token, chr3 rune, tkn4, tkn5 token.Token) token.Token {
-	if p.chr == '=' {
-		p.read()
-		return tkn1
-	}
-	if p.chr == chr2 {
-		p.read()
-		if p.chr == '=' {
-			p.read()
-			return tkn3
-		}
-		if p.chr == chr3 {
-			p.read()
-			if p.chr == '=' {
-				p.read()
-				return tkn5
-			}
-			return tkn4
-		}
-		return tkn2
-	}
-	return tkn0
 }
 
 func (p *parser) _peek() rune {

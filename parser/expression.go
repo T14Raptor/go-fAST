@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/t14raptor/go-fast/ast"
@@ -9,7 +8,7 @@ import (
 )
 
 func (p *parser) parseIdentifier() *ast.Identifier {
-	literal := p.parsedLiteral
+	literal := p.literal
 	idx := p.idx
 	p.next()
 	return &ast.Identifier{
@@ -21,13 +20,12 @@ func (p *parser) parseIdentifier() *ast.Identifier {
 func (p *parser) parsePrimaryExpression() ast.Expr {
 	literal, parsedLiteral := p.literal, p.parsedLiteral
 	idx := p.idx
-	fmt.Println(p.token == token.Function)
 	switch p.token {
 	case token.Identifier:
 		p.next()
 		return &ast.Identifier{
 			Idx:  idx,
-			Name: parsedLiteral,
+			Name: literal,
 		}
 	case token.Null:
 		p.next()
@@ -37,7 +35,7 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 	case token.Boolean:
 		p.next()
 		value := false
-		switch parsedLiteral {
+		switch literal {
 		case "true":
 			value = true
 		case "false":
