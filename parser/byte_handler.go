@@ -134,6 +134,7 @@ func amp(p *parser) token.Token {
 	p.read()
 	if p.advanceIfAsciiEquals('&') {
 		if p.advanceIfAsciiEquals('=') {
+			// TODO
 			return token.LogicalAnd
 		}
 		return token.LogicalAnd
