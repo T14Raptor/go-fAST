@@ -225,9 +225,7 @@ func (p *parser) scan() (tkn token.Token, literal string, idx ast.Idx) {
 
 		fmt.Println("hello", string(b))
 
-		// SAFETY: `byte` is byte value at current position in source
-		kind := byteHandlers[b](p)
-		if kind != token.Skip {
+		if kind := byteHandlers[b](p); kind != token.Skip {
 			fmt.Println(kind, p.literal)
 			return kind, p.literal, p.idx
 		}
@@ -319,72 +317,6 @@ func (p *parser) skipMultiLineComment() (hasLineTerminator bool) {
 
 	p.errorUnexpected(p.chr)
 	return
-}
-
-func (p *parser) skipWhiteSpaceCheckLineTerminator() bool {
-	for {
-		switch p.chr {
-		case ' ', '\t', '\f', '\v', '\u00a0', '\ufeff':
-			p.read()
-			continue
-		case '\r':
-			if p._peek() == '\n' {
-				p.read()
-			}
-			fallthrough
-		case '\u2028', '\u2029', '\n':
-			return true
-		}
-		if p.chr >= utf8.RuneSelf {
-			if unicode.IsSpace(p.chr) {
-				p.read()
-				continue
-			}
-		}
-		break
-	}
-	return false
-}
-
-func (p *parser) skipWhiteSpace() {
-	for {
-		c := p.chr
-
-		// Fast path for common ASCII whitespace
-		if c == ' ' || c == '\t' || c == '\f' || c == '\v' || c == '\u00a0' || c == '\ufeff' {
-			p.read()
-			continue
-		}
-
-		// Handle line terminators
-		if c == '\r' {
-			// Check if the next character is '\n' without calling p._peek()
-			if p.chrOffset < len(p.str) && p.str[p.chrOffset] == '\n' {
-				p.read()
-			}
-			if p.insertSemicolon {
-				return
-			}
-			p.read()
-			continue
-		}
-		if c == '\n' || c == '\u2028' || c == '\u2029' {
-			if p.insertSemicolon {
-				return
-			}
-			p.read()
-			continue
-		}
-
-		// Handle non-ASCII whitespace
-		if c >= utf8.RuneSelf && unicode.IsSpace(c) {
-			p.read()
-			continue
-		}
-
-		// If none of the above matched, we're done
-		break
-	}
 }
 
 func (p *parser) scanMantissa(base int) {
