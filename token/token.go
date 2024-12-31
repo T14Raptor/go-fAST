@@ -74,6 +74,13 @@ func LiteralKeyword(literal string) (Token, bool) {
 	return 0, false
 }
 
+func MatchKeyword(literal string) Token {
+	if k, exists := keywordTable[literal]; exists {
+		return k.token
+	}
+	return Identifier
+}
+
 // ID ...
 func ID(token Token) bool {
 	return token >= Identifier

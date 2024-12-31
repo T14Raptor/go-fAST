@@ -1,14 +1,14 @@
 package scanner
 
 import (
+	"fmt"
 	"github.com/t14raptor/go-fast/token"
-	"unsafe"
 )
 
 type Scanner struct {
 	src *Source
 
-	token token.Token
+	token Token
 }
 
 func NewScanner(src string) *Scanner {
@@ -17,51 +17,55 @@ func NewScanner(src string) *Scanner {
 	}
 }
 
-func (s *Scanner) EOF() bool {
-	return s.ptr == s.end
+func (s *Scanner) Next() Token {
+	s.token.idx0 = s.src.Offset()
+	s.token.kind = s.readNextToken()
+	s.token.idx1 = s.src.Offset()
+	t := s.token
+	s.token = Token{}
+	return t
 }
 
-func (s *Scanner) End() *byte {
-	return s.end
+func (s *Scanner) readNextToken() token.Token {
+	for {
+		b, ok := s.PeekByte()
+		if !ok {
+			return token.Eof
+		}
+
+		fmt.Println("hello", string(b))
+
+		if kind := byteHandlers[b](s); kind != token.Skip {
+			return kind
+		}
+	}
 }
 
-func (s *Scanner)
+func (s *Scanner) NextRune() (rune, bool) {
+	return s.src.NextRune()
+}
 
 func (s *Scanner) NextByte() (byte, bool) {
-	if s.EOF() {
-		return 0, false
-	}
-	return s.NextByteUnchecked(), true
+	return s.src.NextByte()
 }
 
-func (s *Scanner) NextByteUnchecked() byte {
-	b := s.PeekByteUnchecked()
-	s.add()
-	return b
+func (s *Scanner) ConsumeRune() rune {
+	r, _ := s.src.NextRune()
+	return r
+}
+
+func (s *Scanner) ConsumeByte() byte {
+	return s.src.NextByteUnchecked()
+}
+
+func (s *Scanner) PeekRune() (rune, bool) {
+	return s.src.PeekRune()
 }
 
 func (s *Scanner) PeekByte() (byte, bool) {
-	if s.EOF() {
-		return 0, false
-	}
-	return s.PeekByteUnchecked(), true
+	return s.src.PeekByte()
 }
 
-func (s *Scanner) PeekByteUnchecked() byte {
-	return *s.ptr
-}
-
-func (s *Scanner) AdvanceIfByteEquals(b byte) (matched bool) {
-	nextB, ok := s.PeekByte()
-	if !ok {
-		return false
-	}
-	if matched = nextB == b; matched {
-		s.add()
-	}
-	return matched
-}
-
-func (s *Scanner) add() {
-	s.ptr = (*byte)(unsafe.Add(unsafe.Pointer(s.ptr), 1))
+func (s *Scanner) AdvanceIfByteEquals(b byte) bool {
+	return s.src.AdvanceIfByteEquals(b)
 }

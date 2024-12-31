@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"github.com/t14raptor/go-fast/ast"
 	"unicode/utf8"
 	"unsafe"
 )
@@ -19,15 +20,23 @@ func NewSource(src string) *Source {
 	return s
 }
 
+func (s *Source) Slice(from, to ast.Idx) string {
+	return unsafe.String((*byte)(unsafe.Add(s.start, from)), uintptr(to)-uintptr(s.start))
+}
+
 func (s *Source) EOF() bool {
 	return s.ptr == s.end
+}
+
+func (s *Source) Offset() ast.Idx {
+	return ast.Idx(uintptr(s.ptr) - uintptr(s.start))
 }
 
 func (s *Source) End() *byte {
 	return (*byte)(s.end)
 }
 
-func (s *Source) NextChar() (rune, bool) {
+func (s *Source) NextRune() (rune, bool) {
 	b, ok := s.PeekByte()
 	if !ok {
 		return 0, false
@@ -40,6 +49,20 @@ func (s *Source) NextChar() (rune, bool) {
 	str := unsafe.String((*byte)(s.ptr), uintptr(s.end)-uintptr(s.ptr))
 	chr, width := utf8.DecodeRuneInString(str)
 	s.ptr = unsafe.Add(s.ptr, width)
+	return chr, true
+}
+
+func (s *Source) PeekRune() (rune, bool) {
+	b, ok := s.PeekByte()
+	if !ok {
+		return 0, false
+	}
+	if b <= utf8.RuneSelf {
+		return rune(b), true
+	}
+
+	str := unsafe.String((*byte)(s.ptr), uintptr(s.end)-uintptr(s.ptr))
+	chr, _ := utf8.DecodeRuneInString(str)
 	return chr, true
 }
 
@@ -69,8 +92,13 @@ func (s *Source) PeekByteUnchecked() byte {
 
 func (s *Source) AdvanceIfByteEquals(b byte) (matched bool) {
 	nextB, ok := s.PeekByte()
-	if matched = ok && nextB == b; matched {
+	if ok && nextB == b {
 		s.ptr = unsafe.Add(s.ptr, 1)
+		return true
 	}
-	return matched
+	return false
+}
+
+func (s *Source) FromPositionToCurrent(pos ast.Idx) string {
+	return unsafe.String((*byte)(s.start), uintptr(pos)-uintptr(s.start))
 }
