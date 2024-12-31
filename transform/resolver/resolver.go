@@ -241,7 +241,7 @@ func (r *Resolver) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 		r.identType = oldIdentType
 
 		if decl.Initializer != nil {
-			decl.Initializer.VisitChildrenWith(r)
+			decl.Initializer.VisitWith(r)
 		}
 	}
 
