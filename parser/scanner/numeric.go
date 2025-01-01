@@ -73,6 +73,8 @@ func (s *Scanner) readNonDecimal(base int) token.Token {
 			}
 		} else if b, ok := s.PeekByte(); ok && digitValue(b) < base {
 			s.ConsumeByte()
+		} else {
+			break
 		}
 	}
 
@@ -90,7 +92,9 @@ func (s *Scanner) readLegacyOctal() token.Token {
 		switch b {
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			s.ConsumeByte()
+			continue
 		}
+		break
 	}
 
 	if b, ok := s.PeekByte(); ok {
@@ -143,12 +147,13 @@ func (s *Scanner) decimalDigitsAfterFirstDigit() {
 				// TODO error
 				return
 			}
+			continue
 			// TODO
 		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			s.ConsumeRune()
-		default:
-			break
+			continue
 		}
+		break
 	}
 }
 

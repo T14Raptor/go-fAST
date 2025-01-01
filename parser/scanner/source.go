@@ -21,7 +21,7 @@ func NewSource(src string) *Source {
 }
 
 func (s *Source) Slice(from, to ast.Idx) string {
-	return unsafe.String((*byte)(unsafe.Add(s.start, from)), uintptr(to)-uintptr(s.start))
+	return unsafe.String((*byte)(unsafe.Add(s.start, from)), to-from)
 }
 
 func (s *Source) EOF() bool {
@@ -86,6 +86,13 @@ func (s *Source) PeekByte() (byte, bool) {
 	return s.PeekByteUnchecked(), true
 }
 
+func (s *Source) PeekTwoBytes() ([2]byte, bool) {
+	if uintptr(s.end)-uintptr(s.ptr) >= 2 {
+		return *(*[2]byte)(s.ptr), true
+	}
+	return [2]byte{}, false
+}
+
 func (s *Source) PeekByteUnchecked() byte {
 	return *(*byte)(s.ptr)
 }
@@ -100,5 +107,6 @@ func (s *Source) AdvanceIfByteEquals(b byte) (matched bool) {
 }
 
 func (s *Source) FromPositionToCurrent(pos ast.Idx) string {
-	return unsafe.String((*byte)(s.start), uintptr(pos)-uintptr(s.start))
+	p := unsafe.Add(s.start, pos)
+	return unsafe.String((*byte)(p), uintptr(s.ptr)-uintptr(p))
 }

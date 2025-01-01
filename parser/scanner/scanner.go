@@ -1,8 +1,9 @@
 package scanner
 
 import (
-	"fmt"
+	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
+	"unsafe"
 )
 
 type Scanner struct {
@@ -18,7 +19,6 @@ func NewScanner(src string) *Scanner {
 }
 
 func (s *Scanner) Next() Token {
-	s.token.idx0 = s.src.Offset()
 	s.token.kind = s.readNextToken()
 	s.token.idx1 = s.src.Offset()
 	t := s.token
@@ -28,17 +28,39 @@ func (s *Scanner) Next() Token {
 
 func (s *Scanner) readNextToken() token.Token {
 	for {
+		s.token.idx0 = s.src.Offset()
+
 		b, ok := s.PeekByte()
 		if !ok {
 			return token.Eof
 		}
 
-		fmt.Println("hello", string(b))
-
 		if kind := byteHandlers[b](s); kind != token.Skip {
 			return kind
 		}
 	}
+}
+
+type Checkpoint struct {
+	pos unsafe.Pointer
+	tok Token
+	// TODO errors
+}
+
+func (s *Scanner) Checkpoint() Checkpoint {
+	return Checkpoint{
+		pos: s.src.ptr,
+		tok: s.token,
+	}
+}
+
+func (s *Scanner) Rewind(c Checkpoint) {
+	s.src.ptr = c.pos
+	s.token = c.tok
+}
+
+func (s *Scanner) Offset() ast.Idx {
+	return s.src.Offset()
 }
 
 func (s *Scanner) NextRune() (rune, bool) {

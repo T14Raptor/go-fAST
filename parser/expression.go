@@ -8,8 +8,8 @@ import (
 )
 
 func (p *parser) parseIdentifier() *ast.Identifier {
-	literal := p.literal
-	idx := p.idx
+	literal := p.currentString()
+	idx := p.currentOffset()
 	p.next()
 	return &ast.Identifier{
 		Idx:  idx,
@@ -18,14 +18,14 @@ func (p *parser) parseIdentifier() *ast.Identifier {
 }
 
 func (p *parser) parsePrimaryExpression() ast.Expr {
-	literal, parsedLiteral := p.literal, p.parsedLiteral
-	idx := p.idx
-	switch p.token {
+	idx := p.currentOffset()
+	switch p.currentKind() {
 	case token.Identifier:
+		parsedLiteral := p.currentString()
 		p.next()
 		return &ast.Identifier{
 			Idx:  idx,
-			Name: literal,
+			Name: parsedLiteral,
 		}
 	case token.Null:
 		p.next()
@@ -33,9 +33,10 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 			Idx: idx,
 		}
 	case token.Boolean:
+		parsedLiteral := p.currentString()
 		p.next()
 		value := false
-		switch literal {
+		switch parsedLiteral {
 		case "true":
 			value = true
 		case "false":
@@ -48,16 +49,20 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 			Value: value,
 		}
 	case token.String:
+		parsedLiteral := p.currentString()
+		raw := p.token.Raw(p.scanner)
 		p.next()
 		return &ast.StringLiteral{
 			Idx:   idx,
 			Value: parsedLiteral,
 
-			Raw: &literal,
+			Raw: &raw,
 		}
 	case token.Number:
+		parsedLiteral := p.currentString()
+		raw := p.token.Raw(p.scanner)
 		p.next()
-		value, err := parseNumberLiteral(literal)
+		value, err := parseNumberLiteral(parsedLiteral)
 		if err != nil {
 			p.error(err.Error())
 			value = 0
@@ -66,7 +71,7 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 			Idx:   idx,
 			Value: value,
 
-			Raw: &literal,
+			Raw: &raw,
 		}
 	case token.Slash, token.QuotientAssign:
 		return p.parseRegExpLiteral()
@@ -93,29 +98,29 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 		return p.parseClass(false)
 	}
 
-	if p.isBindingId(p.token) {
+	if p.isBindingId(p.currentKind()) {
 		p.next()
 		return &ast.Identifier{Idx: idx}
 	}
 
-	p.errorUnexpectedToken(p.token)
+	p.errorUnexpectedToken(p.currentKind())
 	p.nextStatement()
-	return &ast.InvalidExpression{From: idx, To: p.idx}
+	return &ast.InvalidExpression{From: idx, To: p.currentOffset()}
 }
 
 func (p *parser) parseSuperProperty() ast.Expr {
-	idx := p.idx
+	idx := p.currentOffset()
 	p.next()
-	switch p.token {
+	switch p.currentKind() {
 	case token.Period:
 		p.next()
-		if !token.ID(p.token) {
+		if !token.ID(p.currentKind()) {
 			p.expect(token.Identifier)
 			p.nextStatement()
-			return &ast.InvalidExpression{From: idx, To: p.idx}
+			return &ast.InvalidExpression{From: idx, To: p.currentOffset()}
 		}
-		idIdx := p.idx
-		parsedLiteral := p.parsedLiteral
+		idIdx := p.currentOffset()
+		parsedLiteral := p.currentString()
 		p.next()
 		return &ast.MemberExpression{
 			Object: p.makeExpr(&ast.SuperExpression{
@@ -137,7 +142,7 @@ func (p *parser) parseSuperProperty() ast.Expr {
 	default:
 		p.error("'super' keyword unexpected here")
 		p.nextStatement()
-		return &ast.InvalidExpression{From: idx, To: p.idx}
+		return &ast.InvalidExpression{From: idx, To: p.currentOffset()}
 	}
 }
 
@@ -168,13 +173,13 @@ func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.
 }
 
 func (p *parser) parseParenthesisedExpression() ast.Expr {
-	opening := p.idx
+	opening := p.currentOffset()
 	p.expect(token.LeftParenthesis)
 	var list ast.Expressions
-	if p.token != token.RightParenthesis {
+	if p.currentKind() != token.RightParenthesis {
 		for {
-			if p.token == token.Ellipsis {
-				start := p.idx
+			if p.currentKind() == token.Ellipsis {
+				start := p.currentOffset()
 				p.errorUnexpectedToken(token.Ellipsis)
 				p.next()
 				expr := p.parseAssignmentExpression()
@@ -185,11 +190,11 @@ func (p *parser) parseParenthesisedExpression() ast.Expr {
 			} else {
 				list = append(list, ast.Expression{Expr: p.parseAssignmentExpression()})
 			}
-			if p.token != token.Comma {
+			if p.currentKind() != token.Comma {
 				break
 			}
 			p.next()
-			if p.token == token.RightParenthesis {
+			if p.currentKind() == token.RightParenthesis {
 				p.errorUnexpectedToken(token.RightParenthesis)
 				break
 			}
@@ -203,7 +208,7 @@ func (p *parser) parseParenthesisedExpression() ast.Expr {
 		p.errorUnexpectedToken(token.RightParenthesis)
 		return &ast.InvalidExpression{
 			From: opening,
-			To:   p.idx,
+			To:   p.currentOffset(),
 		}
 	}
 	return &ast.SequenceExpression{
@@ -212,34 +217,54 @@ func (p *parser) parseParenthesisedExpression() ast.Expr {
 }
 
 func (p *parser) parseRegExpLiteral() *ast.RegExpLiteral {
-	offset := p.chrOffset - 1 // Opening slash already gotten
-	if p.token == token.QuotientAssign {
+	offset := p.scanner.Offset() - 1 // Opening slash already gotten
+	if p.currentKind() == token.QuotientAssign {
 		offset -= 1 // =
 	}
-	idx := p.idxOf(offset)
+	idx := offset
 
-	pattern, _, err := p.scanString(offset, false)
-	endOffset := p.chrOffset
+	var (
+		inEscape    bool
+		inCharClass bool
+		chr         rune
+	)
+	for {
+		chr, ok := p.scanner.NextRune()
+		if !ok || isLineTerminator(chr) {
+			p.error(errUnexpectedEndOfInput)
+			return nil
+		}
 
-	if err == "" {
-		pattern = pattern[1 : len(pattern)-1]
+		if inEscape {
+			inEscape = false
+		} else if chr == '/' && !inCharClass {
+			break
+		} else if chr == '[' {
+			inCharClass = true
+		} else if chr == '\\' {
+			inEscape = true
+		} else if chr == ']' {
+			inCharClass = false
+		}
 	}
 
+	endOffset := p.currentOffset()
+	pattern := p.str[offset+1 : endOffset]
+
 	flags := ""
-	if !isLineTerminator(p.chr) && !isLineWhiteSpace(p.chr) {
+	if !isLineTerminator(chr) && !isLineWhiteSpace(p.chr) {
 		p.next()
 
-		if p.token == token.Identifier { // gim
-			flags = p.literal
+		if p.currentKind() == token.Identifier { // gim
+			flags = p.currentString()
 			p.next()
-			endOffset = p.chrOffset - 1
+			endOffset = p.currentOffset() - 1
 		}
 	} else {
 		p.next()
 	}
 
 	literal := p.str[offset:endOffset]
-
 	return &ast.RegExpLiteral{
 		Idx:     idx,
 		Literal: literal,
@@ -267,18 +292,18 @@ func (p *parser) isBindingId(tok token.Token) bool {
 }
 
 func (p *parser) tokenToBindingId() {
-	if p.isBindingId(p.token) {
-		p.token = token.Identifier
+	if p.isBindingId(p.currentKind()) {
+		p.token = p.token.WithKind(token.Identifier)
 	}
 }
 
 func (p *parser) parseBindingTarget() (target ast.Target) {
 	p.tokenToBindingId()
-	switch p.token {
+	switch p.currentKind() {
 	case token.Identifier:
 		target = &ast.Identifier{
-			Name: p.parsedLiteral,
-			Idx:  p.idx,
+			Name: p.currentString(),
+			Idx:  p.currentOffset(),
 		}
 		p.next()
 	case token.LeftBracket:
@@ -288,7 +313,7 @@ func (p *parser) parseBindingTarget() (target ast.Target) {
 	default:
 		idx := p.expect(token.Identifier)
 		p.nextStatement()
-		target = &ast.InvalidExpression{From: idx, To: p.idx}
+		target = &ast.InvalidExpression{From: idx, To: p.currentOffset()}
 	}
 
 	return
@@ -299,7 +324,7 @@ func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarato
 		Target: &ast.BindingTarget{Target: p.parseBindingTarget()},
 	}
 
-	if p.token == token.Assign {
+	if p.currentKind() == token.Assign {
 		p.next()
 		node.Initializer = p.makeExpr(p.parseAssignmentExpression())
 	}
@@ -314,7 +339,7 @@ func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarato
 func (p *parser) parseVariableDeclarationList() (declarationList ast.VariableDeclarators) {
 	for {
 		p.parseVariableDeclaration(&declarationList)
-		if p.token != token.Comma {
+		if p.currentKind() != token.Comma {
 			break
 		}
 		p.next()
@@ -323,13 +348,13 @@ func (p *parser) parseVariableDeclarationList() (declarationList ast.VariableDec
 }
 
 func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token) {
-	if p.token == token.LeftBracket {
+	if p.currentKind() == token.LeftBracket {
 		p.next()
 		expr := p.parseAssignmentExpression()
 		p.expect(token.RightBracket)
 		return "", "", expr, token.Illegal
 	}
-	idx, tkn, literal, parsedLiteral := p.idx, p.token, p.literal, p.parsedLiteral
+	idx, tkn, literal, parsedLiteral := p.currentOffset(), p.currentKind(), p.token.Raw(p.scanner), p.currentString()
 	var value ast.Expr
 	p.next()
 	switch tkn {
@@ -376,15 +401,15 @@ func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token
 }
 
 func (p *parser) parseObjectProperty() ast.Prop {
-	if p.token == token.Ellipsis {
+	if p.currentKind() == token.Ellipsis {
 		p.next()
 		return &ast.SpreadElement{
 			Expression: p.makeExpr(p.parseAssignmentExpression()),
 		}
 	}
-	keyStartIdx := p.idx
+	keyStartIdx := p.currentOffset()
 	generator := false
-	if p.token == token.Multiply {
+	if p.currentKind() == token.Multiply {
 		generator = true
 		p.next()
 	}
@@ -402,17 +427,17 @@ func (p *parser) parseObjectProperty() ast.Prop {
 			}
 		}
 		switch {
-		case p.token == token.LeftParenthesis:
+		case p.currentKind() == token.LeftParenthesis:
 			return &ast.PropertyKeyed{
 				Key:      p.makeExpr(value),
 				Kind:     ast.PropertyKindMethod,
 				Value:    p.makeExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, false, false)),
 				Computed: tkn == token.Illegal,
 			}
-		case p.token == token.Comma || p.token == token.RightBrace || p.token == token.Assign: // shorthand property
+		case p.currentKind() == token.Comma || p.currentKind() == token.RightBrace || p.currentKind() == token.Assign: // shorthand property
 			if p.isBindingId(tkn) {
 				var initializer ast.Expr
-				if p.token == token.Assign {
+				if p.currentKind() == token.Assign {
 					// allow the initializer syntax here in case the object literal
 					// needs to be reinterpreted as an assignment pattern, enforce later if it doesn't.
 					p.next()
@@ -426,9 +451,9 @@ func (p *parser) parseObjectProperty() ast.Prop {
 					Initializer: p.makeExpr(initializer),
 				}
 			} else {
-				p.errorUnexpectedToken(p.token)
+				p.errorUnexpectedToken(p.currentKind())
 			}
-		case (literal == "get" || literal == "set" || tkn == token.Async) && p.token != token.Colon:
+		case (literal == "get" || literal == "set" || tkn == token.Async) && p.currentKind() != token.Colon:
 			_, _, keyValue, tkn1 := p.parseObjectPropertyKey()
 			if keyValue == nil {
 				return nil
@@ -500,12 +525,12 @@ func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKin
 func (p *parser) parseObjectLiteral() *ast.ObjectLiteral {
 	var value []ast.Property
 	idx0 := p.expect(token.LeftBrace)
-	for p.token != token.RightBrace && p.token != token.Eof {
+	for p.currentKind() != token.RightBrace && p.currentKind() != token.Eof {
 		property := p.parseObjectProperty()
 		if property != nil {
 			value = append(value, ast.Property{Prop: property})
 		}
-		if p.token != token.RightBrace {
+		if p.currentKind() != token.RightBrace {
 			p.expect(token.Comma)
 		} else {
 			break
@@ -523,13 +548,13 @@ func (p *parser) parseObjectLiteral() *ast.ObjectLiteral {
 func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 	idx0 := p.expect(token.LeftBracket)
 	var value ast.Expressions
-	for p.token != token.RightBracket && p.token != token.Eof {
-		if p.token == token.Comma {
+	for p.currentKind() != token.RightBracket && p.currentKind() != token.Eof {
+		if p.currentKind() == token.Comma {
 			p.next()
 			value = append(value, ast.Expression{})
 			continue
 		}
-		if p.token == token.Ellipsis {
+		if p.currentKind() == token.Ellipsis {
 			p.next()
 			value = append(value, ast.Expression{Expr: &ast.SpreadElement{
 				Expression: p.makeExpr(p.parseAssignmentExpression()),
@@ -537,7 +562,7 @@ func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 		} else {
 			value = append(value, ast.Expression{Expr: p.parseAssignmentExpression()})
 		}
-		if p.token != token.RightBracket {
+		if p.currentKind() != token.RightBracket {
 			p.expect(token.Comma)
 		}
 	}
@@ -552,7 +577,7 @@ func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 
 func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 	res := &ast.TemplateLiteral{
-		OpenQuote: p.idx,
+		OpenQuote: p.currentOffset(),
 	}
 	for {
 		start := p.offset
@@ -577,8 +602,8 @@ func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 		}
 		expr := p.parseExpression()
 		res.Expressions = append(res.Expressions, ast.Expression{Expr: expr})
-		if p.token != token.RightBrace {
-			p.errorUnexpectedToken(p.token)
+		if p.currentKind() != token.RightBrace {
+			p.errorUnexpectedToken(p.currentKind())
 		}
 	}
 	return res
@@ -592,9 +617,9 @@ func (p *parser) parseTaggedTemplateLiteral(tag ast.Expr) *ast.TemplateLiteral {
 
 func (p *parser) parseArgumentList() (argumentList ast.Expressions, idx0, idx1 ast.Idx) {
 	idx0 = p.expect(token.LeftParenthesis)
-	for p.token != token.RightParenthesis {
+	for p.currentKind() != token.RightParenthesis {
 		var item ast.Expr
-		if p.token == token.Ellipsis {
+		if p.currentKind() == token.Ellipsis {
 			p.next()
 			item = &ast.SpreadElement{
 				Expression: p.makeExpr(p.parseAssignmentExpression()),
@@ -603,7 +628,7 @@ func (p *parser) parseArgumentList() (argumentList ast.Expressions, idx0, idx1 a
 			item = p.parseAssignmentExpression()
 		}
 		argumentList = append(argumentList, ast.Expression{Expr: item})
-		if p.token != token.Comma {
+		if p.currentKind() != token.Comma {
 			break
 		}
 		p.next()
@@ -623,13 +648,13 @@ func (p *parser) parseCallExpression(left ast.Expr) ast.Expr {
 }
 
 func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
-	period := p.idx
+	period := p.currentOffset()
 	p.next()
 
-	literal := p.parsedLiteral
-	idx := p.idx
+	literal := p.currentString()
+	idx := p.currentOffset()
 
-	if p.token == token.PrivateIdentifier {
+	if p.currentKind() == token.PrivateIdentifier {
 		p.next()
 		return &ast.PrivateDotExpression{
 			Left: p.makeExpr(left),
@@ -642,10 +667,10 @@ func (p *parser) parseDotMember(left ast.Expr) ast.Expr {
 		}
 	}
 
-	if !token.ID(p.token) {
+	if !token.ID(p.currentKind()) {
 		p.expect(token.Identifier)
 		p.nextStatement()
-		return &ast.InvalidExpression{From: period, To: p.idx}
+		return &ast.InvalidExpression{From: period, To: p.currentOffset()}
 	}
 
 	p.next()
@@ -677,12 +702,12 @@ func (p *parser) parseBracketMember(left ast.Expr) *ast.MemberExpression {
 
 func (p *parser) parseNewExpression() ast.Expr {
 	idx := p.expect(token.New)
-	if p.token == token.Period {
+	if p.currentKind() == token.Period {
 		p.next()
-		if p.literal == "target" {
+		if p.currentString() == "target" {
 			return &ast.MetaProperty{
 				Meta: &ast.Identifier{
-					Name: string(token.New.String()),
+					Name: token.New.String(),
 					Idx:  idx,
 				},
 				Property: p.parseIdentifier(),
@@ -699,7 +724,7 @@ func (p *parser) parseNewExpression() ast.Expr {
 		New:    idx,
 		Callee: p.makeExpr(callee),
 	}
-	if p.token == token.LeftParenthesis {
+	if p.currentKind() == token.LeftParenthesis {
 		argumentList, idx0, idx1 := p.parseArgumentList()
 		node.ArgumentList = argumentList
 		node.LeftParenthesis = idx0
@@ -710,14 +735,14 @@ func (p *parser) parseNewExpression() ast.Expr {
 
 func (p *parser) parseLeftHandSideExpression() ast.Expr {
 	var left ast.Expr
-	if p.token == token.New {
+	if p.currentKind() == token.New {
 		left = p.parseNewExpression()
 	} else {
 		left = p.parsePrimaryExpression()
 	}
 L:
 	for {
-		switch p.token {
+		switch p.currentKind() {
 		case token.Period:
 			left = p.parseDotMember(left)
 		case token.LeftBracket:
@@ -740,8 +765,8 @@ func (p *parser) parseLeftHandSideExpressionAllowCall() ast.Expr {
 	}()
 
 	var left ast.Expr
-	start := p.idx
-	if p.token == token.New {
+	start := p.currentOffset()
+	if p.currentKind() == token.New {
 		left = p.parseNewExpression()
 	} else {
 		left = p.parsePrimaryExpression()
@@ -750,7 +775,7 @@ func (p *parser) parseLeftHandSideExpressionAllowCall() ast.Expr {
 	optionalChain := false
 L:
 	for {
-		switch p.token {
+		switch p.currentKind() {
 		case token.Period:
 			left = p.parseDotMember(left)
 		case token.LeftBracket:
@@ -761,14 +786,14 @@ L:
 			if optionalChain {
 				p.error("Invalid template literal on optional chain")
 				p.nextStatement()
-				return &ast.InvalidExpression{From: start, To: p.idx}
+				return &ast.InvalidExpression{From: start, To: p.currentOffset()}
 			}
 			left = p.parseTaggedTemplateLiteral(left)
 		case token.QuestionDot:
 			optionalChain = true
 			left = &ast.Optional{Expr: p.makeExpr(left)}
 
-			switch p.peek() {
+			switch p.peek().Kind() {
 			case token.LeftBracket, token.LeftParenthesis, token.Backtick:
 				p.next()
 			default:
@@ -786,10 +811,10 @@ L:
 }
 
 func (p *parser) parseUpdateExpression() ast.Expr {
-	switch p.token {
+	switch p.currentKind() {
 	case token.Increment, token.Decrement:
-		tkn := p.token
-		idx := p.idx
+		tkn := p.currentKind()
+		idx := p.currentOffset()
 		p.next()
 		operand := p.parseUnaryExpression()
 		switch operand.(type) {
@@ -797,7 +822,7 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 		default:
 			p.error("Invalid left-hand side in assignment")
 			p.nextStatement()
-			return &ast.InvalidExpression{From: idx, To: p.idx}
+			return &ast.InvalidExpression{From: idx, To: p.currentOffset()}
 		}
 		return &ast.UpdateExpression{
 			Operator: tkn,
@@ -806,20 +831,20 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 		}
 	default:
 		operand := p.parseLeftHandSideExpressionAllowCall()
-		if p.token == token.Increment || p.token == token.Decrement {
+		if p.currentKind() == token.Increment || p.currentKind() == token.Decrement {
 			// Make sure there is no line terminator here
 			if p.implicitSemicolon {
 				return operand
 			}
-			tkn := p.token
-			idx := p.idx
+			tkn := p.currentKind()
+			idx := p.currentOffset()
 			p.next()
 			switch operand.(type) {
 			case *ast.Identifier, *ast.PrivateDotExpression, *ast.MemberExpression:
 			default:
 				p.error("Invalid left-hand side in assignment")
 				p.nextStatement()
-				return &ast.InvalidExpression{From: idx, To: p.idx}
+				return &ast.InvalidExpression{From: idx, To: p.currentOffset()}
 			}
 			return &ast.UpdateExpression{
 				Operator: tkn,
@@ -833,12 +858,12 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 }
 
 func (p *parser) parseUnaryExpression() ast.Expr {
-	switch p.token {
+	switch p.currentKind() {
 	case token.Plus, token.Minus, token.Not, token.BitwiseNot:
 		fallthrough
 	case token.Delete, token.Void, token.Typeof:
-		tkn := p.token
-		idx := p.idx
+		tkn := p.currentKind()
+		idx := p.currentOffset()
 		p.next()
 		return &ast.UnaryExpression{
 			Operator: tkn,
@@ -847,13 +872,13 @@ func (p *parser) parseUnaryExpression() ast.Expr {
 		}
 	case token.Await:
 		if p.scope.allowAwait {
-			idx := p.idx
+			idx := p.currentOffset()
 			p.next()
 			if !p.scope.inAsync {
 				p.errorUnexpectedToken(token.Await)
 				return &ast.InvalidExpression{
 					From: idx,
-					To:   p.idx,
+					To:   p.currentOffset(),
 				}
 			}
 			if p.scope.inFuncParams {
@@ -870,11 +895,11 @@ func (p *parser) parseUnaryExpression() ast.Expr {
 }
 
 func (p *parser) parseExponentiationExpression() ast.Expr {
-	parenthesis := p.token == token.LeftParenthesis
+	parenthesis := p.currentKind() == token.LeftParenthesis
 
 	left := p.parseUnaryExpression()
 
-	if p.token == token.Exponent {
+	if p.currentKind() == token.Exponent {
 		if !parenthesis {
 			if _, isUnary := left.(*ast.UnaryExpression); isUnary {
 				p.error("Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence")
@@ -887,7 +912,7 @@ func (p *parser) parseExponentiationExpression() ast.Expr {
 				Left:     p.makeExpr(left),
 				Right:    p.makeExpr(p.parseExponentiationExpression()),
 			}
-			if p.token != token.Exponent {
+			if p.currentKind() != token.Exponent {
 				break
 			}
 		}
@@ -899,9 +924,9 @@ func (p *parser) parseExponentiationExpression() ast.Expr {
 func (p *parser) parseMultiplicativeExpression() ast.Expr {
 	left := p.parseExponentiationExpression()
 
-	for p.token == token.Multiply || p.token == token.Slash ||
-		p.token == token.Remainder {
-		tkn := p.token
+	for p.currentKind() == token.Multiply || p.currentKind() == token.Slash ||
+		p.currentKind() == token.Remainder {
+		tkn := p.currentKind()
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
@@ -916,8 +941,8 @@ func (p *parser) parseMultiplicativeExpression() ast.Expr {
 func (p *parser) parseAdditiveExpression() ast.Expr {
 	left := p.parseMultiplicativeExpression()
 
-	for p.token == token.Plus || p.token == token.Minus {
-		tkn := p.token
+	for p.currentKind() == token.Plus || p.currentKind() == token.Minus {
+		tkn := p.currentKind()
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
@@ -932,9 +957,9 @@ func (p *parser) parseAdditiveExpression() ast.Expr {
 func (p *parser) parseShiftExpression() ast.Expr {
 	left := p.parseAdditiveExpression()
 
-	for p.token == token.ShiftLeft || p.token == token.ShiftRight ||
-		p.token == token.UnsignedShiftRight {
-		tkn := p.token
+	for p.currentKind() == token.ShiftLeft || p.currentKind() == token.ShiftRight ||
+		p.currentKind() == token.UnsignedShiftRight {
+		tkn := p.currentKind()
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
@@ -947,18 +972,18 @@ func (p *parser) parseShiftExpression() ast.Expr {
 }
 
 func (p *parser) parseRelationalExpression() ast.Expr {
-	if p.scope.allowIn && p.token == token.PrivateIdentifier {
+	if p.scope.allowIn && p.currentKind() == token.PrivateIdentifier {
 		left := &ast.PrivateIdentifier{
 			Identifier: &ast.Identifier{
-				Idx:  p.idx,
-				Name: p.parsedLiteral,
+				Idx:  p.currentOffset(),
+				Name: p.currentString(),
 			},
 		}
 		p.next()
-		if p.token == token.In {
+		if p.currentKind() == token.In {
 			p.next()
 			return &ast.BinaryExpression{
-				Operator: p.token,
+				Operator: p.currentKind(),
 				Left:     p.makeExpr(left),
 				Right:    p.makeExpr(p.parseShiftExpression()),
 			}
@@ -973,9 +998,9 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 		p.scope.allowIn = allowIn
 	}()
 
-	switch p.token {
+	switch p.currentKind() {
 	case token.Less, token.LessOrEqual, token.Greater, token.GreaterOrEqual, token.InstanceOf:
-		tkn := p.token
+		tkn := p.currentKind()
 		p.next()
 		return &ast.BinaryExpression{
 			Operator: tkn,
@@ -986,7 +1011,7 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 		if !allowIn {
 			return left
 		}
-		tkn := p.token
+		tkn := p.currentKind()
 		p.next()
 		return &ast.BinaryExpression{
 			Operator: tkn,
@@ -1001,9 +1026,9 @@ func (p *parser) parseRelationalExpression() ast.Expr {
 func (p *parser) parseEqualityExpression() ast.Expr {
 	left := p.parseRelationalExpression()
 
-	for p.token == token.Equal || p.token == token.NotEqual ||
-		p.token == token.StrictEqual || p.token == token.StrictNotEqual {
-		tkn := p.token
+	for p.currentKind() == token.Equal || p.currentKind() == token.NotEqual ||
+		p.currentKind() == token.StrictEqual || p.currentKind() == token.StrictNotEqual {
+		tkn := p.currentKind()
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
@@ -1018,8 +1043,8 @@ func (p *parser) parseEqualityExpression() ast.Expr {
 func (p *parser) parseBitwiseAndExpression() ast.Expr {
 	left := p.parseEqualityExpression()
 
-	for p.token == token.And {
-		tkn := p.token
+	for p.currentKind() == token.And {
+		tkn := p.currentKind()
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
@@ -1034,8 +1059,8 @@ func (p *parser) parseBitwiseAndExpression() ast.Expr {
 func (p *parser) parseBitwiseExclusiveOrExpression() ast.Expr {
 	left := p.parseBitwiseAndExpression()
 
-	for p.token == token.ExclusiveOr {
-		tkn := p.token
+	for p.currentKind() == token.ExclusiveOr {
+		tkn := p.currentKind()
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
@@ -1050,8 +1075,8 @@ func (p *parser) parseBitwiseExclusiveOrExpression() ast.Expr {
 func (p *parser) parseBitwiseOrExpression() ast.Expr {
 	left := p.parseBitwiseExclusiveOrExpression()
 
-	for p.token == token.Or {
-		tkn := p.token
+	for p.currentKind() == token.Or {
+		tkn := p.currentKind()
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
@@ -1066,8 +1091,8 @@ func (p *parser) parseBitwiseOrExpression() ast.Expr {
 func (p *parser) parseLogicalAndExpression() ast.Expr {
 	left := p.parseBitwiseOrExpression()
 
-	for p.token == token.LogicalAnd {
-		tkn := p.token
+	for p.currentKind() == token.LogicalAnd {
+		tkn := p.currentKind()
 		p.next()
 		left = &ast.BinaryExpression{
 			Operator: tkn,
@@ -1087,12 +1112,12 @@ func isLogicalAndExpr(expr ast.Expr) bool {
 }
 
 func (p *parser) parseLogicalOrExpression() ast.Expr {
-	parenthesis := p.token == token.LeftParenthesis
+	parenthesis := p.currentKind() == token.LeftParenthesis
 	left := p.parseLogicalAndExpression()
 
-	if p.token == token.LogicalOr || !parenthesis && isLogicalAndExpr(left) {
+	if p.currentKind() == token.LogicalOr || !parenthesis && isLogicalAndExpr(left) {
 		for {
-			switch p.token {
+			switch p.currentKind() {
 			case token.LogicalOr:
 				p.next()
 				left = &ast.BinaryExpression{
@@ -1108,11 +1133,11 @@ func (p *parser) parseLogicalOrExpression() ast.Expr {
 		}
 	} else {
 		for {
-			switch p.token {
+			switch p.currentKind() {
 			case token.Coalesce:
 				p.next()
 
-				parenthesis := p.token == token.LeftParenthesis
+				parenthesis := p.currentKind() == token.LeftParenthesis
 				right := p.parseLogicalAndExpression()
 				if !parenthesis && isLogicalAndExpr(right) {
 					goto mixed
@@ -1139,7 +1164,7 @@ mixed:
 func (p *parser) parseConditionalExpression() ast.Expr {
 	left := p.parseLogicalOrExpression()
 
-	if p.token == token.QuestionMark {
+	if p.currentKind() == token.QuestionMark {
 		p.next()
 		allowIn := p.scope.allowIn
 		p.scope.allowIn = true
@@ -1175,12 +1200,12 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 		}()
 	}
 	p.tokenToBindingId()
-	if p.token != token.Identifier {
-		p.errorUnexpectedToken(p.token)
+	if p.currentKind() != token.Identifier {
+		p.errorUnexpectedToken(p.currentKind())
 		p.next()
 		return &ast.InvalidExpression{
 			From: start,
-			To:   p.idx,
+			To:   p.currentOffset(),
 		}
 	}
 
@@ -1198,22 +1223,22 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 }
 
 func (p *parser) parseAssignmentExpression() ast.Expr {
-	start := p.idx
+	start := p.currentOffset()
 	parenthesis := false
 	async := false
 	var state parserState
-	switch p.token {
+	switch p.currentKind() {
 	case token.LeftParenthesis:
-		p.mark(&state)
+		state = p.mark()
 		parenthesis = true
 	case token.Async:
-		tok := p.peek()
+		tok := p.peek().Kind()
 		if p.isBindingId(tok) {
 			// async x => ...
 			p.next()
 			return p.parseSingleArgArrowFunction(start, true)
 		} else if tok == token.LeftParenthesis {
-			p.mark(&state)
+			state = p.mark()
 			async = true
 		}
 	case token.Yield:
@@ -1226,9 +1251,9 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 	}
 	left := p.parseConditionalExpression()
 	var operator token.Token
-	switch p.token {
+	switch p.currentKind() {
 	case token.Assign:
-		operator = p.token
+		operator = p.currentKind()
 	case token.AddAssign:
 		operator = token.Plus
 	case token.SubtractAssign:
@@ -1268,7 +1293,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 				paramL := p.reinterpretSequenceAsArrowFuncParams(seq.Sequence)
 				paramList = &paramL
 			} else {
-				p.restore(&state)
+				p.restore(state)
 				paramL := p.parseFunctionParameterList()
 				paramList = &paramL
 			}
@@ -1281,7 +1306,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 				}()
 			}
 			if _, ok := left.(*ast.CallExpression); ok {
-				p.restore(&state)
+				p.restore(state)
 				p.next() // skip "async"
 				paramL := p.parseFunctionParameterList()
 				paramList = &paramL
@@ -1295,7 +1320,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 	}
 
 	if operator != 0 {
-		idx := p.idx
+		idx := p.currentOffset()
 		p.next()
 		ok := false
 		switch l := left.(type) {
@@ -1321,7 +1346,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 		}
 		p.error("Invalid left-hand side in assignment")
 		p.nextStatement()
-		return &ast.InvalidExpression{From: idx, To: p.idx}
+		return &ast.InvalidExpression{From: idx, To: p.currentOffset()}
 	}
 
 	return left
@@ -1338,18 +1363,17 @@ func (p *parser) parseYieldExpression() *ast.YieldExpression {
 		Yield: idx,
 	}
 
-	if !p.implicitSemicolon && p.token == token.Multiply {
+	if !p.implicitSemicolon && p.currentKind() == token.Multiply {
 		node.Delegate = true
 		p.next()
 	}
 
-	if !p.implicitSemicolon && p.token != token.Semicolon && p.token != token.RightBrace && p.token != token.Eof {
-		var state parserState
-		p.mark(&state)
+	if !p.implicitSemicolon && p.currentKind() != token.Semicolon && p.currentKind() != token.RightBrace && p.currentKind() != token.Eof {
+		state := p.mark()
 		expr := p.parseAssignmentExpression()
 		if _, bad := expr.(*ast.InvalidExpression); bad {
 			expr = nil
-			p.restore(&state)
+			p.restore(state)
 		}
 		node.Argument = p.makeExpr(expr)
 	}
@@ -1360,10 +1384,10 @@ func (p *parser) parseYieldExpression() *ast.YieldExpression {
 func (p *parser) parseExpression() ast.Expr {
 	left := p.parseAssignmentExpression()
 
-	if p.token == token.Comma {
+	if p.currentKind() == token.Comma {
 		sequence := ast.Expressions{ast.Expression{Expr: left}}
 		for {
-			if p.token != token.Comma {
+			if p.currentKind() != token.Comma {
 				break
 			}
 			p.next()

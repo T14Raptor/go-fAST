@@ -2,6 +2,7 @@ package parser
 
 import (
 	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/parser/scanner"
 	"github.com/t14raptor/go-fast/token"
 )
 
@@ -10,14 +11,13 @@ type parser struct {
 	str    string
 	length int
 
+	scanner *scanner.Scanner
+
 	chr       rune // The current character
 	chrOffset int  // The offset of current character
 	offset    int  // The offset after current character (may be greater than 1)
 
-	idx           ast.Idx     // The index of token
-	token         token.Token // The token
-	literal       string      // The literal of the token, if any
-	parsedLiteral string
+	token scanner.Token
 
 	scope             *scope
 	insertSemicolon   bool // If we see a newline, then insert an implicit semicolon
@@ -38,9 +38,10 @@ type parser struct {
 // newParser ...
 func newParser(src string) *parser {
 	return &parser{
-		chr:    ' ',
 		str:    src,
 		length: len(src),
+
+		scanner: scanner.NewScanner(src),
 
 		exprArena: newArena[ast.Expression](1024),
 		stmtArena: newArena[ast.Statement](1024),
@@ -64,34 +65,35 @@ func (p *parser) parse() (*ast.Program, error) {
 
 // next ...
 func (p *parser) next() {
-	p.token, p.literal, p.idx = p.scan()
+	p.token = p.scanner.Next()
 }
 
-func (p *parser) optionalSemicolon() {
-	if p.token == token.Semicolon {
+func (p *parser) currentString() string {
+	return p.token.String(p.scanner)
+}
+
+func (p *parser) currentKind() token.Token {
+	return p.token.Kind()
+}
+
+func (p *parser) currentOffset() ast.Idx {
+	return p.token.Idx0()
+}
+
+func (p *parser) canInsertSemicolon() bool {
+	kind := p.currentKind()
+	return kind == token.Semicolon || kind == token.RightBrace /*|| p.scanner.EOF()*/ || p.token.OnNewLine()
+}
+
+func (p *parser) semicolon() bool {
+	if !p.canInsertSemicolon() {
+		return false
+	}
+
+	if p.currentKind() == token.Semicolon {
 		p.next()
-		return
 	}
-
-	if p.implicitSemicolon {
-		p.implicitSemicolon = false
-		return
-	}
-
-	if p.token != token.Eof && p.token != token.RightBrace {
-		p.expect(token.Semicolon)
-	}
-}
-
-func (p *parser) semicolon() {
-	if p.token != token.RightParenthesis && p.token != token.RightBrace {
-		if p.implicitSemicolon {
-			p.implicitSemicolon = false
-			return
-		}
-
-		p.expect(token.Semicolon)
-	}
+	return true
 }
 
 func (p *parser) idxOf(offset int) ast.Idx {
@@ -99,9 +101,9 @@ func (p *parser) idxOf(offset int) ast.Idx {
 }
 
 func (p *parser) expect(value token.Token) ast.Idx {
-	idx := p.idx
-	if p.token != value {
-		p.errorUnexpectedToken(p.token)
+	idx := p.scanner.Offset()
+	if p.token.Kind() != value {
+		p.errorUnexpectedToken(p.token.Kind())
 	}
 	p.next()
 	return idx

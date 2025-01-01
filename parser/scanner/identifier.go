@@ -59,7 +59,7 @@ func (s *Scanner) scanIdentifierTail() string {
 	var b byte
 	for {
 		var eof bool
-		b, eof = s.NextByte()
+		b, eof = s.PeekByte()
 		if eof {
 			// todo
 		}
@@ -67,6 +67,8 @@ func (s *Scanner) scanIdentifierTail() string {
 		if !asciiContinue[b] {
 			break
 		}
+
+		s.ConsumeByte()
 	}
 
 	if b >= utf8.RuneSelf {
@@ -131,7 +133,7 @@ outer:
 	for {
 		s.ConsumeRune()
 
-		s.identifierUnicodeEscapeSequence()
+		s.identifierUnicodeEscapeSequence(str, start)
 		start = false
 
 		chunkStart := s.src.Offset()

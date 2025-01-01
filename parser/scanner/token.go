@@ -19,6 +19,11 @@ func (t Token) Kind() token.Token {
 	return t.kind
 }
 
+func (t Token) WithKind(k token.Token) Token {
+	t.kind = k
+	return t
+}
+
 func (t Token) Idx0() ast.Idx {
 	return t.idx0
 }
@@ -44,4 +49,8 @@ func (t Token) String(s *Scanner) string {
 		return raw[1:]
 	}
 	return raw
+}
+
+func (t Token) Raw(s *Scanner) string {
+	return s.src.Slice(t.idx0, t.idx1)
 }

@@ -3,15 +3,12 @@ package parser
 import (
 	"errors"
 	"fmt"
+	"github.com/t14raptor/go-fast/parser/scanner"
 	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
-
-	"github.com/nukilabs/unicodeid"
-	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
 )
 
 var asciiStart, asciiContinue [128]bool
@@ -44,119 +41,6 @@ func digitValue(chr rune) int {
 	return 16 // Larger than any legal digit value
 }
 
-func isDigit(chr rune, base int) bool {
-	return digitValue(chr) < base
-}
-
-// Fast path for checking “start” of an identifier.
-func isIdentifierStart(chr rune) bool {
-	// 0) Invalid path
-	if chr == -1 {
-		return false
-	}
-	// 1) ASCII path
-	if chr < utf8.RuneSelf {
-		return asciiStart[chr]
-	}
-
-	// 2) Non-ASCII path
-	return unicodeid.IsIDStartUnicode(chr)
-}
-
-// Fast path for checking “continuation” of an identifier.
-func isIdentifierPart(chr rune) bool {
-	// 0) Invalid path
-	if chr == -1 {
-		return false
-	}
-	// 1) ASCII path
-	if chr < utf8.RuneSelf {
-		return asciiContinue[chr]
-	}
-
-	// 2) Non-ASCII path
-	return unicodeid.IsIDContinueUnicode(chr)
-}
-
-func (p *parser) scanIdentifierTail(startOffset int) (string, bool, string) {
-	hasEscape := false
-	length := 0
-	for chr := p._peek(); isIdentifierPart(chr); chr = p._peek() {
-		length++
-		if chr == '\\' {
-			hasEscape = true
-			distance := p.chrOffset - startOffset
-			p.read()
-			if p.chr != 'u' {
-				return "", false, fmt.Sprintf("Invalid identifier escape character: %c (%s)", p.chr, string(p.chr))
-			}
-
-			p.read()
-
-			var value rune
-			if p.chr == '{' {
-				p.read()
-				value = -1
-				for {
-					// If we hit '}' before reading any hex digits, break out
-					if p.chr == '}' {
-						break
-					}
-					decimal, ok := hex2decimal(byte(p.chr))
-					if !ok {
-						return "", false, "Invalid Unicode escape sequence"
-					}
-					if value == -1 {
-						value = decimal
-					} else {
-						value = (value << 4) | decimal
-					}
-					// Exceeds max rune?
-					if value > utf8.MaxRune {
-						return "", false, "Invalid Unicode escape sequence"
-					}
-					p.read()
-				}
-				if value == -1 {
-					return "", false, "Invalid Unicode escape sequence"
-				}
-			} else {
-				// Classic \uXXXX (4 hex digits).
-				decimal, ok := hex2decimal(byte(p.chr))
-				if !ok {
-					return "", false,
-						"Invalid identifier escape character: " + string(p.chr)
-				}
-				value = decimal
-				for i := 0; i < 3; i++ {
-					p.read()
-					decimal, ok = hex2decimal(byte(p.chr))
-					if !ok {
-						return "", false, "Invalid identifier escape character: " + string(p.chr)
-					}
-					value = (value << 4) | decimal
-				}
-			}
-			if value == '\\' {
-				return "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
-			} else if distance == 0 {
-				if !isIdentifierStart(value) {
-					return "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
-				}
-			} else if distance > 0 {
-				if !isIdentifierPart(value) {
-					return "", false, fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
-				}
-			}
-			chr = value
-		}
-
-		p.read()
-	}
-
-	return p.str[startOffset : p.chrOffset+1], hasEscape, ""
-}
-
 // 7.2
 func isLineWhiteSpace(chr rune) bool {
 	switch chr {
@@ -180,300 +64,30 @@ func isLineTerminator(chr rune) bool {
 }
 
 type parserState struct {
-	idx                                ast.Idx
-	tok                                token.Token
-	literal                            string
-	parsedLiteral                      string
-	implicitSemicolon, insertSemicolon bool
-	chr                                rune
-	chrOffset, offset                  int
-	errorCount                         int
+	c scanner.Checkpoint
+
+	tok scanner.Token
+
+	// TODO errors
 }
 
-func (p *parser) mark(state *parserState) *parserState {
-	if state == nil {
-		state = &parserState{}
+func (p *parser) mark() parserState {
+	return parserState{
+		c:   p.scanner.Checkpoint(),
+		tok: p.token,
 	}
-	state.idx, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset =
-		p.idx, p.token, p.literal, p.parsedLiteral, p.implicitSemicolon, p.insertSemicolon, p.chr, p.chrOffset, p.offset
-
-	state.errorCount = len(p.errors)
-	return state
 }
 
-func (p *parser) restore(state *parserState) {
-	p.idx, p.token, p.literal, p.parsedLiteral, p.implicitSemicolon, p.insertSemicolon, p.chr, p.chrOffset, p.offset =
-		state.idx, state.tok, state.literal, state.parsedLiteral, state.implicitSemicolon, state.insertSemicolon, state.chr, state.chrOffset, state.offset
-	p.errors = p.errors[:state.errorCount]
+func (p *parser) restore(state parserState) {
+	p.scanner.Rewind(state.c)
+	p.token = state.tok
 }
 
-func (p *parser) peek() token.Token {
-	implicitSemicolon, insertSemicolon, chr, chrOffset, offset := p.implicitSemicolon, p.insertSemicolon, p.chr, p.chrOffset, p.offset
-	tok, _, _ := p.scan()
-	p.implicitSemicolon, p.insertSemicolon, p.chr, p.chrOffset, p.offset = implicitSemicolon, insertSemicolon, chr, chrOffset, offset
+func (p *parser) peek() scanner.Token {
+	st := p.mark()
+	tok := p.scanner.Next()
+	p.restore(st)
 	return tok
-}
-
-func (p *parser) scan() (tkn token.Token, literal string, idx ast.Idx) {
-	p.implicitSemicolon = false
-
-	for {
-		b, ok := p._peekByte()
-		if !ok {
-			return token.Eof, "", 0
-		}
-
-		fmt.Println("hello", string(b))
-
-		if kind := byteHandlers[b](p); kind != token.Skip {
-			fmt.Println(kind, p.literal)
-			return kind, p.literal, p.idx
-		}
-	}
-}
-
-func (p *parser) _peek() rune {
-	if p.offset < p.length {
-		return rune(p.str[p.offset])
-	}
-	return -1
-}
-
-func (p *parser) peek2Bytes() ([2]byte, bool) {
-	if p.offset+1 < p.length {
-		return [2]byte{p.str[p.offset], p.str[p.offset+1]}, true
-	}
-	return [2]byte{}, false
-}
-
-func (p *parser) _peekByte() (byte, bool) {
-	if p.offset < p.length {
-		return p.str[p.offset], true
-	}
-	return 0, false
-}
-
-func (p *parser) advanceIfAsciiEquals(b byte) (matched bool) {
-	nextB, ok := p._peekByte()
-	if !ok {
-		return false
-	}
-	if matched = nextB == b; matched {
-		p.chrOffset = p.offset
-		p.offset++
-	}
-	return matched
-}
-
-func (p *parser) read() {
-	if p.offset < p.length {
-		p.chrOffset = p.offset
-		chr, width := rune(p.str[p.offset]), 1
-		if chr >= utf8.RuneSelf { // !ASCII
-			chr, width = utf8.DecodeRuneInString(p.str[p.offset:])
-			if chr == utf8.RuneError && width == 1 {
-				p.error("Invalid UTF-8 character")
-			}
-		}
-		p.offset += width
-		p.chr = chr
-	} else {
-		p.chrOffset = p.length
-		p.chr = -1 // Eof
-	}
-}
-
-func (p *parser) skipSingleLineComment() {
-	for p.chr != -1 {
-		p.read()
-		if isLineTerminator(p.chr) {
-			return
-		}
-	}
-}
-
-func (p *parser) skipMultiLineComment() (hasLineTerminator bool) {
-	p.read()
-	for p.chr >= 0 {
-		chr := p.chr
-		if chr == '\r' || chr == '\n' || chr == '\u2028' || chr == '\u2029' {
-			hasLineTerminator = true
-			break
-		}
-		p.read()
-		if chr == '*' && p.chr == '/' {
-			p.read()
-			return
-		}
-	}
-	for p.chr >= 0 {
-		chr := p.chr
-		p.read()
-		if chr == '*' && p.chr == '/' {
-			p.read()
-			return
-		}
-	}
-
-	p.errorUnexpected(p.chr)
-	return
-}
-
-func (p *parser) scanMantissa(base int) {
-	for digitValue(p.chr) < base {
-		p.read()
-	}
-}
-
-func (p *parser) scanEscape(quote rune) (int, bool) {
-	var length, base uint32
-	chr := p.chr
-	switch chr {
-	case '0', '1', '2', '3', '4', '5', '6', '7':
-		//    Octal:
-		length, base = 3, 8
-	case 'a', 'b', 'f', 'n', 'r', 't', 'v', '\\', '"', '\'':
-		p.read()
-		return 1, false
-	case '\r':
-		p.read()
-		if p.chr == '\n' {
-			p.read()
-			return 2, false
-		}
-		return 1, false
-	case '\n':
-		p.read()
-		return 1, false
-	case '\u2028', '\u2029':
-		p.read()
-		return 1, true
-	case 'x':
-		p.read()
-		length, base = 2, 16
-	case 'u':
-		p.read()
-		if p.chr == '{' {
-			p.read()
-			length, base = 0, 16
-		} else {
-			length, base = 4, 16
-		}
-	default:
-		p.read() // Always make progress
-	}
-
-	if base > 0 {
-		var value uint32
-		if length > 0 {
-			for ; length > 0 && p.chr != quote && p.chr >= 0; length-- {
-				digit := uint32(digitValue(p.chr))
-				if digit >= base {
-					break
-				}
-				value = value*base + digit
-				p.read()
-			}
-		} else {
-			for p.chr != quote && p.chr >= 0 && value < utf8.MaxRune {
-				if p.chr == '}' {
-					p.read()
-					break
-				}
-				digit := uint32(digitValue(p.chr))
-				if digit >= base {
-					break
-				}
-				value = value*base + digit
-				p.read()
-			}
-		}
-		chr = rune(value)
-	}
-	if chr >= utf8.RuneSelf {
-		if chr > 0xFFFF {
-			return 2, true
-		}
-		return 1, true
-	}
-	return 1, false
-}
-
-func (p *parser) scanString(offset int, parse bool) (literal string, parsed string, err string) {
-	// " ' /
-	quote := rune(p.str[offset])
-	length := 0
-	isUnicode := false
-	for p.chr != quote {
-		chr := p.chr
-		if chr == '\n' || chr == '\r' || chr < 0 {
-			goto newline
-		}
-		if quote == '/' && (p.chr == '\u2028' || p.chr == '\u2029') {
-			goto newline
-		}
-		p.read()
-		if chr == '\\' {
-			if p.chr == '\n' || p.chr == '\r' || p.chr == '\u2028' || p.chr == '\u2029' || p.chr < 0 {
-				if quote == '/' {
-					goto newline
-				}
-				p.scanNewline()
-			} else {
-				l, u := p.scanEscape(quote)
-				length += l
-				if u {
-					isUnicode = true
-				}
-			}
-			continue
-		} else if chr == '[' && quote == '/' {
-			// Allow a slash (/) in a bracket character class ([...])
-			// TODO Fix this, this is hacky...
-			quote = -1
-		} else if chr == ']' && quote == -1 {
-			quote = '/'
-		}
-		if chr >= utf8.RuneSelf {
-			isUnicode = true
-			if chr > 0xFFFF {
-				length++
-			}
-		}
-		length++
-	}
-
-	// " ' /
-	p.read()
-	literal = p.str[offset:p.chrOffset]
-	if parse {
-		// TODO strict
-		parsed, err = parseStringLiteral(literal[1:len(literal)-1], length, isUnicode, false)
-	}
-	return
-
-newline:
-	p.scanNewline()
-	errStr := "String not terminated"
-	if quote == '/' {
-		errStr = "Invalid regular expression: missing /"
-		p.error(errStr)
-	}
-	return "", "", errStr
-}
-
-func (p *parser) scanNewline() {
-	if p.chr == '\u2028' || p.chr == '\u2029' {
-		p.read()
-		return
-	}
-	if p.chr == '\r' {
-		p.read()
-		if p.chr != '\n' {
-			return
-		}
-	}
-	p.read()
 }
 
 func (p *parser) parseTemplateCharacters() (literal string, parsed string, finished bool, parseErr, err string) {
@@ -487,7 +101,7 @@ func (p *parser) parseTemplateCharacters() (literal string, parsed string, finis
 		if chr < 0 {
 			goto unterminated
 		}
-		p.read()
+		p.scanner.NextRune()
 		if chr == '`' {
 			finished = true
 			end = p.chrOffset - 1
@@ -498,23 +112,23 @@ func (p *parser) parseTemplateCharacters() (literal string, parsed string, finis
 				if p.chr == '\r' {
 					hasCR = true
 				}
-				p.scanNewline()
+				//p.scanNewline()
 			} else {
 				if p.chr == '8' || p.chr == '9' {
 					if parseErr == "" {
 						parseErr = "\\8 and \\9 are not allowed in template strings."
 					}
 				}
-				l, u := p.scanEscape('`')
-				length += l
-				if u {
-					isUnicode = true
-				}
+				//l, u := p.scanEscape('`')
+				//length += l
+				//if u {
+				//	isUnicode = true
+				//}
 			}
 			continue
 		}
 		if chr == '$' && p.chr == '{' {
-			p.read()
+			//p.read()
 			end = p.chrOffset - 2
 			break
 		}
@@ -800,108 +414,4 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (strin
 		panic(fmt.Errorf("unexpected length while parsing '%s'", literal))
 	}
 	return sb.String(), ""
-}
-
-func (p *parser) readZero() token.Token {
-	offset := p.offset
-	p.read()
-	base := 0
-	switch p.chr {
-	case 'x', 'X':
-		base = 16
-	case 'o', 'O':
-		base = 8
-	case 'b', 'B':
-		base = 2
-	case '.':
-		p.read()
-		p.scanMantissa(10)
-	case 'e', 'E':
-		p.read()
-		if p.chr == '-' || p.chr == '+' {
-			p.read()
-		}
-		if isDecimalDigit(p.chr) {
-			p.read()
-			p.scanMantissa(10)
-		} else {
-			p.literal = p.str[offset:p.chrOffset]
-			return token.Illegal
-		}
-	default:
-		// legacy octal
-		p.scanMantissa(8)
-	}
-	if base > 0 {
-		p.read()
-		if !isDigit(p.chr, base) {
-			p.literal = p.str[offset:p.chrOffset]
-			return token.Illegal
-		}
-		p.scanMantissa(base)
-	}
-	p.literal = p.str[offset:p.chrOffset]
-	return token.Number
-}
-
-func (p *parser) scanNumericLiteral(decimalPoint bool) (token.Token, string) {
-	offset := p.chrOffset
-	tkn := token.Number
-
-	if decimalPoint {
-		offset--
-		p.scanMantissa(10)
-	} else {
-		if p.chr == '0' {
-			p.read()
-			base := 0
-			switch p.chr {
-			case 'x', 'X':
-				base = 16
-			case 'o', 'O':
-				base = 8
-			case 'b', 'B':
-				base = 2
-			case '.', 'e', 'E':
-				// no-op
-			default:
-				// legacy octal
-				p.scanMantissa(8)
-				goto end
-			}
-			if base > 0 {
-				p.read()
-				if !isDigit(p.chr, base) {
-					return token.Illegal, p.str[offset:p.chrOffset]
-				}
-				p.scanMantissa(base)
-				goto end
-			}
-		} else {
-			p.scanMantissa(10)
-		}
-		if p.chr == '.' {
-			p.read()
-			p.scanMantissa(10)
-		}
-	}
-
-	if p.chr == 'e' || p.chr == 'E' {
-		p.read()
-		if p.chr == '-' || p.chr == '+' {
-			p.read()
-		}
-		if isDecimalDigit(p.chr) {
-			p.read()
-			p.scanMantissa(10)
-		} else {
-			return token.Illegal, p.str[offset:p.chrOffset]
-		}
-	}
-end:
-	if isIdentifierStart(p.chr) || isDecimalDigit(p.chr) {
-		return token.Illegal, p.str[offset:p.chrOffset]
-	}
-
-	return tkn, p.str[offset:p.chrOffset]
 }

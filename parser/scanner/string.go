@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"fmt"
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
 	"slices"
@@ -16,19 +17,22 @@ func (s *Scanner) scanStringLiteralSingleQuote() token.Token {
 }
 
 func (s *Scanner) scanStringLiteral(delim byte, table []byte) token.Token {
-	afterOpen := s.src.Offset() + 1
+	s.ConsumeByte()
+	afterOpen := s.src.Offset()
 
 	var b byte
 	for {
-		var eof bool
-		b, eof = s.NextByte()
-		if eof {
+		var ok bool
+		b, ok = s.PeekByte()
+		if !ok {
 			return token.Undetermined
 		}
 
 		if slices.Contains(table, b) {
 			break
 		}
+
+		s.ConsumeByte()
 	}
 
 	switch b {
@@ -56,9 +60,10 @@ outer:
 		s.ConsumeRune()
 
 		isValid := true
-		s.stringUnicodeEscapeSequence(str, &isValid)
+		s.readStringEscapeSequence(str, &isValid)
 		if !isValid {
 			_ = escapeStartOffset
+			fmt.Println("invalid string escape sequence")
 			// TODO: report error
 		}
 
@@ -70,7 +75,7 @@ outer:
 			}
 
 			switch {
-			case slices.Contains(table, b):
+			case !slices.Contains(table, b):
 				s.src.NextByteUnchecked()
 				continue
 			case b == delim:
@@ -78,7 +83,7 @@ outer:
 
 				s.src.NextByteUnchecked()
 				break outer
-			case b == delim:
+			case b == '\\':
 				str.WriteString(s.src.FromPositionToCurrent(chunkStart))
 
 				continue outer

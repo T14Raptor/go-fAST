@@ -93,6 +93,7 @@ func has(s *Scanner) token.Token {
 
 // `A..=Z`, `a..=z` (except special cases below), `_`, `$`
 func idt(s *Scanner) token.Token {
+	s.scanIdentifierTail()
 	return token.Identifier
 }
 
@@ -282,7 +283,7 @@ func gtr(s *Scanner) token.Token {
 func qst(s *Scanner) token.Token {
 	s.ConsumeByte()
 
-	next2Bytes, ok := s.PeekByte()
+	next2Bytes, ok := s.src.PeekTwoBytes()
 	if ok {
 		switch next2Bytes[0] {
 		case '?':
@@ -595,13 +596,14 @@ func l_y(s *Scanner) token.Token {
 func uni(s *Scanner) token.Token {
 	switch c, _ := s.PeekRune(); {
 	case unicodeid.IsIDStartUnicode(c):
-		s.scanIdentifierTail()
+		s.scanIdentifierTailAfterUnicode(s.src.Offset())
 		return token.Identifier
 	case unicode.IsSpace(c):
 		s.ConsumeRune()
 		return token.Skip
 	case isLineTerminator(c):
 		s.ConsumeRune()
+		s.token.onNewLine = true
 		return token.Skip
 	default:
 		s.ConsumeRune()

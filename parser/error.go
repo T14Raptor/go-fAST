@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"runtime/debug"
 
 	"github.com/t14raptor/go-fast/token"
 )
@@ -27,6 +28,8 @@ func (p *parser) errorUnexpected(chr rune) error {
 }
 
 func (p *parser) errorUnexpectedToken(tkn token.Token) error {
+	debug.PrintStack()
+	fmt.Println("unexpected", tkn.String())
 	switch tkn {
 	case token.Eof:
 		return p.error(errUnexpectedEndOfInput)
@@ -34,7 +37,7 @@ func (p *parser) errorUnexpectedToken(tkn token.Token) error {
 	value := tkn.String()
 	switch tkn {
 	case token.Boolean, token.Null:
-		value = p.literal
+		//value = p.literal TODO
 	case token.Identifier:
 		return p.error("Unexpected identifier")
 	case token.Keyword:

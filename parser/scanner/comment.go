@@ -22,8 +22,10 @@ func (s *Scanner) skipSingleLineComment() {
 }
 
 func (s *Scanner) skipMultiLineComment() (hasLineTerminator bool) {
+	var p rune
 	for {
-		p, ok := s.NextRune()
+		var ok bool
+		p, ok = s.NextRune()
 		if !ok {
 			break
 		}
@@ -39,16 +41,15 @@ func (s *Scanner) skipMultiLineComment() (hasLineTerminator bool) {
 			return
 		}
 	}
-	for p.chr >= 0 {
-		chr := p.chr
-		p.read()
-		if chr == '*' && p.chr == '/' {
-			p.read()
+	for p >= 0 {
+		oldChr := p
+		chr := s.ConsumeRune()
+		if oldChr == '*' && chr == '/' {
 			s.ConsumeRune()
 			return
 		}
 	}
 
-	p.errorUnexpected(p.chr)
+	//p.errorUnexpected(p.chr)
 	return
 }
