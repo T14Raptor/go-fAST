@@ -57,9 +57,9 @@ func ParseFile(src string) (*ast.Program, error) {
 // parse ...
 func (p *parser) parse() (*ast.Program, error) {
 	p.openScope()
-	defer p.closeScope()
 	p.next()
 	program := p.parseProgram()
+	p.closeScope()
 	return program, p.errors.Err()
 }
 

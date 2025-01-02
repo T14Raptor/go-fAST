@@ -21,7 +21,7 @@ func NewSource(src string) *Source {
 }
 
 func (s *Source) Slice(from, to ast.Idx) string {
-	return unsafe.String((*byte)(unsafe.Add(s.start, from)), to-from)
+	return newString(unsafe.Add(s.start, from), uintptr(to)-uintptr(from))
 }
 
 func (s *Source) EOF() bool {
@@ -46,9 +46,12 @@ func (s *Source) NextRune() (rune, bool) {
 		return rune(b), true
 	}
 
-	str := unsafe.String((*byte)(s.ptr), uintptr(s.end)-uintptr(s.ptr))
-	chr, width := utf8.DecodeRuneInString(str)
-	s.ptr = unsafe.Add(s.ptr, width)
+	str := newString(s.ptr, uintptr(s.end)-uintptr(s.ptr))
+	var chr rune
+	for _, chr = range str {
+		break
+	}
+	s.ptr = unsafe.Add(s.ptr, utf8.RuneLen(chr))
 	return chr, true
 }
 
@@ -60,9 +63,11 @@ func (s *Source) PeekRune() (rune, bool) {
 	if b <= utf8.RuneSelf {
 		return rune(b), true
 	}
-
-	str := unsafe.String((*byte)(s.ptr), uintptr(s.end)-uintptr(s.ptr))
-	chr, _ := utf8.DecodeRuneInString(str)
+	str := newString(s.ptr, uintptr(s.end)-uintptr(s.ptr))
+	var chr rune
+	for _, chr = range str {
+		break
+	}
 	return chr, true
 }
 
@@ -108,5 +113,14 @@ func (s *Source) AdvanceIfByteEquals(b byte) (matched bool) {
 
 func (s *Source) FromPositionToCurrent(pos ast.Idx) string {
 	p := unsafe.Add(s.start, pos)
-	return unsafe.String((*byte)(p), uintptr(s.ptr)-uintptr(p))
+	return newString(p, uintptr(s.ptr)-uintptr(p))
+}
+
+type unsafeString struct {
+	Data unsafe.Pointer
+	Len  int
+}
+
+func newString(data unsafe.Pointer, l uintptr) string {
+	return *(*string)(unsafe.Pointer(&unsafeString{Data: data, Len: int(l)}))
 }

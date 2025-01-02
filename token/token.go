@@ -5,7 +5,7 @@ import (
 )
 
 // Token is the set of lexical tokens in JavaScript (ECMA5).
-type Token int
+type Token byte
 
 // String returns the string corresponding to the token.
 func (t Token) String() string {

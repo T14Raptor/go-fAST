@@ -29,12 +29,13 @@ func (p *parser) parseStatementList() (list ast.Statements) {
 }
 
 func (p *parser) parseStatement() ast.Stmt {
-	if p.currentKind() == token.Eof {
-		p.errorUnexpectedToken(p.currentKind())
+	tok := p.currentKind()
+	if tok == token.Eof {
+		p.errorUnexpectedToken(tok)
 		return &ast.BadStatement{From: p.currentOffset(), To: p.currentOffset() + 1}
 	}
 
-	switch p.currentKind() {
+	switch tok {
 	case token.Semicolon:
 		return p.parseEmptyStatement()
 	case token.LeftBrace:
@@ -559,10 +560,10 @@ func (p *parser) parseCaseStatement() ast.CaseStatement {
 	p.expect(token.Colon)
 
 	for {
-		if p.currentKind() == token.Eof ||
-			p.currentKind() == token.RightBrace ||
-			p.currentKind() == token.Case ||
-			p.currentKind() == token.Default {
+		if k := p.currentKind(); k == token.Eof ||
+			k == token.RightBrace ||
+			k == token.Case ||
+			k == token.Default {
 			break
 		}
 		p.scope.allowLet = true
@@ -644,7 +645,6 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 	forOf := false
 	var into ast.ForInto
 	if p.currentKind() != token.Semicolon {
-
 		allowIn := p.scope.allowIn
 		p.scope.allowIn = false
 		tok := p.currentKind()
