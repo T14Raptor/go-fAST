@@ -19,8 +19,8 @@ func NewScanner(src string) *Scanner {
 }
 
 func (s *Scanner) Next() Token {
-	s.token.kind = s.readNextToken()
-	s.token.idx1 = s.src.Offset()
+	s.token.Kind = s.readNextToken()
+	s.token.Idx1 = s.src.Offset()
 	t := s.token
 	s.token = Token{}
 	return t
@@ -28,7 +28,7 @@ func (s *Scanner) Next() Token {
 
 func (s *Scanner) readNextToken() token.Token {
 	for {
-		s.token.idx0 = s.src.Offset()
+		s.token.Idx0 = s.src.Offset()
 
 		b, ok := s.PeekByte()
 		if !ok {

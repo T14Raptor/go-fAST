@@ -603,7 +603,7 @@ func uni(s *Scanner) token.Token {
 		return token.Skip
 	case isLineTerminator(c):
 		s.ConsumeRune()
-		s.token.onNewLine = true
+		s.token.OnNewLine = true
 		return token.Skip
 	default:
 		s.ConsumeRune()

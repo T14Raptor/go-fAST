@@ -3,7 +3,7 @@ package scanner
 import "github.com/t14raptor/go-fast/token"
 
 func (s *Scanner) handleLineBreak() token.Token {
-	s.token.onNewLine = true
+	s.token.OnNewLine = true
 
 	for {
 		b, ok := s.PeekByte()

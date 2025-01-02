@@ -293,7 +293,7 @@ func (p *parser) isBindingId(tok token.Token) bool {
 
 func (p *parser) tokenToBindingId() {
 	if p.isBindingId(p.currentKind()) {
-		p.token = p.token.WithKind(token.Identifier)
+		p.token.Kind = token.Identifier
 	}
 }
 
@@ -793,7 +793,7 @@ L:
 			optionalChain = true
 			left = &ast.Optional{Expr: p.makeExpr(left)}
 
-			switch p.peek().Kind() {
+			switch p.peek().Kind {
 			case token.LeftBracket, token.LeftParenthesis, token.Backtick:
 				p.next()
 			default:
@@ -1232,7 +1232,7 @@ func (p *parser) parseAssignmentExpression() ast.Expr {
 		state = p.mark()
 		parenthesis = true
 	case token.Async:
-		tok := p.peek().Kind()
+		tok := p.peek().Kind
 		if p.isBindingId(tok) {
 			// async x => ...
 			p.next()

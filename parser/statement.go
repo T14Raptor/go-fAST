@@ -58,7 +58,7 @@ func (p *parser) parseStatement() ast.Stmt {
 	case token.Var:
 		return p.parseLexicalDeclaration(p.currentKind())
 	case token.Let:
-		tok := p.peek().Kind()
+		tok := p.peek().Kind
 		if tok == token.LeftBracket || p.scope.allowLet && (token.ID(tok) || tok == token.LeftBrace) {
 			return p.parseLexicalDeclaration(p.currentKind())
 		}
@@ -186,7 +186,7 @@ func (p *parser) parseFunctionParameterList() ast.ParameterList {
 }
 
 func (p *parser) parseMaybeAsyncFunction(declaration bool) *ast.FunctionLiteral {
-	if p.peek().Kind() == token.Function {
+	if p.peek().Kind == token.Function {
 		idx := p.currentOffset()
 		p.next()
 		fn := p.parseFunction(declaration, true, idx)
@@ -322,7 +322,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 		start := p.currentOffset()
 		static := false
 		if p.currentKind() == token.Static {
-			switch p.peek().Kind() {
+			switch p.peek().Kind {
 			case token.Assign, token.Semicolon, token.RightBrace, token.LeftParenthesis:
 				// treat as identifier
 			default:
@@ -343,7 +343,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 		var async bool
 		methodBodyStart := p.currentOffset()
 		if p.currentString() == "get" || p.currentString() == "set" {
-			if tok := p.peek().Kind(); tok != token.Semicolon && tok != token.LeftParenthesis {
+			if tok := p.peek().Kind; tok != token.Semicolon && tok != token.LeftParenthesis {
 				if p.currentString() == "get" {
 					kind = ast.PropertyKindGet
 				} else {
@@ -352,7 +352,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 				p.next()
 			}
 		} else if p.currentKind() == token.Async {
-			if tok := p.peek().Kind(); tok != token.Semicolon && tok != token.LeftParenthesis {
+			if tok := p.peek().Kind; tok != token.Semicolon && tok != token.LeftParenthesis {
 				async = true
 				kind = ast.PropertyKindMethod
 				p.next()
@@ -649,7 +649,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 		p.scope.allowIn = false
 		tok := p.currentKind()
 		if tok == token.Let {
-			switch p.peek().Kind() {
+			switch p.peek().Kind {
 			case token.Identifier, token.LeftBracket, token.LeftBrace:
 			default:
 				tok = token.Identifier

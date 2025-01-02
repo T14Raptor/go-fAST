@@ -73,16 +73,16 @@ func (p *parser) currentString() string {
 }
 
 func (p *parser) currentKind() token.Token {
-	return p.token.Kind()
+	return p.token.Kind
 }
 
 func (p *parser) currentOffset() ast.Idx {
-	return p.token.Idx0()
+	return p.token.Idx0
 }
 
 func (p *parser) canInsertSemicolon() bool {
 	kind := p.currentKind()
-	return kind == token.Semicolon || kind == token.RightBrace /*|| p.scanner.EOF()*/ || p.token.OnNewLine()
+	return kind == token.Semicolon || kind == token.RightBrace /*|| p.scanner.EOF()*/ || p.token.OnNewLine
 }
 
 func (p *parser) semicolon() bool {
@@ -102,8 +102,8 @@ func (p *parser) idxOf(offset int) ast.Idx {
 
 func (p *parser) expect(value token.Token) ast.Idx {
 	idx := p.scanner.Offset()
-	if p.token.Kind() != value {
-		p.errorUnexpectedToken(p.token.Kind())
+	if p.token.Kind != value {
+		p.errorUnexpectedToken(p.token.Kind)
 	}
 	p.next()
 	return idx
