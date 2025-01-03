@@ -35,7 +35,7 @@ func (s *Scanner) readNextToken() token.Token {
 			return token.Eof
 		}
 
-		if kind := s.handleByte(b); kind != token.Skip {
+		if kind := byteHandlers[b](s); kind != token.Skip {
 			return kind
 		}
 	}

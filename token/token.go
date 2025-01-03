@@ -62,18 +62,6 @@ type keyword struct {
 	strict        bool
 }
 
-// LiteralKeyword returns the keyword token if literal is a keyword, a Keyword token. If the literal is a future keyword
-// (const, let, class, super, ...), or 0 if the literal is not a keyword.
-func LiteralKeyword(literal string) (Token, bool) {
-	if k, exists := keywordTable[literal]; exists {
-		if k.futureKeyword {
-			return Keyword, k.strict
-		}
-		return k.token, false
-	}
-	return 0, false
-}
-
 func MatchKeyword(literal string) Token {
 	if k, exists := keywordTable[literal]; exists {
 		return k.token
