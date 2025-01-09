@@ -135,6 +135,7 @@ func (r *Resolver) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 
 func (r *Resolver) VisitBlockStatement(n *ast.BlockStatement) {
 	r.pushScope(ScopeKindBlock)
+	n.ScopeContext = r.current.ctx
 	n.VisitChildrenWith(r)
 	r.popScope()
 }
@@ -149,6 +150,24 @@ func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
 	n.Into.VisitWith(r)
 
 	// Handle the 'Source' part (right-hand side of for...of)
+	n.Source.VisitWith(r)
+
+	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
+		blockStmt.ScopeContext = r.current.ctx
+	}
+	n.Body.VisitWith(r)
+
+	r.identType = oldIdentType
+	r.popScope()
+}
+
+func (r *Resolver) VisitForInStatement(n *ast.ForInStatement) {
+	r.pushScope(ScopeKindBlock) // Using Block scope for ForOfStatement
+
+	oldIdentType := r.identType
+	r.identType = IdentTypeRef
+
+	n.Into.VisitWith(r)
 	n.Source.VisitWith(r)
 
 	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
