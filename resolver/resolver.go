@@ -141,15 +141,12 @@ func (r *Resolver) VisitBlockStatement(n *ast.BlockStatement) {
 }
 
 func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
-	r.pushScope(ScopeKindBlock) // Using Block scope for ForOfStatement
+	r.pushScope(ScopeKindBlock)
 
 	oldIdentType := r.identType
 	r.identType = IdentTypeRef
 
-	// Handle the 'Into' part (left-hand side of for...of)
 	n.Into.VisitWith(r)
-
-	// Handle the 'Source' part (right-hand side of for...of)
 	n.Source.VisitWith(r)
 
 	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
@@ -162,7 +159,7 @@ func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
 }
 
 func (r *Resolver) VisitForInStatement(n *ast.ForInStatement) {
-	r.pushScope(ScopeKindBlock) // Using Block scope for ForOfStatement
+	r.pushScope(ScopeKindBlock)
 
 	oldIdentType := r.identType
 	r.identType = IdentTypeRef
@@ -180,7 +177,7 @@ func (r *Resolver) VisitForInStatement(n *ast.ForInStatement) {
 }
 
 func (r *Resolver) VisitForStatement(n *ast.ForStatement) {
-	r.pushScope(ScopeKindBlock) // Using Block scope as ForStatement is not defined
+	r.pushScope(ScopeKindBlock)
 
 	oldIdentType := r.identType
 	r.identType = IdentTypeBinding
