@@ -74,7 +74,13 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 			Raw: &raw,
 		}
 	case token.Slash, token.QuotientAssign:
-		return p.parseRegExpLiteral()
+		pat, flags, lit := p.scanner.ParseRegExp()
+		return &ast.RegExpLiteral{
+			Idx:     idx,
+			Literal: lit,
+			Pattern: pat,
+			Flags:   flags,
+		}
 	case token.LeftBrace:
 		return p.parseObjectLiteral()
 	case token.LeftBracket:
@@ -213,63 +219,6 @@ func (p *parser) parseParenthesisedExpression() ast.Expr {
 	}
 	return &ast.SequenceExpression{
 		Sequence: list,
-	}
-}
-
-func (p *parser) parseRegExpLiteral() *ast.RegExpLiteral {
-	offset := p.scanner.Offset() - 1 // Opening slash already gotten
-	if p.currentKind() == token.QuotientAssign {
-		offset -= 1 // =
-	}
-	idx := offset
-
-	var (
-		inEscape    bool
-		inCharClass bool
-		chr         rune
-	)
-	for {
-		chr, ok := p.scanner.NextRune()
-		if !ok || isLineTerminator(chr) {
-			p.error(errUnexpectedEndOfInput)
-			return nil
-		}
-
-		if inEscape {
-			inEscape = false
-		} else if chr == '/' && !inCharClass {
-			break
-		} else if chr == '[' {
-			inCharClass = true
-		} else if chr == '\\' {
-			inEscape = true
-		} else if chr == ']' {
-			inCharClass = false
-		}
-	}
-
-	endOffset := p.currentOffset()
-	pattern := p.str[offset+1 : endOffset]
-
-	flags := ""
-	if !isLineTerminator(chr) && !isLineWhiteSpace(p.chr) {
-		p.next()
-
-		if p.currentKind() == token.Identifier { // gim
-			flags = p.currentString()
-			p.next()
-			endOffset = p.currentOffset() - 1
-		}
-	} else {
-		p.next()
-	}
-
-	literal := p.str[offset:endOffset]
-	return &ast.RegExpLiteral{
-		Idx:     idx,
-		Literal: literal,
-		Pattern: pattern,
-		Flags:   flags,
 	}
 }
 
@@ -580,13 +529,13 @@ func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 		OpenQuote: p.currentOffset(),
 	}
 	for {
-		start := p.offset
+		start := p.currentOffset()
 		literal, parsed, finished, parseErr, err := p.parseTemplateCharacters()
 		if err != "" {
 			p.error(err)
 		}
 		res.Elements = append(res.Elements, ast.TemplateElement{
-			Idx:     p.idxOf(start),
+			Idx:     start,
 			Literal: literal,
 			Parsed:  parsed,
 			Valid:   parseErr == "",

@@ -6,28 +6,9 @@ import (
 	"github.com/t14raptor/go-fast/parser/scanner"
 	"strconv"
 	"strings"
-	"unicode"
 	"unicode/utf16"
 	"unicode/utf8"
 )
-
-var asciiStart, asciiContinue [128]bool
-
-func init() {
-	for i := 0; i < 128; i++ {
-		if i >= 'a' && i <= 'z' || i >= 'A' && i <= 'Z' || i == '$' || i == '_' {
-			asciiStart[i] = true
-			asciiContinue[i] = true
-		}
-		if i >= '0' && i <= '9' {
-			asciiContinue[i] = true
-		}
-	}
-}
-
-func isDecimalDigit(chr rune) bool {
-	return '0' <= chr && chr <= '9'
-}
 
 func digitValue(chr rune) int {
 	switch {
@@ -39,28 +20,6 @@ func digitValue(chr rune) int {
 		return int(chr - 'A' + 10)
 	}
 	return 16 // Larger than any legal digit value
-}
-
-// 7.2
-func isLineWhiteSpace(chr rune) bool {
-	switch chr {
-	case '\u0009', '\u000b', '\u000c', '\u0020', '\u00a0', '\ufeff':
-		return true
-	case '\u000a', '\u000d', '\u2028', '\u2029':
-		return false
-	case '\u0085':
-		return false
-	}
-	return unicode.IsSpace(chr)
-}
-
-// 7.3
-func isLineTerminator(chr rune) bool {
-	switch chr {
-	case '\u000a', '\u000d', '\u2028', '\u2029':
-		return true
-	}
-	return false
 }
 
 type parserState struct {
@@ -99,7 +58,9 @@ func (p *parser) parseTemplateCharacters() (literal string, parsed string, finis
 	for {
 		chr := p.chr
 		if chr < 0 {
-			goto unterminated
+			err = errUnexpectedEndOfInput
+			finished = true
+			return
 		}
 		p.scanner.NextRune()
 		if chr == '`' {
@@ -152,11 +113,6 @@ func (p *parser) parseTemplateCharacters() (literal string, parsed string, finis
 	if parseErr == "" {
 		parsed, parseErr = parseStringLiteral(literal, length, isUnicode, true)
 	}
-	p.insertSemicolon = true
-	return
-unterminated:
-	err = errUnexpectedEndOfInput
-	finished = true
 	return
 }
 
@@ -203,14 +159,12 @@ func parseNumberLiteral(literal string) (value float64, err error) {
 	value, err = strconv.ParseFloat(literal, 64)
 	if err == nil {
 		return
-	} else if err.(*strconv.NumError).Err == strconv.ErrRange {
+	} else if errors.Is(err, strconv.ErrRange) {
 		// Infinity, etc.
 		return value, nil
 	}
 
-	err = parseIntErr
-
-	if err.(*strconv.NumError).Err == strconv.ErrRange {
+	if errors.Is(parseIntErr, strconv.ErrRange) {
 		if len(literal) > 2 && literal[0] == '0' && (literal[1] == 'X' || literal[1] == 'x') {
 			// Could just be a very large number (e.g. 0x8000000000000000)
 			var value float64
@@ -218,16 +172,14 @@ func parseNumberLiteral(literal string) (value float64, err error) {
 			for _, chr := range literal {
 				digit := digitValue(chr)
 				if digit >= 16 {
-					goto error
+					return 0, errors.New("illegal numeric literal")
 				}
 				value = value*16 + float64(digit)
 			}
 			return value, nil
 		}
 	}
-
-error:
-	return 0, errors.New("Illegal numeric literal")
+	return 0, errors.New("illegal numeric literal")
 }
 
 func parseStringLiteral(literal string, length int, unicode, strict bool) (string, string) {

@@ -65,10 +65,12 @@ func (s *Scanner) unicodeCodePoint() rune {
 	if !s.AdvanceIfByteEquals('{') {
 		return -1
 	}
+
 	val := s.codePoint()
-	if val != -1 {
+	if val == -1 {
 		return -1
 	}
+
 	if !s.AdvanceIfByteEquals('}') {
 		return -1
 	}

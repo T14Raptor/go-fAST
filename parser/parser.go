@@ -8,19 +8,15 @@ import (
 
 // parser ...
 type parser struct {
-	str    string
-	length int
+	token scanner.Token
+	str   string
 
 	scanner *scanner.Scanner
 
 	chr       rune // The current character
 	chrOffset int  // The offset of current character
-	offset    int  // The offset after current character (may be greater than 1)
-
-	token scanner.Token
 
 	scope             *scope
-	insertSemicolon   bool // If we see a newline, then insert an implicit semicolon
 	implicitSemicolon bool // An implicit semicolon exists
 
 	errors ErrorList
@@ -38,8 +34,7 @@ type parser struct {
 // newParser ...
 func newParser(src string) *parser {
 	return &parser{
-		str:    src,
-		length: len(src),
+		str: src,
 
 		scanner: scanner.NewScanner(src),
 

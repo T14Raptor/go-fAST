@@ -63,7 +63,6 @@ func (p *parser) parseStatement() ast.Stmt {
 		if tok == token.LeftBracket || p.scope.allowLet && (token.ID(tok) || tok == token.LeftBrace) {
 			return p.parseLexicalDeclaration(p.currentKind())
 		}
-		p.insertSemicolon = true
 	case token.Const:
 		return p.parseLexicalDeclaration(p.currentKind())
 	case token.Async:

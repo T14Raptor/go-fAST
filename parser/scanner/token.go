@@ -6,13 +6,15 @@ import (
 )
 
 type Token struct {
-	Kind token.Token
-
-	Idx0, Idx1 ast.Idx
-
+	Kind      token.Token
 	OnNewLine bool
 
-	escaped *string
+	// 6 bytes of padding so that the next field starts at offset 8, the compiler automatically
+	// does this, but for some reason it results in performance worse than manual padding.
+	_ [6]byte
+
+	escaped    *string
+	Idx0, Idx1 ast.Idx
 }
 
 func (t Token) String(s *Scanner) string {

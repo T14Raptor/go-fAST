@@ -7,9 +7,9 @@ import (
 )
 
 type Scanner struct {
-	src *Source
-
 	token Token
+
+	src *Source
 }
 
 func NewScanner(src string) *Scanner {
@@ -19,26 +19,21 @@ func NewScanner(src string) *Scanner {
 }
 
 func (s *Scanner) Next() Token {
-	s.token.Kind = s.readNextToken()
-	s.token.Idx1 = s.src.Offset()
-	t := s.token
-	s.token = Token{}
-	return t
-}
-
-func (s *Scanner) readNextToken() token.Token {
 	for {
 		s.token.Idx0 = s.src.Offset()
 
 		b, ok := s.PeekByte()
 		if !ok {
-			return token.Eof
+			s.token.Kind = token.Eof
+			break
 		}
 
-		if kind := byteHandlers[b](s); kind != token.Skip {
-			return kind
+		if s.token.Kind = byteHandlers[b](s); s.token.Kind != token.Skip {
+			break
 		}
 	}
+	s.token.Idx1 = s.src.Offset()
+	return s.token
 }
 
 type Checkpoint struct {

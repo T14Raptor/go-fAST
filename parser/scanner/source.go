@@ -7,8 +7,9 @@ import (
 )
 
 type Source struct {
+	ptr unsafe.Pointer
+
 	start, end unsafe.Pointer
-	ptr        unsafe.Pointer
 }
 
 func NewSource(src string) *Source {
@@ -30,10 +31,6 @@ func (s *Source) EOF() bool {
 
 func (s *Source) Offset() ast.Idx {
 	return ast.Idx(uintptr(s.ptr) - uintptr(s.start))
-}
-
-func (s *Source) End() *byte {
-	return (*byte)(s.end)
 }
 
 func (s *Source) NextRune() (rune, bool) {
@@ -63,6 +60,7 @@ func (s *Source) PeekRune() (rune, bool) {
 	if b <= utf8.RuneSelf {
 		return rune(b), true
 	}
+
 	str := newString(s.ptr, uintptr(s.end)-uintptr(s.ptr))
 	var chr rune
 	for _, chr = range str {
