@@ -135,20 +135,36 @@ func (r *Resolver) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 
 func (r *Resolver) VisitBlockStatement(n *ast.BlockStatement) {
 	r.pushScope(ScopeKindBlock)
+	n.ScopeContext = r.current.ctx
 	n.VisitChildrenWith(r)
 	r.popScope()
 }
 
 func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
-	r.pushScope(ScopeKindBlock) // Using Block scope for ForOfStatement
+	r.pushScope(ScopeKindBlock)
 
 	oldIdentType := r.identType
 	r.identType = IdentTypeRef
 
-	// Handle the 'Into' part (left-hand side of for...of)
 	n.Into.VisitWith(r)
+	n.Source.VisitWith(r)
 
-	// Handle the 'Source' part (right-hand side of for...of)
+	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
+		blockStmt.ScopeContext = r.current.ctx
+	}
+	n.Body.VisitWith(r)
+
+	r.identType = oldIdentType
+	r.popScope()
+}
+
+func (r *Resolver) VisitForInStatement(n *ast.ForInStatement) {
+	r.pushScope(ScopeKindBlock)
+
+	oldIdentType := r.identType
+	r.identType = IdentTypeRef
+
+	n.Into.VisitWith(r)
 	n.Source.VisitWith(r)
 
 	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
@@ -161,7 +177,7 @@ func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
 }
 
 func (r *Resolver) VisitForStatement(n *ast.ForStatement) {
-	r.pushScope(ScopeKindBlock) // Using Block scope as ForStatement is not defined
+	r.pushScope(ScopeKindBlock)
 
 	oldIdentType := r.identType
 	r.identType = IdentTypeBinding
