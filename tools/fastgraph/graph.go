@@ -95,8 +95,47 @@ func (g *DirectedGraph[N, E]) removeSingleEdge(from, to N, direction Direction) 
 	}
 }
 
-// Neighbors returns an iterator over the neighbors of a node in the specified direction.
-func (g *DirectedGraph[N, E]) Neighbors(node N, direction Direction) iter.Seq[N] {
+// EdgeWeight returns the weight of an edge between two nodes.
+func (g *DirectedGraph[N, E]) EdgeWeight(from, to N) (E, bool) {
+	weight, exists := g.edges[EdgeKey[N]{From: from, To: to}]
+	return weight, exists
+}
+
+// SetEdgeWeight sets the weight of an edge between two nodes.
+func (g *DirectedGraph[N, E]) SetEdgeWeight(from, to N, weight E) {
+	g.edges[EdgeKey[N]{From: from, To: to}] = weight
+}
+
+// Nodes returns an iterator over the nodes in the graph.
+func (g DirectedGraph[N, E]) Nodes() iter.Seq[N] {
+	return func(yield func(N) bool) {
+		for node := range g.nodes {
+			if !yield(node) {
+				return
+			}
+		}
+	}
+}
+
+// Neighbors returns an iterator over the outgoing neighbors of a node.
+func (g DirectedGraph[N, E]) Neighbors(node N) iter.Seq[N] {
+	return func(yield func(N) bool) {
+		edges, exists := g.nodes[node]
+		if !exists {
+			return
+		}
+		for _, edge := range edges {
+			if edge.Direction == Outgoing {
+				if !yield(edge.To) {
+					return
+				}
+			}
+		}
+	}
+}
+
+// NeighborsDirected returns an iterator over the neighbors of a node in the specified direction.
+func (g DirectedGraph[N, E]) NeighborsDirected(node N, direction Direction) iter.Seq[N] {
 	return func(yield func(N) bool) {
 		edges, exists := g.nodes[node]
 		if !exists {
@@ -110,15 +149,4 @@ func (g *DirectedGraph[N, E]) Neighbors(node N, direction Direction) iter.Seq[N]
 			}
 		}
 	}
-}
-
-// EdgeWeight returns the weight of an edge between two nodes.
-func (g *DirectedGraph[N, E]) EdgeWeight(from, to N) (E, bool) {
-	weight, exists := g.edges[EdgeKey[N]{From: from, To: to}]
-	return weight, exists
-}
-
-// SetEdgeWeight sets the weight of an edge between two nodes.
-func (g *DirectedGraph[N, E]) SetEdgeWeight(from, to N, weight E) {
-	g.edges[EdgeKey[N]{From: from, To: to}] = weight
 }
