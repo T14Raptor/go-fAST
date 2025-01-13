@@ -8,20 +8,20 @@ import (
 	"github.com/t14raptor/go-fast/tools/tarjan"
 )
 
-type VarInfo struct {
+type varInfo struct {
 	// This does not include self-references in a function.
 	Usage int
 	// This does not include self-references in a function.
 	Assign int
 }
 
-type Data struct {
-	usedNames map[ast.Id]VarInfo
-	graph     fastgraph.DirectedGraph[ast.Id, VarInfo]
+type data struct {
+	usedNames map[ast.Id]varInfo
+	graph     fastgraph.DirectedGraph[ast.Id, varInfo]
 	entries   map[ast.Id]struct{}
 }
 
-func (d *Data) AddDependencyEdge(from, to ast.Id, assign bool) {
+func (d *data) AddDependencyEdge(from, to ast.Id, assign bool) {
 	if info, ok := d.graph.EdgeWeight(from, to); ok {
 		if assign {
 			info.Assign++
@@ -30,7 +30,7 @@ func (d *Data) AddDependencyEdge(from, to ast.Id, assign bool) {
 		}
 		d.graph.SetEdgeWeight(from, to, info)
 	} else {
-		info := VarInfo{}
+		info := varInfo{}
 		if assign {
 			info.Assign = 1
 		} else {
@@ -40,7 +40,7 @@ func (d *Data) AddDependencyEdge(from, to ast.Id, assign bool) {
 	}
 }
 
-func (d *Data) SubtractCycles() {
+func (d *data) SubtractCycles() {
 	cycles := tarjan.New(d.graph).StronglyConnectedComponents()
 
 outer:
