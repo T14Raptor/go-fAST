@@ -219,15 +219,17 @@ func (ts *TreeShaker) VisitProgram(n *ast.Program) {
 	n.VisitChildrenWith(ts)
 }
 
+// Eliminate removes dead code from the AST.
+// If resolve is true, it will resolve the AST first.
 func Eliminate(p *ast.Program, resolve bool) {
 	if resolve {
 		resolver.Resolve(p)
 	}
 
-	treeshaker := &TreeShaker{changed: true}
-	treeshaker.V = treeshaker
-	for treeshaker.changed {
-		treeshaker.changed = false
-		p.VisitWith(treeshaker)
+	visitor := &TreeShaker{changed: true}
+	visitor.V = visitor
+	for visitor.changed {
+		visitor.changed = false
+		p.VisitWith(visitor)
 	}
 }
