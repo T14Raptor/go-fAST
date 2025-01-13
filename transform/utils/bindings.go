@@ -52,3 +52,22 @@ func CollectDeclarationsInScope(n ast.VisitableNode, scope ast.ScopeContext) map
 	n.VisitWith(visitor)
 	return visitor.bindings
 }
+
+type DestructingCollector struct {
+	ast.NoopVisitor
+	bindings map[ast.Id]struct{}
+}
+
+func (v *DestructingCollector) VisitExpression(n *ast.Expression) {}
+func (v *DestructingCollector) VisitIdentifier(n *ast.Identifier) {
+	v.bindings[n.ToId()] = struct{}{}
+}
+
+func CollectIdentifiers(n ast.VisitableNode) map[ast.Id]struct{} {
+	visitor := &DestructingCollector{
+		bindings: make(map[ast.Id]struct{}),
+	}
+	visitor.V = visitor
+	n.VisitWith(visitor)
+	return visitor.bindings
+}

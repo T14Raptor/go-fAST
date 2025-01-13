@@ -1,6 +1,10 @@
 package deadcode
 
-import "github.com/t14raptor/go-fast/ast"
+import (
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/transform/utils"
+)
 
 type ScopeKind int
 
@@ -40,8 +44,8 @@ type Analyzer struct {
 	inVarDecl  bool
 	scope      *Scope
 	data       *Data
-	curClassId *ast.Id
-	curFuncId  *ast.Id
+	curClassId ast.Id
+	curFuncId  ast.Id
 }
 
 func (a *Analyzer) WithAstPath(ids []ast.Id, op func(*Analyzer)) {
@@ -60,6 +64,7 @@ func (a *Analyzer) WithScope(kind ScopeKind, op func(*Analyzer)) {
 		curClassId: a.curClassId,
 		curFuncId:  a.curFuncId,
 	}
+	v.V = v
 	op(v)
 	child := v.scope
 	child.parent = nil
@@ -98,10 +103,10 @@ func (a *Analyzer) Add(id ast.Id, assign bool) {
 		a.scope.foundArguments = true
 	}
 
-	if a.curClassId != nil && *a.curClassId == id {
+	if a.curClassId == id {
 		return
 	}
-	if a.curFuncId != nil && *a.curFuncId == id {
+	if a.curFuncId == id {
 		return
 	}
 
@@ -147,7 +152,91 @@ func (a *Analyzer) VisitCallExpression(n *ast.CallExpression) {
 	}
 }
 
-func (a *Analyzer) VisitAssignExpression(n *ast.AssignExpression) {
-	n.VisitChildrenWith(a)
+func (a *Analyzer) VisitClassDeclaration(n *ast.ClassDeclaration) {
+	a.WithAstPath([]ast.Id{n.Class.Name.ToId()}, func(v *Analyzer) {
+		old := v.curClassId
+		v.curClassId = n.Class.Name.ToId()
+		n.VisitChildrenWith(v)
+		v.curClassId = old
+	})
+}
 
+func (a *Analyzer) VisitExpression(n *ast.Expression) {
+	old := a.inVarDecl
+	a.inVarDecl = false
+	n.VisitChildrenWith(a)
+	if ident, ok := n.Expr.(*ast.Identifier); ok {
+		a.Add(ident.ToId(), false)
+	}
+	a.inVarDecl = old
+}
+
+func (a *Analyzer) VisitAssignExpression(n *ast.AssignExpression) {
+	if ident, ok := n.Left.Expr.(*ast.Identifier); ok && n.Operator == token.Assign {
+		a.Add(ident.ToId(), true)
+		n.Right.VisitWith(a)
+	} else {
+		n.VisitChildrenWith(a)
+	}
+}
+
+func (a *Analyzer) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
+	a.WithScope(ScopeKindArrowFunction, func(v *Analyzer) {
+		n.VisitChildrenWith(v)
+
+		if v.scope.foundDirectEval {
+			v.scope.bindingsAffectedByEval = utils.CollectDeclarations(n)
+		}
+	})
+}
+
+func (a *Analyzer) VisitFunctionLiteral(n *ast.FunctionLiteral) {
+	a.WithScope(ScopeKindFunction, func(v *Analyzer) {
+		n.VisitChildrenWith(v)
+
+		if v.scope.foundDirectEval {
+			v.scope.bindingsAffectedByEval = utils.CollectDeclarations(n)
+		}
+
+		if v.scope.foundArguments {
+			v.scope.bindingsAffectedByArguments = utils.CollectIdentifiers(&n.ParameterList)
+		}
+	})
+}
+
+func (a *Analyzer) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
+	a.WithAstPath([]ast.Id{n.Function.Name.ToId()}, func(v *Analyzer) {
+		old := v.curFuncId
+		v.curFuncId = n.Function.Name.ToId()
+		n.VisitChildrenWith(v)
+		v.curFuncId = old
+	})
+}
+
+func (a *Analyzer) VisitBindingTarget(n *ast.BindingTarget) {
+	n.VisitChildrenWith(a)
+	if !a.inVarDecl {
+		if ident, ok := n.Target.(*ast.Identifier); ok {
+			a.Add(ident.ToId(), true)
+		}
+	}
+}
+
+func (a *Analyzer) VisitProperty(n *ast.Property) {
+	if short, ok := n.Prop.(*ast.PropertyShort); ok {
+		a.Add(short.Name.ToId(), false)
+	}
+}
+
+func (a *Analyzer) VisitVariableDeclaration(n *ast.VariableDeclaration) {
+	old := a.inVarDecl
+	for _, decl := range n.List {
+		a.inVarDecl = true
+		decl.Target.VisitWith(a)
+		a.inVarDecl = false
+		if decl.Initializer != nil {
+			decl.Initializer.VisitWith(a)
+		}
+	}
+	a.inVarDecl = old
 }
