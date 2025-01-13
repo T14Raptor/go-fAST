@@ -1,4 +1,4 @@
-package tarjan
+package cfg
 
 import "iter"
 
@@ -20,7 +20,7 @@ type TarjanSCC[N comparable] struct {
 }
 
 // New creates a new TarjanSCC instance for the given graph.
-func New[N comparable](graph Graph[N]) *TarjanSCC[N] {
+func NewTarjanSCC[N comparable](graph Graph[N]) *TarjanSCC[N] {
 	return &TarjanSCC[N]{
 		graph:    graph,
 		onStack:  make(map[N]bool),

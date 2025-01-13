@@ -4,8 +4,7 @@ import (
 	"slices"
 
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/tools/fastgraph"
-	"github.com/t14raptor/go-fast/tools/tarjan"
+	"github.com/t14raptor/go-fast/cfg"
 )
 
 type varInfo struct {
@@ -17,7 +16,7 @@ type varInfo struct {
 
 type data struct {
 	usedNames map[ast.Id]varInfo
-	graph     fastgraph.DirectedGraph[ast.Id, varInfo]
+	graph     cfg.DirectedGraph[ast.Id, varInfo]
 	entries   map[ast.Id]struct{}
 }
 
@@ -41,7 +40,7 @@ func (d *data) AddDependencyEdge(from, to ast.Id, assign bool) {
 }
 
 func (d *data) SubtractCycles() {
-	cycles := tarjan.New(d.graph).StronglyConnectedComponents()
+	cycles := cfg.NewTarjanSCC(d.graph).StronglyConnectedComponents()
 
 outer:
 	for _, cycle := range cycles {
@@ -57,7 +56,7 @@ outer:
 				continue outer
 			}
 
-			for neighbor := range d.graph.NeighborsDirected(node, fastgraph.Incoming) {
+			for neighbor := range d.graph.NeighborsDirected(node, cfg.Incoming) {
 				// Neighbour in cycle does not matter
 				if !slices.Contains(cycle, neighbor) {
 					continue outer

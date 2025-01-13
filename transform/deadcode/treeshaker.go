@@ -6,8 +6,8 @@ import (
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/ast/ext"
+	"github.com/t14raptor/go-fast/cfg"
 	"github.com/t14raptor/go-fast/token"
-	"github.com/t14raptor/go-fast/tools/fastgraph"
 	"github.com/t14raptor/go-fast/transform/resolver"
 	"github.com/t14raptor/go-fast/transform/utils"
 )
@@ -217,7 +217,7 @@ func (ts *treeShaker) VisitProgram(n *ast.Program) {
 
 	data := data{
 		usedNames: make(map[ast.Id]varInfo),
-		graph:     fastgraph.New[ast.Id, varInfo](),
+		graph:     cfg.NewDirectedGraph[ast.Id, varInfo](),
 		entries:   make(map[ast.Id]struct{}),
 	}
 

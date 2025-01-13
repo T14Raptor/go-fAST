@@ -1,4 +1,4 @@
-package fastgraph
+package cfg
 
 import (
 	"iter"
@@ -32,7 +32,7 @@ type DirectedGraph[N comparable, E any] struct {
 }
 
 // New creates a new DirectedGraph instance.
-func New[N comparable, E any]() DirectedGraph[N, E] {
+func NewDirectedGraph[N comparable, E any]() DirectedGraph[N, E] {
 	return DirectedGraph[N, E]{
 		nodes: make(map[N][]Edge[N]),
 		edges: make(map[EdgeKey[N]]E),
