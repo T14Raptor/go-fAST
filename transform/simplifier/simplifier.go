@@ -9,11 +9,51 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/nukilabs/unicodeid"
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/ast/ext"
 	"github.com/t14raptor/go-fast/token"
 	"github.com/t14raptor/go-fast/transform/resolver"
 )
+
+var asciiStart, asciiContinue [128]bool
+
+func init() {
+	for i := 0; i < 128; i++ {
+		if i >= 'a' && i <= 'z' || i >= 'A' && i <= 'Z' || i == '$' || i == '_' {
+			asciiStart[i] = true
+			asciiContinue[i] = true
+		}
+		if i >= '0' && i <= '9' {
+			asciiContinue[i] = true
+		}
+	}
+}
+
+// Fast path for checking “start” of an identifier.
+func isIdentifierStart(chr rune) bool {
+	if chr < utf8.RuneSelf {
+		return asciiStart[chr]
+	}
+	return unicodeid.IsIDStartUnicode(chr)
+}
+
+// Fast path for checking “continuation” of an identifier.
+func isIdentifierPart(chr rune) bool {
+	if chr < utf8.RuneSelf {
+		return asciiContinue[chr]
+	}
+	return unicodeid.IsIDContinueUnicode(chr)
+}
+
+func isIdentifier(name string) bool {
+	for i, r := range name {
+		if i == 0 && !isIdentifierStart(r) || i > 0 && !isIdentifierPart(r) {
+			return false
+		}
+	}
+	return true
+}
 
 type simplifier struct {
 	ast.NoopVisitor
@@ -919,6 +959,14 @@ func (s *simplifier) VisitExpression(n *ast.Expression) {
 		s.optimizeBinaryExpression(n)
 	case *ast.MemberExpression:
 		s.optimizeMemberExpression(n)
+		// If the member expression is a computed property with a string,
+		// check if it can be simplified to an identifier.
+		if compProp, ok := expr.Property.Prop.(*ast.ComputedProperty); ok {
+			if strLit, ok := compProp.Expr.Expr.(*ast.StringLiteral); ok && isIdentifier(strLit.Value) {
+				s.changed = true
+				expr.Property.Prop = &ast.Identifier{Idx: expr.Idx0(), Name: strLit.Value}
+			}
+		}
 	case *ast.ConditionalExpression:
 		if v, pure := ext.CastToBool(expr.Test); v.Known() {
 			s.changed = true
