@@ -9,13 +9,53 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/nukilabs/unicodeid"
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/ast/ext"
 	"github.com/t14raptor/go-fast/token"
 	"github.com/t14raptor/go-fast/transform/resolver"
 )
 
-type Simplifier struct {
+var asciiStart, asciiContinue [128]bool
+
+func init() {
+	for i := 0; i < 128; i++ {
+		if i >= 'a' && i <= 'z' || i >= 'A' && i <= 'Z' || i == '$' || i == '_' {
+			asciiStart[i] = true
+			asciiContinue[i] = true
+		}
+		if i >= '0' && i <= '9' {
+			asciiContinue[i] = true
+		}
+	}
+}
+
+// Fast path for checking “start” of an identifier.
+func isIdentifierStart(chr rune) bool {
+	if chr < utf8.RuneSelf {
+		return asciiStart[chr]
+	}
+	return unicodeid.IsIDStartUnicode(chr)
+}
+
+// Fast path for checking “continuation” of an identifier.
+func isIdentifierPart(chr rune) bool {
+	if chr < utf8.RuneSelf {
+		return asciiContinue[chr]
+	}
+	return unicodeid.IsIDContinueUnicode(chr)
+}
+
+func isIdentifier(name string) bool {
+	for i, r := range name {
+		if i == 0 && !isIdentifierStart(r) || i > 0 && !isIdentifierPart(r) {
+			return false
+		}
+	}
+	return true
+}
+
+type simplifier struct {
 	ast.NoopVisitor
 
 	changed       bool
@@ -24,7 +64,7 @@ type Simplifier struct {
 	inCallee      bool
 }
 
-func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
+func (s *simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	memExpr, ok := expr.Expr.(*ast.MemberExpression)
 	if !ok {
 		return
@@ -263,7 +303,7 @@ func (s *Simplifier) optimizeMemberExpression(expr *ast.Expression) {
 	}
 }
 
-func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
+func (s *simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 	binExpr, ok := expr.Expr.(*ast.BinaryExpression)
 	if !ok {
 		return
@@ -474,7 +514,7 @@ func (s *Simplifier) optimizeBinaryExpression(expr *ast.Expression) {
 	}
 }
 
-func (s *Simplifier) tryFoldTypeOf(expr *ast.Expression) {
+func (s *simplifier) tryFoldTypeOf(expr *ast.Expression) {
 	if unary, ok := expr.Expr.(*ast.UnaryExpression); ok && unary.Operator == token.Typeof {
 		var val string
 		switch operand := unary.Operand.Expr.(type) {
@@ -508,7 +548,7 @@ func (s *Simplifier) tryFoldTypeOf(expr *ast.Expression) {
 	}
 }
 
-func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
+func (s *simplifier) optimizeUnaryExpression(expr *ast.Expression) {
 	unaryExpr, ok := expr.Expr.(*ast.UnaryExpression)
 	if !ok {
 		return
@@ -580,7 +620,7 @@ func (s *Simplifier) optimizeUnaryExpression(expr *ast.Expression) {
 	}
 }
 
-func (s *Simplifier) performArithmeticOp(op token.Token, left, right *ast.Expression) ext.Value[float64] {
+func (s *simplifier) performArithmeticOp(op token.Token, left, right *ast.Expression) ext.Value[float64] {
 	// Replace only if it becomes shorter
 	tryReplace := func(v float64) ext.Value[float64] {
 		newLen := len(strconv.FormatFloat(v, 'f', -1, 64))
@@ -688,7 +728,7 @@ func (s *Simplifier) performArithmeticOp(op token.Token, left, right *ast.Expres
 	return ext.Unknown[float64]()
 }
 
-func (s *Simplifier) performAbstractRelCmp(left, right *ast.Expression, willNegate bool) ext.BoolValue {
+func (s *simplifier) performAbstractRelCmp(left, right *ast.Expression, willNegate bool) ext.BoolValue {
 	// Special case: `x < x` is always false.
 	if l, ok := left.Expr.(*ast.Identifier); ok {
 		if r, ok := right.Expr.(*ast.Identifier); ok {
@@ -741,7 +781,7 @@ func (s *Simplifier) performAbstractRelCmp(left, right *ast.Expression, willNega
 	return ext.BoolValue{Value: ext.Unknown[bool]()}
 }
 
-func (s *Simplifier) performAbstractEqCmp(left, right *ast.Expression) ext.BoolValue {
+func (s *simplifier) performAbstractEqCmp(left, right *ast.Expression) ext.BoolValue {
 	lt := ext.GetType(left)
 	rt := ext.GetType(right)
 	if lt.Unknown() || rt.Unknown() {
@@ -777,7 +817,7 @@ func (s *Simplifier) performAbstractEqCmp(left, right *ast.Expression) ext.BoolV
 	return ext.BoolValue{Value: ext.Known(false)}
 }
 
-func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) ext.BoolValue {
+func (s *simplifier) performStrictEqCmp(left, right *ast.Expression) ext.BoolValue {
 	// Any strict equality comparison against NaN returns false.
 	if ext.IsNaN(left) || ext.IsNaN(right) {
 		return ext.BoolValue{Value: ext.Known(false)}
@@ -835,7 +875,7 @@ func (s *Simplifier) performStrictEqCmp(left, right *ast.Expression) ext.BoolVal
 	return ext.BoolValue{Value: ext.Unknown[bool]()}
 }
 
-func (s *Simplifier) VisitAssignExpression(n *ast.AssignExpression) {
+func (s *simplifier) VisitAssignExpression(n *ast.AssignExpression) {
 	old := s.isModifying
 	s.isModifying = true
 	n.Left.VisitWith(s)
@@ -847,7 +887,7 @@ func (s *Simplifier) VisitAssignExpression(n *ast.AssignExpression) {
 }
 
 // This is overriden to preserve `this`.
-func (s *Simplifier) VisitCallExpression(n *ast.CallExpression) {
+func (s *simplifier) VisitCallExpression(n *ast.CallExpression) {
 	oldInCallee := s.inCallee
 
 	s.inCallee = true
@@ -892,7 +932,7 @@ func (s *Simplifier) VisitCallExpression(n *ast.CallExpression) {
 	s.inCallee = oldInCallee
 }
 
-func (s *Simplifier) VisitExpression(n *ast.Expression) {
+func (s *simplifier) VisitExpression(n *ast.Expression) {
 	if unaryExpr, ok := n.Expr.(*ast.UnaryExpression); ok && unaryExpr.Operator == token.Delete {
 		return
 	}
@@ -919,6 +959,14 @@ func (s *Simplifier) VisitExpression(n *ast.Expression) {
 		s.optimizeBinaryExpression(n)
 	case *ast.MemberExpression:
 		s.optimizeMemberExpression(n)
+		// If the member expression is a computed property with a string,
+		// check if it can be simplified to an identifier.
+		if compProp, ok := expr.Property.Prop.(*ast.ComputedProperty); ok {
+			if strLit, ok := compProp.Expr.Expr.(*ast.StringLiteral); ok && isIdentifier(strLit.Value) {
+				s.changed = true
+				expr.Property.Prop = &ast.Identifier{Idx: expr.Idx0(), Name: strLit.Value}
+			}
+		}
 	case *ast.ConditionalExpression:
 		if v, pure := ext.CastToBool(expr.Test); v.Known() {
 			s.changed = true
@@ -998,10 +1046,10 @@ func (s *Simplifier) VisitExpression(n *ast.Expression) {
 }
 
 // Currently noop
-func (s *Simplifier) VisitOptionalChain(n *ast.OptionalChain) {
+func (s *simplifier) VisitOptionalChain(n *ast.OptionalChain) {
 }
 
-func (s *Simplifier) VisitVariableDeclarator(n *ast.VariableDeclarator) {
+func (s *simplifier) VisitVariableDeclarator(n *ast.VariableDeclarator) {
 	if n.Initializer != nil {
 		if seqExpr, ok := n.Initializer.Expr.(*ast.SequenceExpression); ok {
 			if len(seqExpr.Sequence) == 0 {
@@ -1014,7 +1062,7 @@ func (s *Simplifier) VisitVariableDeclarator(n *ast.VariableDeclarator) {
 }
 
 // Drops unused values
-func (s *Simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
+func (s *simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
 	if len(n.Sequence) == 0 {
 		return
 	}
@@ -1081,7 +1129,7 @@ func (s *Simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
 	n.Sequence = exprs
 }
 
-func (s *Simplifier) VisitStatement(n *ast.Statement) {
+func (s *simplifier) VisitStatement(n *ast.Statement) {
 	oldIsModifying := s.isModifying
 	s.isModifying = false
 	oldIsArgOfUpdate := s.isArgOfUpdate
@@ -1091,28 +1139,28 @@ func (s *Simplifier) VisitStatement(n *ast.Statement) {
 	s.isModifying = oldIsModifying
 }
 
-func (s *Simplifier) VisitUpdateExpression(n *ast.UpdateExpression) {
+func (s *simplifier) VisitUpdateExpression(n *ast.UpdateExpression) {
 	old := s.isModifying
 	s.isModifying = true
 	n.Operand.VisitWith(s)
 	s.isModifying = old
 }
 
-func (s *Simplifier) VisitForInStatement(n *ast.ForInStatement) {
+func (s *simplifier) VisitForInStatement(n *ast.ForInStatement) {
 	old := s.isModifying
 	s.isModifying = true
 	n.VisitChildrenWith(s)
 	s.isModifying = old
 }
 
-func (s *Simplifier) VisitForOfStatement(n *ast.ForOfStatement) {
+func (s *simplifier) VisitForOfStatement(n *ast.ForOfStatement) {
 	old := s.isModifying
 	s.isModifying = true
 	n.VisitChildrenWith(s)
 	s.isModifying = old
 }
 
-func (s *Simplifier) VisitTemplateLiteral(n *ast.TemplateLiteral) {
+func (s *simplifier) VisitTemplateLiteral(n *ast.TemplateLiteral) {
 	if n.Tag != nil {
 		old := s.inCallee
 		s.inCallee = true
@@ -1126,7 +1174,7 @@ func (s *Simplifier) VisitTemplateLiteral(n *ast.TemplateLiteral) {
 	}
 }
 
-func (s *Simplifier) VisitWithStatement(n *ast.WithStatement) {
+func (s *simplifier) VisitWithStatement(n *ast.WithStatement) {
 	n.Object.VisitWith(s)
 }
 
@@ -1137,7 +1185,7 @@ func Simplify(p *ast.Program, resolve bool) {
 		resolver.Resolve(p)
 	}
 
-	visitor := &Simplifier{}
+	visitor := &simplifier{}
 	visitor.V = visitor
 	p.VisitWith(visitor)
 }
