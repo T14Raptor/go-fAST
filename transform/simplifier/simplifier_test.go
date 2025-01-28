@@ -1098,3 +1098,10 @@ func TestArrayLiteral(t *testing.T) {
 	fold("(![a])", "false", t)
 	fold("foo(), false;", "foo(), false", t) // fold_same
 }
+
+func TestCompPropToIdent(t *testing.T) {
+	fold("a['Boolean'](1)", "a.Boolean(1)", t)
+	fold("a['__proto__'](1)", "a.__proto__(1)", t)
+	fold("a['@@lol'](1)", "a['@@lol'](1)", t)
+	fold("a['']()", "a['']()", t)
+}
