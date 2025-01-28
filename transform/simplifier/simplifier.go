@@ -47,6 +47,9 @@ func isIdentifierPart(chr rune) bool {
 }
 
 func isIdentifier(name string) bool {
+	if name == "" {
+		return false
+	}
 	for i, r := range name {
 		if i == 0 && !isIdentifierStart(r) || i > 0 && !isIdentifierPart(r) {
 			return false
@@ -959,14 +962,6 @@ func (s *simplifier) VisitExpression(n *ast.Expression) {
 		s.optimizeBinaryExpression(n)
 	case *ast.MemberExpression:
 		s.optimizeMemberExpression(n)
-		// If the member expression is a computed property with a string,
-		// check if it can be simplified to an identifier.
-		if compProp, ok := expr.Property.Prop.(*ast.ComputedProperty); ok {
-			if strLit, ok := compProp.Expr.Expr.(*ast.StringLiteral); ok && isIdentifier(strLit.Value) {
-				s.changed = true
-				expr.Property.Prop = &ast.Identifier{Idx: expr.Idx0(), Name: strLit.Value}
-			}
-		}
 	case *ast.ConditionalExpression:
 		if v, pure := ext.CastToBool(expr.Test); v.Known() {
 			s.changed = true
@@ -1042,6 +1037,19 @@ func (s *simplifier) VisitExpression(n *ast.Expression) {
 			}
 		}
 		expr.Value = props
+	}
+}
+
+func (s *simplifier) VisitMemberExpression(n *ast.MemberExpression) {
+	n.VisitChildrenWith(s)
+
+	// If the member expression is a computed property with a string,
+	// check if it can be simplified to an identifier.
+	if compProp, ok := n.Property.Prop.(*ast.ComputedProperty); ok {
+		if strLit, ok := compProp.Expr.Expr.(*ast.StringLiteral); ok && isIdentifier(strLit.Value) {
+			s.changed = true
+			n.Property.Prop = &ast.Identifier{Idx: n.Idx0(), Name: strLit.Value}
+		}
 	}
 }
 
