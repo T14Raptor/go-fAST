@@ -223,6 +223,7 @@ func (a *analyzer) VisitBindingTarget(n *ast.BindingTarget) {
 }
 
 func (a *analyzer) VisitProperty(n *ast.Property) {
+	n.VisitChildrenWith(a)
 	if short, ok := n.Prop.(*ast.PropertyShort); ok {
 		a.Add(short.Name.ToId(), false)
 	}

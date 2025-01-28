@@ -83,3 +83,7 @@ func TestEmptyBlockStmt(t *testing.T) {
 	test(`{ }`, ``, t)
 	test(`{ {} a(); }`, `{ a(); }`, t)
 }
+
+func TestObject(t *testing.T) {
+	test(`function a() {} var b = { a: a }; console.log(b.a);`, `function a() {} var b = { a: a }; console.log(b.a);`, t)
+}
