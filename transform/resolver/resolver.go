@@ -291,3 +291,9 @@ func (r *Resolver) VisitIdentifier(n *ast.Identifier) {
 		}
 	}
 }
+
+func (r *Resolver) VisitMemberProperty(n *ast.MemberProperty) {
+	if computed, ok := n.Prop.(*ast.ComputedProperty); ok {
+		computed.VisitWith(r)
+	}
+}
