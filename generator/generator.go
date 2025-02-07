@@ -502,14 +502,26 @@ func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 	if n.Kind == ast.PropertyKindGet || n.Kind == ast.PropertyKindSet {
 		g.out.WriteString(string(n.Kind))
 		g.out.WriteString(" ")
-		g.gen(n.Key.Expr)
+		if n.Computed {
+			g.out.WriteString("[")
+			g.gen(n.Key.Expr)
+			g.out.WriteString("]")
+		} else {
+			g.gen(n.Key.Expr)
+		}
 		f := n.Value.Expr.(*ast.FunctionLiteral)
 		g.gen(&f.ParameterList)
 		g.out.WriteString(" ")
 		g.gen(f.Body)
 		return
 	}
-	g.gen(n.Key.Expr)
+	if n.Computed {
+		g.out.WriteString("[")
+		g.gen(n.Key.Expr)
+		g.out.WriteString("]")
+	} else {
+		g.gen(n.Key.Expr)
+	}
 	g.out.WriteString(": ")
 	g.gen(n.Value.Expr)
 }
