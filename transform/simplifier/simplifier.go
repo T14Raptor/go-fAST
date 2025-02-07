@@ -58,42 +58,13 @@ func isIdentifier(name string) bool {
 	return true
 }
 
-type scope struct {
-	parent   *scope
-	ctx      ast.ScopeContext
-	declared map[string]struct{}
-}
-
 type simplifier struct {
 	ast.NoopVisitor
 
-	scope         *scope
 	changed       bool
 	isArgOfUpdate bool
 	isModifying   bool
 	inCallee      bool
-}
-
-func (s *simplifier) pushScope(ctx ast.ScopeContext) {
-	s.scope = &scope{parent: s.scope, ctx: ctx, declared: make(map[string]struct{})}
-}
-
-func (s *simplifier) popScope() {
-	s.scope = s.scope.parent
-}
-
-func (s *simplifier) declare(name string) {
-	s.scope.declared[name] = struct{}{}
-}
-
-func (s *simplifier) lookup(name string) ast.ScopeContext {
-	for scope := s.scope; scope != nil; scope = scope.parent {
-		if _, ok := scope.declared[name]; ok {
-			return scope.ctx
-		}
-	}
-	s.declare(name)
-	return s.scope.ctx
 }
 
 func (s *simplifier) optimizeMemberExpression(expr *ast.Expression) {
@@ -1069,38 +1040,15 @@ func (s *simplifier) VisitExpression(n *ast.Expression) {
 	}
 }
 
-func (s *simplifier) VisitBlockStatement(n *ast.BlockStatement) {
-	s.pushScope(n.ScopeContext)
-	n.VisitChildrenWith(s)
-	s.popScope()
-}
-
-func (s *simplifier) VisitObjectLiteral(n *ast.ObjectLiteral) {
-	n.VisitChildrenWith(s)
-	for _, prop := range n.Value {
-		switch prop := prop.Prop.(type) {
-		case *ast.PropertyShort:
-			s.declare(prop.Name.Name)
-		case *ast.PropertyKeyed:
-			if ident, ok := prop.Key.Expr.(*ast.Identifier); ok {
-				s.declare(ident.Name)
-			}
-		}
-	}
-}
-
 func (s *simplifier) VisitMemberExpression(n *ast.MemberExpression) {
 	n.VisitChildrenWith(s)
 
 	// If the member expression is a computed property with a string,
 	// check if it can be simplified to an identifier.
-	switch prop := n.Property.Prop.(type) {
-	case *ast.Identifier:
-		s.declare(prop.Name)
-	case *ast.ComputedProperty:
-		if strLit, ok := prop.Expr.Expr.(*ast.StringLiteral); ok && isIdentifier(strLit.Value) {
+	if compProp, ok := n.Property.Prop.(*ast.ComputedProperty); ok {
+		if strLit, ok := compProp.Expr.Expr.(*ast.StringLiteral); ok && isIdentifier(strLit.Value) {
 			s.changed = true
-			n.Property.Prop = &ast.Identifier{Idx: n.Idx0(), Name: strLit.Value, ScopeContext: s.lookup(strLit.Value)}
+			n.Property.Prop = &ast.Identifier{Idx: n.Idx0(), Name: strLit.Value}
 		}
 	}
 }
