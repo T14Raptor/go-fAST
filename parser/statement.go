@@ -223,7 +223,7 @@ func (p *parser) parseFunction(declaration, async bool, start ast.Idx) *ast.Func
 	}
 
 	p.tokenToBindingId()
-	name := &ast.Identifier{}
+	var name *ast.Identifier
 	if p.token == token.Identifier {
 		name = p.parseIdentifier()
 	} else if declaration {
