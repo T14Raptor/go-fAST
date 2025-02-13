@@ -215,7 +215,7 @@ func (g *GenVisitor) VisitCaseStatement(n *ast.CaseStatement) {
 	g.indent++
 	for i := range n.Consequent {
 		g.lineAndPad()
-		g.gen(&n.Consequent[i])
+		g.gen(n.Consequent[i].Stmt)
 	}
 	g.indent--
 }
