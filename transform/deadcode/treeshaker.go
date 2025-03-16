@@ -197,6 +197,8 @@ func (ts *treeShaker) VisitUnaryExpression(n *ast.UnaryExpression) {
 
 func (ts *treeShaker) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	for i := len(n.List) - 1; i >= 0; i-- {
+		n.List[i].VisitWith(ts)
+
 		if ident, ok := n.List[i].Target.Target.(*ast.Identifier); ok {
 			canDrop := true
 			if n.List[i].Initializer != nil {

@@ -61,6 +61,8 @@ func TestVariableRemoval(t *testing.T) {
 
 	test(`function a() { return 1; } var b = a();`, `function a() { return 1; } a();`, t)
 	test(`class A { } var a = new A();`, `class A { } new A();`, t)
+
+	test(`var M1 = (function() { var g = 1470; return 1; })();`, `(function() { return 1; })();`, t)
 }
 
 func TestAssignmentRemoval(t *testing.T) {
