@@ -4,7 +4,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/t14raptor/go-fast/ast/ext/ftoa/internal/fast"
+	"github.com/t14raptor/go-fast/pkg/ftoa/internal/fast"
 )
 
 type FToStrMode int
