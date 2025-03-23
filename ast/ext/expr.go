@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"math"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/pkg/ftoa"
 	"github.com/t14raptor/go-fast/token"
 	"github.com/t14raptor/go-fast/transform/resolver"
 )
@@ -291,6 +291,10 @@ func AsPureString(expr *ast.Expression) Value[string] {
 	funcToStr := func(name string) string {
 		return fmt.Sprintf("function %s() { [native code] }", name)
 	}
+	fToStr := func(num float64, mode ftoa.FToStrMode, prec int) string {
+		var buf1 [128]byte
+		return string(ftoa.FToStr(num, mode, prec, buf1[:0]))
+	}
 
 	switch e := expr.Expr.(type) {
 	case *ast.StringLiteral:
@@ -299,7 +303,7 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		if e.Value == 0.0 {
 			return Known("0")
 		}
-		return Known(strconv.FormatFloat(e.Value, 'g', -1, 64))
+		return Known(fToStr(e.Value, ftoa.ModeStandard, 0))
 	case *ast.BooleanLiteral:
 		return Known(fmt.Sprint(e.Value))
 	case *ast.NullLiteral:
