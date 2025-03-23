@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/t14raptor/go-fast/ast"
@@ -298,7 +299,7 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		if e.Value == 0.0 {
 			return Known("0")
 		}
-		return Known(fmt.Sprint(e.Value))
+		return Known(strconv.FormatFloat(e.Value, 'g', -1, 64))
 	case *ast.BooleanLiteral:
 		return Known(fmt.Sprint(e.Value))
 	case *ast.NullLiteral:
