@@ -184,7 +184,7 @@ func (g *GenVisitor) VisitContinueStatement(n *ast.ContinueStatement) {
 
 func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
 	switch n.Callee.Expr.(type) {
-	case *ast.FunctionLiteral, *ast.AssignExpression:
+	case *ast.FunctionLiteral, *ast.AssignExpression, *ast.ArrowFunctionLiteral:
 		g.out.WriteString("(")
 		g.gen(n.Callee.Expr)
 		g.out.WriteString(")")
