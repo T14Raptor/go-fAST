@@ -1,6 +1,7 @@
 package deadcode
 
 import (
+	"github.com/t14raptor/go-fast/resolver"
 	"slices"
 	"sync/atomic"
 

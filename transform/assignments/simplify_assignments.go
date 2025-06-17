@@ -3,7 +3,7 @@ package assignments
 import (
 	"fmt"
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/transform/resolver"
+	"github.com/t14raptor/go-fast/resolver"
 )
 
 type VariableInfo struct {

@@ -2,6 +2,7 @@ package simplifier
 
 import (
 	"fmt"
+	"github.com/t14raptor/go-fast/resolver"
 	"math"
 	"slices"
 	"strconv"
@@ -13,7 +14,6 @@ import (
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/ast/ext"
 	"github.com/t14raptor/go-fast/token"
-	"github.com/t14raptor/go-fast/transform/resolver"
 )
 
 var asciiStart, asciiContinue [128]bool
