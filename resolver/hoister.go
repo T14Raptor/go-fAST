@@ -141,9 +141,9 @@ func (h *hoister) VisitSwitchStatement(n *ast.SwitchStatement) {
 	h.inBlock = old
 }
 
-func (h *hoister) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {}
-func (h *hoister) VisitExpression(n *ast.Expression)                     {}
-func (h *hoister) VisitFunctionLiteral(n *ast.FunctionLiteral)           {}
+func (h *hoister) VisitArrowFunctionLiteral(*ast.ArrowFunctionLiteral) {}
+func (h *hoister) VisitExpression(*ast.Expression)                     {}
+func (h *hoister) VisitFunctionLiteral(*ast.FunctionLiteral)           {}
 
 type idsFinder struct {
 	ast.NoopVisitor
@@ -159,7 +159,7 @@ func findIds(n ast.VisitableNode) []ast.Id {
 	return v.found
 }
 
-func (v *idsFinder) VisitExpression(n *ast.Expression) {}
+func (v *idsFinder) VisitExpression(*ast.Expression) {}
 
 func (v *idsFinder) VisitIdentifier(n *ast.Identifier) {
 	v.found = append(v.found, n.ToId())

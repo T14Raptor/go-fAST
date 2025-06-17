@@ -926,7 +926,7 @@ func (p *parser) nextStatement() {
 			token.While, token.Throw, token.Catch, token.Finally:
 			// Return only if parser made some progress since last
 			// sync or if it has not reached 10 next calls without
-			// progress. Otherwise consume at least one token to
+			// progress. Otherwise, consume at least one token to
 			// avoid an endless parser loop
 			if p.idx == p.recover.idx && p.recover.count < 10 {
 				p.recover.count++

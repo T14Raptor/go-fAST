@@ -19,7 +19,7 @@ type TarjanSCC[N comparable] struct {
 	sccs     [][]N
 }
 
-// New creates a new TarjanSCC instance for the given graph.
+// NewTarjanSCC creates a new TarjanSCC instance for the given graph.
 func NewTarjanSCC[N comparable](graph Graph[N]) *TarjanSCC[N] {
 	return &TarjanSCC[N]{
 		graph:    graph,

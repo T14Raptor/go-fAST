@@ -825,7 +825,7 @@ func (s *simplifier) performStrictEqCmp(left, right *ast.Expression) ext.BoolVal
 	if ext.IsNaN(left) || ext.IsNaN(right) {
 		return ext.BoolValue{Value: ext.Known(false)}
 	}
-	// Special case, typeof a == typeof a is always true.
+	// Special case, `typeof a == typeof a` is always true.
 	if l, ok := left.Expr.(*ast.UnaryExpression); ok && l.Operator == token.Typeof {
 		if r, ok := right.Expr.(*ast.UnaryExpression); ok && r.Operator == token.Typeof {
 			if lid, lok := l.Operand.Expr.(*ast.Identifier); lok {
@@ -889,7 +889,6 @@ func (s *simplifier) VisitAssignExpression(n *ast.AssignExpression) {
 	s.isModifying = old
 }
 
-// This is overriden to preserve `this`.
 func (s *simplifier) VisitCallExpression(n *ast.CallExpression) {
 	oldInCallee := s.inCallee
 
@@ -1053,9 +1052,7 @@ func (s *simplifier) VisitMemberExpression(n *ast.MemberExpression) {
 	}
 }
 
-// Currently noop
-func (s *simplifier) VisitOptionalChain(n *ast.OptionalChain) {
-}
+func (s *simplifier) VisitOptionalChain(*ast.OptionalChain) {}
 
 func (s *simplifier) VisitVariableDeclarator(n *ast.VariableDeclarator) {
 	if n.Initializer != nil {
@@ -1069,7 +1066,6 @@ func (s *simplifier) VisitVariableDeclarator(n *ast.VariableDeclarator) {
 	n.VisitChildrenWith(s)
 }
 
-// Drops unused values
 func (s *simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
 	if len(n.Sequence) == 0 {
 		return
@@ -1109,7 +1105,7 @@ func (s *simplifier) VisitSequenceExpression(n *ast.SequenceExpression) {
 				continue
 			}
 		}
-		// Drop side-effect free nodes.
+		// Drop side effect free nodes.
 		switch expr.Expr.(type) {
 		case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.RegExpLiteral, *ast.Identifier:
 			continue

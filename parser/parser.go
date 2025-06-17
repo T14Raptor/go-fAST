@@ -12,7 +12,7 @@ type parser struct {
 
 	chr       rune // The current character
 	chrOffset int  // The offset of current character
-	offset    int  // The offset after current character (may be greater than 1)
+	offset    int  // The offset after current character (could be greater than 1)
 
 	idx           ast.Idx     // The index of token
 	token         token.Token // The token

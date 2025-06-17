@@ -40,7 +40,7 @@ func (p *PrivateDotExpression) Idx0() Idx  { return p.Left.Expr.Idx0() }
 func (f *FunctionLiteral) Idx0() Idx       { return f.Function }
 func (c *ClassLiteral) Idx0() Idx          { return c.Class }
 func (a *ArrowFunctionLiteral) Idx0() Idx  { return a.Start }
-func (i *Identifier) Idx0() Idx            { return i.Idx }
+func (n *Identifier) Idx0() Idx            { return n.Idx }
 func (n *InvalidExpression) Idx0() Idx     { return n.From }
 func (n *NewExpression) Idx0() Idx         { return n.New }
 func (n *NullLiteral) Idx0() Idx           { return n.Idx }
@@ -116,7 +116,7 @@ func (p *PrivateDotExpression) Idx1() Idx  { return p.Idx1() }
 func (f *FunctionLiteral) Idx1() Idx       { return f.Body.Idx1() }
 func (c *ClassLiteral) Idx1() Idx          { return c.RightBrace + 1 }
 func (a *ArrowFunctionLiteral) Idx1() Idx  { return a.Body.Idx1() }
-func (i *Identifier) Idx1() Idx            { return Idx(int(i.Idx) + len(i.Name)) }
+func (n *Identifier) Idx1() Idx            { return Idx(int(n.Idx) + len(n.Name)) }
 func (n *NewExpression) Idx1() Idx {
 	if n.ArgumentList != nil {
 		return n.RightParenthesis + 1

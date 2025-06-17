@@ -989,7 +989,7 @@ func parseNumberLiteral(literal string) (value float64, err error) {
 	}
 
 error:
-	return 0, errors.New("Illegal numeric literal")
+	return 0, errors.New("illegal numeric literal")
 }
 
 func parseStringLiteral(literal string, length int, unicode, strict bool) (string, string) {

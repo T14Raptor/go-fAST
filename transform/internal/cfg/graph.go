@@ -31,7 +31,7 @@ type DirectedGraph[N comparable, E any] struct {
 	edges map[EdgeKey[N]]E
 }
 
-// New creates a new DirectedGraph instance.
+// NewDirectedGraph creates a new DirectedGraph instance.
 func NewDirectedGraph[N comparable, E any]() DirectedGraph[N, E] {
 	return DirectedGraph[N, E]{
 		nodes: make(map[N][]Edge[N]),
@@ -107,7 +107,7 @@ func (g *DirectedGraph[N, E]) SetEdgeWeight(from, to N, weight E) {
 }
 
 // Nodes returns an iterator over the nodes in the graph.
-func (g DirectedGraph[N, E]) Nodes() iter.Seq[N] {
+func (g *DirectedGraph[N, E]) Nodes() iter.Seq[N] {
 	return func(yield func(N) bool) {
 		for node := range g.nodes {
 			if !yield(node) {
@@ -118,7 +118,7 @@ func (g DirectedGraph[N, E]) Nodes() iter.Seq[N] {
 }
 
 // Neighbors returns an iterator over the outgoing neighbors of a node.
-func (g DirectedGraph[N, E]) Neighbors(node N) iter.Seq[N] {
+func (g *DirectedGraph[N, E]) Neighbors(node N) iter.Seq[N] {
 	return func(yield func(N) bool) {
 		edges, exists := g.nodes[node]
 		if !exists {
@@ -135,7 +135,7 @@ func (g DirectedGraph[N, E]) Neighbors(node N) iter.Seq[N] {
 }
 
 // NeighborsDirected returns an iterator over the neighbors of a node in the specified direction.
-func (g DirectedGraph[N, E]) NeighborsDirected(node N, direction Direction) iter.Seq[N] {
+func (g *DirectedGraph[N, E]) NeighborsDirected(node N, direction Direction) iter.Seq[N] {
 	return func(yield func(N) bool) {
 		edges, exists := g.nodes[node]
 		if !exists {
