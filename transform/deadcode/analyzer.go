@@ -3,7 +3,6 @@ package deadcode
 import (
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"github.com/t14raptor/go-fast/transform/utils"
 )
 
 type scopeKind int
@@ -185,7 +184,7 @@ func (a *analyzer) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 		n.VisitChildrenWith(v)
 
 		if v.scope.foundDirectEval {
-			v.scope.bindingsAffectedByEval = utils.CollectDeclarations(n)
+			v.scope.bindingsAffectedByEval = collectDeclarations(n)
 		}
 	})
 }
@@ -195,11 +194,11 @@ func (a *analyzer) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 		n.VisitChildrenWith(v)
 
 		if v.scope.foundDirectEval {
-			v.scope.bindingsAffectedByEval = utils.CollectDeclarations(n)
+			v.scope.bindingsAffectedByEval = collectDeclarations(n)
 		}
 
 		if v.scope.foundArguments {
-			v.scope.bindingsAffectedByArguments = utils.CollectIdentifiers(&n.ParameterList)
+			v.scope.bindingsAffectedByArguments = collectIdentifiers(&n.ParameterList)
 		}
 	})
 }

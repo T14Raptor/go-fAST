@@ -9,7 +9,6 @@ import (
 	"github.com/t14raptor/go-fast/ast/ext"
 	"github.com/t14raptor/go-fast/token"
 	"github.com/t14raptor/go-fast/transform/internal/cfg"
-	"github.com/t14raptor/go-fast/transform/utils"
 )
 
 // Eliminate removes dead code from the AST.
@@ -214,7 +213,7 @@ func (ts *treeShaker) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 
 func (ts *treeShaker) VisitProgram(n *ast.Program) {
 	if len(ts.bindings) == 0 {
-		ts.bindings = utils.CollectDeclarations(n)
+		ts.bindings = collectDeclarations(n)
 	}
 
 	data := data{
