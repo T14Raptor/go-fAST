@@ -7,9 +7,8 @@ import (
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/ast/ext"
-	"github.com/t14raptor/go-fast/cfg"
 	"github.com/t14raptor/go-fast/token"
-	"github.com/t14raptor/go-fast/transform/resolver"
+	"github.com/t14raptor/go-fast/transform/internal/cfg"
 	"github.com/t14raptor/go-fast/transform/utils"
 )
 
