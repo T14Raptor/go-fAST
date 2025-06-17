@@ -13,38 +13,10 @@ const (
 	IdentTypeBinding                  // Binding (declaration)
 )
 
-type DeclKind int
-
 const (
-	DeclKindVar DeclKind = iota
-	DeclKindFunction
+	UnresolvedMark ast.ScopeContext = 0
+	TopLevelMark   ast.ScopeContext = 1
 )
-
-type ScopeKind int
-
-const (
-	ScopeKindBlock ScopeKind = iota
-	ScopeKindFunction
-)
-
-type Scope struct {
-	parent *Scope
-
-	kind ScopeKind
-
-	ctx ast.ScopeContext
-
-	declaredSymbols map[string]DeclKind
-}
-
-func (s *Scope) isDeclared(id string) (DeclKind, bool) {
-	for scope := s; scope != nil; scope = scope.parent {
-		if declKind, exists := scope.declaredSymbols[id]; exists {
-			return declKind, true
-		}
-	}
-	return 0, false
-}
 
 type Resolver struct {
 	ast.NoopVisitor
@@ -56,11 +28,6 @@ type Resolver struct {
 
 	nextCtxt ast.ScopeContext
 }
-
-const (
-	UnresolvedMark ast.ScopeContext = 0
-	TopLevelMark   ast.ScopeContext = 1
-)
 
 func Resolve(p *ast.Program) *Resolver {
 	r := &Resolver{
@@ -238,7 +205,7 @@ func (r *Resolver) VisitProgram(n *ast.Program) {
 
 func (r *Resolver) VisitStatements(n *ast.Statements) {
 	// Handle hoisting
-	h := NewHoister(r)
+	h := newHoister(r)
 	h.V = h
 	n.VisitWith(h)
 
