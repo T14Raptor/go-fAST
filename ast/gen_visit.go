@@ -16,8 +16,6 @@ import (
 	"slices"
 )
 
-// Generates visit.go
-
 type NodeType int
 
 const (
@@ -36,179 +34,47 @@ type Child struct {
 	Optional  bool
 }
 
-func newChild(fieldName string, optional bool) Child {
-	return Child{FieldName: fieldName, Optional: optional}
-}
-
 func main() {
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, "./ast", func(info fs.FileInfo) bool {
+	pkgs, err := parser.ParseDir(fset, "./", func(info fs.FileInfo) bool {
 		return info.Name() != "visit.go"
 	}, parser.ParseComments)
 	if err != nil {
-		log.Fatalf("%v", err)
+		log.Fatal(err)
 	}
 
-	var nodes []VisitableNodeType
-	for _, file := range pkgs["ast"].Files {
-		nodes = append(nodes, findVisitableNodes(file)...)
-	}
-
+	nodes := collectVisitableNodes(pkgs["ast"].Files)
 	slices.SortFunc(nodes, func(a, b VisitableNodeType) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
-	fmt.Println(nodes)
 
-	var (
-		visitorMethods     []*ast.Field
-		noopVisitorMethods []ast.Decl
-		visitMethods       []ast.Decl
-	)
-	for _, node := range nodes {
-		visitorMethods = append(visitorMethods, &ast.Field{
-			Names: []*ast.Ident{{Name: "Visit" + node.Name}},
-			Type: &ast.FuncType{
-				Params: newFieldList("n", &ast.StarExpr{X: ast.NewIdent(node.Name)}),
-			},
-		})
-
-		noopVisitorMethods = append(noopVisitorMethods, &ast.FuncDecl{
-			Recv: newFieldList("nv", &ast.StarExpr{X: ast.NewIdent("NoopVisitor")}),
-			Name: ast.NewIdent("Visit" + node.Name),
-			Type: &ast.FuncType{
-				Params: newFieldList("n", &ast.StarExpr{X: ast.NewIdent(node.Name)}),
-			},
-			Body: &ast.BlockStmt{
-				List: []ast.Stmt{
-					&ast.ExprStmt{X: &ast.CallExpr{
-						Fun:  newSelectorExpr(ast.NewIdent("n"), "VisitChildrenWith"),
-						Args: []ast.Expr{newSelectorExpr(ast.NewIdent("nv"), "V")},
-					}},
-				},
-			},
-		})
-
-		recv := newFieldList("n", &ast.StarExpr{X: ast.NewIdent(node.Name)})
-		params := newFieldList("v", ast.NewIdent("Visitor"))
-		visitChildrenBlock := &ast.BlockStmt{}
-		switch node.Type {
-		case NodeTypeStruct:
-			for _, child := range node.Children {
-				callExpr := &ast.ExprStmt{X: &ast.CallExpr{
-					Fun: newSelectorExpr(
-						newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-						"VisitWith",
-					),
-					Args: []ast.Expr{ast.NewIdent("v")},
-				}}
-				if child.Optional {
-					visitChildrenBlock.List = append(visitChildrenBlock.List, &ast.IfStmt{
-						Cond: &ast.BinaryExpr{
-							X:  newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-							Op: token.NEQ,
-							Y:  ast.NewIdent("nil"),
-						},
-						Body: &ast.BlockStmt{List: []ast.Stmt{callExpr}},
-					})
-				} else {
-					visitChildrenBlock.List = append(visitChildrenBlock.List, callExpr)
-				}
-			}
-		case NodeTypeSlice:
-			// for i := 0; i < len(*n); i++ {
-			//     (*n)[i].VisitWith(v)
-			// }
-			visitChildrenBlock.List = append(visitChildrenBlock.List, &ast.ForStmt{
-				Init: &ast.AssignStmt{
-					Lhs: []ast.Expr{ast.NewIdent("i")},
-					Tok: token.DEFINE,
-					Rhs: []ast.Expr{&ast.BasicLit{Value: "0"}},
-				},
-				Cond: &ast.BinaryExpr{
-					X:  ast.NewIdent("i"),
-					Op: token.LSS,
-					Y: &ast.CallExpr{
-						Fun:  ast.NewIdent("len"),
-						Args: []ast.Expr{&ast.StarExpr{X: ast.NewIdent("n")}},
-					},
-				},
-				Post: &ast.IncDecStmt{
-					X:   ast.NewIdent("i"),
-					Tok: token.INC,
-				},
-				Body: &ast.BlockStmt{
-					List: []ast.Stmt{
-						&ast.ExprStmt{X: &ast.CallExpr{
-							Fun: newSelectorExpr(&ast.IndexExpr{
-								X:     &ast.StarExpr{X: ast.NewIdent("n")},
-								Index: ast.NewIdent("i"),
-							}, "VisitWith"),
-							Args: []ast.Expr{ast.NewIdent("v")},
-						}},
-					},
-				},
-			})
-		}
-		visitMethods = append(visitMethods, &ast.FuncDecl{
-			Recv: recv,
-			Name: ast.NewIdent("VisitWith"),
-			Type: &ast.FuncType{Params: params},
-			Body: &ast.BlockStmt{
-				List: []ast.Stmt{
-					&ast.ExprStmt{X: &ast.CallExpr{
-						Fun:  newSelectorExpr(ast.NewIdent("v"), "Visit"+node.Name),
-						Args: []ast.Expr{ast.NewIdent("n")},
-					}},
-				},
-			},
-		}, &ast.FuncDecl{
-			Recv: recv,
-			Name: ast.NewIdent("VisitChildrenWith"),
-			Type: &ast.FuncType{Params: params},
-			Body: visitChildrenBlock,
-		})
-	}
+	visitorMethods, noopVisitorMethods, visitMethods := generateMethods(nodes)
 
 	genPkg := &ast.File{
 		Name: ast.NewIdent("ast"),
 		Decls: []ast.Decl{
-			&ast.GenDecl{
-				Tok: token.TYPE,
-				Specs: []ast.Spec{
-					&ast.TypeSpec{
-						Name: ast.NewIdent("Visitor"),
-						Type: &ast.InterfaceType{
-							Methods: &ast.FieldList{List: visitorMethods},
-						},
-					},
-				},
-			},
-			&ast.GenDecl{
-				Tok: token.TYPE,
-				Specs: []ast.Spec{
-					&ast.TypeSpec{
-						Name: ast.NewIdent("NoopVisitor"),
-						Type: &ast.StructType{
-							Fields: newFieldList("V", ast.NewIdent("Visitor")),
-						},
-					},
-				},
-			},
+			visitorInterface(visitorMethods),
+			noopVisitorStruct(),
 		},
 	}
-
 	genPkg.Decls = append(genPkg.Decls, noopVisitorMethods...)
 	genPkg.Decls = append(genPkg.Decls, visitMethods...)
 
-	s := bytes.NewBuffer([]byte("// Code generated by gen_visit.go; DO NOT EDIT.\n"))
-	format.Node(s, fset, genPkg)
-
-	os.WriteFile("ast/visit.go", s.Bytes(), 0644)
-
-	fmt.Println(pkgs)
+	var buf bytes.Buffer
+	fmt.Fprintln(&buf, "// Code generated by gen_visit.go; DO NOT EDIT.")
+	format.Node(&buf, fset, genPkg)
+	os.WriteFile("visit.go", buf.Bytes(), 0644)
 }
 
-func findVisitableNodes(f *ast.File) (types []VisitableNodeType) {
+func collectVisitableNodes(files map[string]*ast.File) (nodes []VisitableNodeType) {
+	for _, file := range files {
+		nodes = append(nodes, findVisitableNodes(file)...)
+	}
+	return
+}
+
+func findVisitableNodes(f *ast.File) []VisitableNodeType {
+	var types []VisitableNodeType
 	for _, decl := range f.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok {
@@ -216,15 +82,9 @@ func findVisitableNodes(f *ast.File) (types []VisitableNodeType) {
 		}
 		for _, spec := range genDecl.Specs {
 			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok {
+			if !ok || typeSpec.Name.Name == "ScopeContext" || typeSpec.Name.Name == "Id" {
 				continue
 			}
-
-			switch typeSpec.Name.Name {
-			case "ScopeContext", "Id":
-				continue
-			}
-
 			switch t := typeSpec.Type.(type) {
 			case *ast.StructType:
 				types = append(types, VisitableNodeType{
@@ -233,10 +93,7 @@ func findVisitableNodes(f *ast.File) (types []VisitableNodeType) {
 					Children: findStructChildren(t.Fields.List),
 				})
 			case *ast.ArrayType:
-				types = append(types, VisitableNodeType{
-					Type: NodeTypeSlice,
-					Name: typeSpec.Name.Name,
-				})
+				types = append(types, VisitableNodeType{Type: NodeTypeSlice, Name: typeSpec.Name.Name})
 			}
 		}
 	}
@@ -244,45 +101,161 @@ func findVisitableNodes(f *ast.File) (types []VisitableNodeType) {
 }
 
 func findStructChildren(fields []*ast.Field) (children []Child) {
+	skip := map[string]bool{
+		"Idx": true, "any": true, "bool": true, "int": true,
+		"ScopeContext": true, "string": true, "PropertyKind": true, "float64": true,
+	}
 	for _, field := range fields {
 		optional := field.Tag != nil && field.Tag.Value == "`optional:\"true\"`"
-
-		if len(field.Names) != 0 {
-			fmt.Println(field.Names[0].Name)
+		name := ""
+		if len(field.Names) > 0 {
+			name = field.Names[0].Name
 		}
-
-		switch fieldType := field.Type.(type) {
+		switch t := field.Type.(type) {
 		case *ast.Ident:
-			if len(field.Names) == 0 {
-				children = append(children, newChild(fieldType.Name, optional))
-				continue
-			}
-
-			switch fieldType.Name {
-			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "float64":
-			default:
-				fmt.Println(fieldType.Name)
-				children = append(children, newChild(field.Names[0].Name, optional))
+			if name == "" {
+				children = append(children, Child{FieldName: t.Name, Optional: optional})
+			} else if !skip[t.Name] {
+				children = append(children, Child{FieldName: name, Optional: optional})
 			}
 		case *ast.StarExpr:
-			if ident, ok := fieldType.X.(*ast.Ident); ok && ident.Name == "string" {
-				continue
+			if id, ok := t.X.(*ast.Ident); !ok || id.Name != "string" {
+				children = append(children, Child{FieldName: name, Optional: optional})
 			}
-			children = append(children, newChild(field.Names[0].Name, optional))
 		}
 	}
-	return children
+	return
 }
 
-func newFieldList(name string, t ast.Expr) *ast.FieldList {
-	return &ast.FieldList{
-		List: []*ast.Field{{
-			Names: []*ast.Ident{ast.NewIdent(name)},
-			Type:  t,
+func generateMethods(nodes []VisitableNodeType) ([]*ast.Field, []ast.Decl, []ast.Decl) {
+	var visitorMethods []*ast.Field
+	var noopVisitorMethods, visitMethods []ast.Decl
+	for _, node := range nodes {
+		visitorMethods = append(visitorMethods, &ast.Field{
+			Names: []*ast.Ident{{Name: "Visit" + node.Name}},
+			Type:  &ast.FuncType{Params: fieldList("n", starIdent(node.Name))},
+		})
+
+		noopVisitorMethods = append(noopVisitorMethods, noopVisitorMethod(node.Name))
+		visitMethods = append(visitMethods, visitWithMethod(node.Name))
+		visitMethods = append(visitMethods, visitChildrenMethod(node))
+	}
+	return visitorMethods, noopVisitorMethods, visitMethods
+}
+
+func visitorInterface(methods []*ast.Field) ast.Decl {
+	return &ast.GenDecl{
+		Tok: token.TYPE,
+		Specs: []ast.Spec{
+			&ast.TypeSpec{
+				Name: ast.NewIdent("Visitor"),
+				Type: &ast.InterfaceType{Methods: &ast.FieldList{List: methods}},
+			},
+		},
+	}
+}
+
+func noopVisitorStruct() ast.Decl {
+	return &ast.GenDecl{
+		Tok: token.TYPE,
+		Specs: []ast.Spec{
+			&ast.TypeSpec{
+				Name: ast.NewIdent("NoopVisitor"),
+				Type: &ast.StructType{Fields: fieldList("V", ast.NewIdent("Visitor"))},
+			},
+		},
+	}
+}
+
+func noopVisitorMethod(name string) ast.Decl {
+	return &ast.FuncDecl{
+		Recv: fieldList("nv", starIdent("NoopVisitor")),
+		Name: ast.NewIdent("Visit" + name),
+		Type: &ast.FuncType{Params: fieldList("n", starIdent(name))},
+		Body: &ast.BlockStmt{List: []ast.Stmt{
+			&ast.ExprStmt{X: &ast.CallExpr{
+				Fun:  selector(ast.NewIdent("n"), "VisitChildrenWith"),
+				Args: []ast.Expr{selector(ast.NewIdent("nv"), "V")},
+			}},
 		}},
 	}
 }
 
-func newSelectorExpr(x ast.Expr, sel string) *ast.SelectorExpr {
+func visitWithMethod(name string) ast.Decl {
+	return &ast.FuncDecl{
+		Recv: fieldList("n", starIdent(name)),
+		Name: ast.NewIdent("VisitWith"),
+		Type: &ast.FuncType{Params: fieldList("v", ast.NewIdent("Visitor"))},
+		Body: &ast.BlockStmt{List: []ast.Stmt{
+			&ast.ExprStmt{X: &ast.CallExpr{
+				Fun:  selector(ast.NewIdent("v"), "Visit"+name),
+				Args: []ast.Expr{ast.NewIdent("n")},
+			}},
+		}},
+	}
+}
+
+func visitChildrenMethod(node VisitableNodeType) ast.Decl {
+	recv := fieldList("n", starIdent(node.Name))
+	params := fieldList("v", ast.NewIdent("Visitor"))
+	block := &ast.BlockStmt{}
+
+	switch node.Type {
+	case NodeTypeStruct:
+		for _, child := range node.Children {
+			var stmt ast.Stmt = &ast.ExprStmt{X: &ast.CallExpr{
+				Fun:  selector(selector(ast.NewIdent("n"), child.FieldName), "VisitWith"),
+				Args: []ast.Expr{ast.NewIdent("v")},
+			}}
+			if child.Optional {
+				stmt = &ast.IfStmt{
+					Cond: &ast.BinaryExpr{
+						X:  selector(ast.NewIdent("n"), child.FieldName),
+						Op: token.NEQ,
+						Y:  ast.NewIdent("nil"),
+					},
+					Body: &ast.BlockStmt{List: []ast.Stmt{stmt}},
+				}
+			}
+			block.List = append(block.List, stmt)
+		}
+	case NodeTypeSlice:
+		block.List = append(block.List, &ast.ForStmt{
+			Init: &ast.AssignStmt{
+				Lhs: []ast.Expr{ast.NewIdent("i")},
+				Tok: token.DEFINE,
+				Rhs: []ast.Expr{&ast.BasicLit{Value: "0"}},
+			},
+			Cond: &ast.BinaryExpr{
+				X:  ast.NewIdent("i"),
+				Op: token.LSS,
+				Y:  &ast.CallExpr{Fun: ast.NewIdent("len"), Args: []ast.Expr{&ast.StarExpr{X: ast.NewIdent("n")}}},
+			},
+			Post: &ast.IncDecStmt{X: ast.NewIdent("i"), Tok: token.INC},
+			Body: &ast.BlockStmt{List: []ast.Stmt{
+				&ast.ExprStmt{X: &ast.CallExpr{
+					Fun:  selector(&ast.IndexExpr{X: &ast.StarExpr{X: ast.NewIdent("n")}, Index: ast.NewIdent("i")}, "VisitWith"),
+					Args: []ast.Expr{ast.NewIdent("v")},
+				}},
+			}},
+		})
+	}
+	return &ast.FuncDecl{
+		Recv: recv,
+		Name: ast.NewIdent("VisitChildrenWith"),
+		Type: &ast.FuncType{Params: params},
+		Body: block,
+	}
+}
+
+func fieldList(name string, t ast.Expr) *ast.FieldList {
+	return &ast.FieldList{List: []*ast.Field{{Names: []*ast.Ident{ast.NewIdent(name)}, Type: t}}}
+}
+
+func starIdent(name string) *ast.StarExpr {
+	return &ast.StarExpr{X: ast.NewIdent(name)}
+}
+
+func selector(x ast.Expr, sel string) *ast.SelectorExpr {
 	return &ast.SelectorExpr{X: x, Sel: ast.NewIdent(sel)}
 }

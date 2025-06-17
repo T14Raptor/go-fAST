@@ -2,7 +2,7 @@ package ast
 
 import "strconv"
 
-//go:generate go run ast/gen_visit.go
+//go:generate go run gen_visit.go
 
 // Idx is a compact encoding of a source position within JS code.
 type Idx int
