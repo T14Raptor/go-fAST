@@ -9,24 +9,16 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
-	"github.com/nukilabs/unicodeid"
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
+	"golang.org/x/text/unicode/rangetable"
 )
 
-var asciiStart, asciiContinue [128]bool
-
-func init() {
-	for i := 0; i < 128; i++ {
-		if i >= 'a' && i <= 'z' || i >= 'A' && i <= 'Z' || i == '$' || i == '_' {
-			asciiStart[i] = true
-			asciiContinue[i] = true
-		}
-		if i >= '0' && i <= '9' {
-			asciiContinue[i] = true
-		}
-	}
-}
+var (
+	unicodeRangeIdNeg      = rangetable.Merge(unicode.Pattern_Syntax, unicode.Pattern_White_Space)
+	unicodeRangeIdStartPos = rangetable.Merge(unicode.Letter, unicode.Nl, unicode.Other_ID_Start)
+	unicodeRangeIdContPos  = rangetable.Merge(unicodeRangeIdStartPos, unicode.Mn, unicode.Mc, unicode.Nd, unicode.Pc, unicode.Other_ID_Continue)
+)
 
 func isDecimalDigit(chr rune) bool {
 	return '0' <= chr && chr <= '9'
@@ -50,32 +42,44 @@ func isDigit(chr rune, base int) bool {
 
 // Fast path for checking “start” of an identifier.
 func isIdentifierStart(chr rune) bool {
-	// 0) Invalid path
-	if chr == -1 {
-		return false
+	// 1) ASCII range fast path
+	// a-z / A-Z
+	if (chr >= 'a' && chr <= 'z') || (chr >= 'A' && chr <= 'Z') {
+		return true
 	}
-	// 1) ASCII path
-	if chr < utf8.RuneSelf {
-		return asciiStart[chr]
+	// $ _ \
+	if chr == '$' || chr == '_' || chr == '\\' {
+		return true
 	}
 
 	// 2) Non-ASCII path
-	return unicodeid.IsIDStartUnicode(chr)
+	return chr >= utf8.RuneSelf && unicode.Is(unicodeRangeIdStartPos, chr) && !unicode.Is(unicodeRangeIdNeg, chr)
 }
 
 // Fast path for checking “continuation” of an identifier.
 func isIdentifierPart(chr rune) bool {
-	// 0) Invalid path
-	if chr == -1 {
-		return false
-	}
 	// 1) ASCII path
+	// a-z / A-Z / 0-9
+	if (chr >= 'a' && chr <= 'z') ||
+		(chr >= 'A' && chr <= 'Z') ||
+		(chr >= '0' && chr <= '9') {
+		return true
+	}
+	// $ _ \
+	if chr == '$' || chr == '_' || chr == '\\' {
+		return true
+	}
+
 	if chr < utf8.RuneSelf {
-		return asciiContinue[chr]
+		return false
 	}
 
 	// 2) Non-ASCII path
-	return unicodeid.IsIDContinueUnicode(chr)
+	if unicode.Is(unicodeRangeIdContPos, chr) && !unicode.Is(unicodeRangeIdNeg, chr) {
+		return true
+	}
+	// Special additions (\u200C / \u200D)
+	return chr == '\u200C' || chr == '\u200D'
 }
 
 func (p *parser) scanIdentifier() (string, string, bool, string) {
@@ -989,14 +993,19 @@ func parseNumberLiteral(literal string) (value float64, err error) {
 	}
 
 error:
-	return 0, errors.New("illegal numeric literal")
+	return 0, errors.New("Illegal numeric literal")
 }
 
 func parseStringLiteral(literal string, length int, unicode, strict bool) (string, string) {
 	var sb strings.Builder
 	var chars []uint16
-
-	sb.Grow(length)
+	if unicode {
+		chars = make([]uint16, 1, length+1)
+		// BOM
+		chars[0] = 0xFEFF
+	} else {
+		sb.Grow(length)
+	}
 	str := literal
 	for len(str) > 0 {
 		switch chr := str[0]; {
@@ -1162,7 +1171,7 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (strin
 	}
 
 	if unicode {
-		if len(chars) != length {
+		if len(chars) != length+1 {
 			panic(fmt.Errorf("unexpected unicode length while parsing '%s'", literal))
 		}
 		return string(utf16.Decode(chars)), ""
