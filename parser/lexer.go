@@ -9,16 +9,24 @@ import (
 	"unicode/utf16"
 	"unicode/utf8"
 
+	"github.com/nukilabs/unicodeid"
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"golang.org/x/text/unicode/rangetable"
 )
 
-var (
-	unicodeRangeIdNeg      = rangetable.Merge(unicode.Pattern_Syntax, unicode.Pattern_White_Space)
-	unicodeRangeIdStartPos = rangetable.Merge(unicode.Letter, unicode.Nl, unicode.Other_ID_Start)
-	unicodeRangeIdContPos  = rangetable.Merge(unicodeRangeIdStartPos, unicode.Mn, unicode.Mc, unicode.Nd, unicode.Pc, unicode.Other_ID_Continue)
-)
+var asciiStart, asciiContinue [128]bool
+
+func init() {
+	for i := 0; i < 128; i++ {
+		if i >= 'a' && i <= 'z' || i >= 'A' && i <= 'Z' || i == '$' || i == '_' {
+			asciiStart[i] = true
+			asciiContinue[i] = true
+		}
+		if i >= '0' && i <= '9' {
+			asciiContinue[i] = true
+		}
+	}
+}
 
 func isDecimalDigit(chr rune) bool {
 	return '0' <= chr && chr <= '9'
@@ -42,44 +50,32 @@ func isDigit(chr rune, base int) bool {
 
 // Fast path for checking “start” of an identifier.
 func isIdentifierStart(chr rune) bool {
-	// 1) ASCII range fast path
-	// a-z / A-Z
-	if (chr >= 'a' && chr <= 'z') || (chr >= 'A' && chr <= 'Z') {
-		return true
+	// 0) Invalid path
+	if chr == -1 {
+		return false
 	}
-	// $ _ \
-	if chr == '$' || chr == '_' || chr == '\\' {
-		return true
+	// 1) ASCII path
+	if chr < utf8.RuneSelf {
+		return asciiStart[chr]
 	}
 
 	// 2) Non-ASCII path
-	return chr >= utf8.RuneSelf && unicode.Is(unicodeRangeIdStartPos, chr) && !unicode.Is(unicodeRangeIdNeg, chr)
+	return unicodeid.IsIDStartUnicode(chr)
 }
 
 // Fast path for checking “continuation” of an identifier.
 func isIdentifierPart(chr rune) bool {
-	// 1) ASCII path
-	// a-z / A-Z / 0-9
-	if (chr >= 'a' && chr <= 'z') ||
-		(chr >= 'A' && chr <= 'Z') ||
-		(chr >= '0' && chr <= '9') {
-		return true
-	}
-	// $ _ \
-	if chr == '$' || chr == '_' || chr == '\\' {
-		return true
-	}
-
-	if chr < utf8.RuneSelf {
+	// 0) Invalid path
+	if chr == -1 {
 		return false
+	}
+	// 1) ASCII path
+	if chr < utf8.RuneSelf {
+		return asciiContinue[chr]
 	}
 
 	// 2) Non-ASCII path
-	if unicode.Is(unicodeRangeIdContPos, chr) && !unicode.Is(unicodeRangeIdNeg, chr) {
-		return true
-	}
-	// Special additions (\u200C / \u200D)
-	return chr == '\u200C' || chr == '\u200D'
+	return unicodeid.IsIDContinueUnicode(chr)
 }
 
 func (p *parser) scanIdentifier() (string, string, bool, string) {
