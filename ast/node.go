@@ -229,5 +229,10 @@ func (y *YieldExpression) Idx1() Idx {
 	return y.Yield + 5
 }
 func (n *ForLoopInitializer) Idx1() Idx { return 0 }
-func (n *ConciseBody) Idx0() Idx        { return n.Idx0() }
-func (n *ConciseBody) Idx1() Idx        { return n.Idx1() }
+
+func (n *ConciseBody) Idx0() Idx { return n.Body.Idx0() }
+func (n *ConciseBody) Idx1() Idx { return n.Body.Idx1() }
+func (n *Expression) Idx0() Idx  { return n.Expr.Idx0() }
+func (n *Expression) Idx1() Idx  { return n.Expr.Idx1() }
+func (n *Statement) Idx0() Idx   { return n.Stmt.Idx0() }
+func (n *Statement) Idx1() Idx   { return n.Stmt.Idx1() }
