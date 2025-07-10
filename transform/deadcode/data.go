@@ -1,8 +1,9 @@
 package deadcode
 
 import (
-	"github.com/t14raptor/go-fast/transform/internal/cfg"
 	"slices"
+
+	"github.com/t14raptor/go-fast/transform/internal/cfg"
 
 	"github.com/t14raptor/go-fast/ast"
 )
@@ -40,7 +41,7 @@ func (d *data) AddDependencyEdge(from, to ast.Id, assign bool) {
 }
 
 func (d *data) SubtractCycles() {
-	cycles := cfg.NewTarjanSCC(d.graph).StronglyConnectedComponents()
+	cycles := cfg.NewTarjanSCC(&d.graph).StronglyConnectedComponents()
 
 outer:
 	for _, cycle := range cycles {
