@@ -40,10 +40,10 @@ func TestFunctionRemoval(t *testing.T) {
 }
 
 func TestClassRemoval(t *testing.T) {
-	test(`class A { constructor() {} } class B { constructor() {} }`, ``, t)
-	test(`class A { constructor() {} } class B { constructor() {} } new B();`, `class B { constructor() {} } new B();`, t)
-	test(`class A { constructor() {} } class B { constructor() { new A(); } } new B();`, `class A { constructor() {} } class B { constructor() { new A(); } } new B();`, t)
-	test(`class A { constructor() {} } class B { constructor() {} } class C { constructor() { new C(); } } new A()`, `class A { constructor() {} } new A();`, t)
+	test(`class A { constructor() { } } class B { constructor() { } }`, ``, t)
+	test(`class A { constructor() { } } class B { constructor() { } } new B();`, `class B { constructor() { } } new B();`, t)
+	test(`class A { constructor() { } } class B { constructor() { new A(); } } new B();`, `class A { constructor() { } } class B { constructor() { new A(); } } new B();`, t)
+	test(`class A { constructor() { } } class B { constructor() { } } class C { constructor() { new C(); } } new A()`, `class A { constructor() { } } new A();`, t)
 
 	test(`class A { b() { new B(); } } class B { a() { new A(); } } class C { a() { new A(); } } new B();`, `class A { b() { new B(); } } class B { a() { new A(); } } new B();`, t)
 }
@@ -62,7 +62,7 @@ func TestVariableRemoval(t *testing.T) {
 	test(`function a() { return 1; } var b = a();`, `function a() { return 1; } a();`, t)
 	test(`class A { } var a = new A();`, `class A { } new A();`, t)
 
-	test(`var M1 = (function() { var g = 1470; return 1; })();`, `(function() { return 1; })();`, t)
+	test(`var M1 = (function() { var g = 1470; return 1; })();`, `(function () { return 1; })();`, t)
 }
 
 func TestAssignmentRemoval(t *testing.T) {
@@ -83,9 +83,9 @@ func TestEmptyStatement(t *testing.T) {
 
 func TestEmptyBlockStmt(t *testing.T) {
 	test(`{ }`, ``, t)
-	test(`{ {} a(); }`, `{ a(); }`, t)
+	test(`{ { } a(); }`, `{ a(); }`, t)
 }
 
 func TestObject(t *testing.T) {
-	test(`function a() {} var b = { a: a }; console.log(b.a);`, `function a() {} var b = { a: a }; console.log(b.a);`, t)
+	test(`function a() { } var b = { a: a }; console.log(b.a);`, `function a() { } var b = { a: a }; console.log(b.a);`, t)
 }
