@@ -697,7 +697,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 			}
 			if forIn || forOf {
 				switch e := expr.(type) {
-				case *ast.Identifier, *ast.PrivateDotExpression, *ast.VariableDeclarator:
+				case *ast.Identifier, *ast.PrivateDotExpression, *ast.VariableDeclarator, *ast.MemberExpression:
 					// These are all acceptable
 				case *ast.ObjectLiteral:
 					expr = p.reinterpretAsObjectAssignmentPattern(e)

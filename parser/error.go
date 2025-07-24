@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/t14raptor/go-fast/token"
@@ -55,7 +56,7 @@ type ErrorList []error
 
 // Add adds an Error with given position and message to an ErrorList.
 func (e *ErrorList) Add(msg string) {
-	*e = append(*e, fmt.Errorf(msg))
+	*e = append(*e, errors.New(msg))
 }
 
 // Error implements the Error interface.
