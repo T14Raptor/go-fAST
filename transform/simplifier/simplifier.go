@@ -2,13 +2,14 @@ package simplifier
 
 import (
 	"fmt"
-	"github.com/t14raptor/go-fast/resolver"
 	"math"
 	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf16"
 	"unicode/utf8"
+
+	"github.com/t14raptor/go-fast/resolver"
 
 	"github.com/nukilabs/unicodeid"
 	"github.com/t14raptor/go-fast/ast"
@@ -1184,7 +1185,7 @@ func (s *simplifier) VisitWithStatement(n *ast.WithStatement) {
 
 // Simplify simplifies the AST by optimizing expressions.
 // By default, it is expected that the AST is already resolved.
-func Simplify(p *ast.Program, resolve bool) {
+func Simplify(p ast.VisitableNode, resolve bool) {
 	if resolve {
 		resolver.Resolve(p)
 	}

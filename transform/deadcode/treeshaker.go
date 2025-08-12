@@ -1,9 +1,10 @@
 package deadcode
 
 import (
-	"github.com/t14raptor/go-fast/resolver"
 	"slices"
 	"sync/atomic"
+
+	"github.com/t14raptor/go-fast/resolver"
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/ast/ext"
@@ -13,7 +14,7 @@ import (
 
 // Eliminate removes dead code from the AST.
 // If resolve is true, it will resolve the AST first.
-func Eliminate(p *ast.Program, resolve bool) {
+func Eliminate(p ast.VisitableNode, resolve bool) {
 	if resolve {
 		resolver.Resolve(p)
 	}
