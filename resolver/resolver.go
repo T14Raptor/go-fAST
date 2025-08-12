@@ -29,7 +29,7 @@ type Resolver struct {
 	nextCtxt ast.ScopeContext
 }
 
-func Resolve(p *ast.Program) *Resolver {
+func Resolve(p ast.VisitableNode) *Resolver {
 	r := &Resolver{
 		identType: IdentTypeRef,
 		nextCtxt:  TopLevelMark,

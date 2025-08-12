@@ -434,6 +434,7 @@ func (g *GenVisitor) VisitIfStatement(n *ast.IfStatement) {
 
 func (g *GenVisitor) VisitLabelledStatement(n *ast.LabelledStatement) {
 	g.gen(n.Label)
+	g.out.WriteString(": ")
 	g.gen(n.Statement.Stmt)
 }
 
