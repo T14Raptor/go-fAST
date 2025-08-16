@@ -267,7 +267,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Expr.(type) {
 	case *ast.AssignExpression, *ast.BinaryExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression, *ast.NumberLiteral,
-		*ast.FunctionLiteral, *ast.ArrowFunctionLiteral:
+		*ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.UpdateExpression:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
 		g.out.WriteString(")")
@@ -323,11 +323,8 @@ func (g *GenVisitor) VisitForOfStatement(n *ast.ForOfStatement) {
 func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 	g.out.WriteString("for (")
 	if n.Initializer != nil {
-		g.gen(n.Initializer.Initializer)
+		g.gen(n.Initializer)
 
-		if _, ok := n.Initializer.Initializer.(*ast.VariableDeclaration); !ok {
-			g.out.WriteString(";")
-		}
 		g.out.WriteString(" ")
 	} else {
 		g.out.WriteString("; ")
@@ -350,6 +347,16 @@ func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 		g.gen(n.Body.Stmt)
 		g.indent--
 		g.lineAndPad()
+	}
+}
+
+func (g *GenVisitor) VisitForLoopInitializer(n *ast.ForLoopInitializer) {
+	switch init := n.Initializer.(type) {
+	case *ast.Expression:
+		g.gen(init.Expr)
+		g.out.WriteString(";")
+	case *ast.VariableDeclaration:
+		g.gen(init)
 	}
 }
 
@@ -488,7 +495,7 @@ func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 		g.lineAndPad()
 		g.gen(p.Prop)
 		if i < len(n.Value)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
 		}
 	}
 	g.indent--
