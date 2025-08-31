@@ -29,6 +29,7 @@ type Visitor interface {
 	VisitDebuggerStatement(n *DebuggerStatement)
 	VisitDoWhileStatement(n *DoWhileStatement)
 	VisitEmptyStatement(n *EmptyStatement)
+	VisitExportStatement(n *ExportStatement)
 	VisitExpression(n *Expression)
 	VisitExpressionStatement(n *ExpressionStatement)
 	VisitExpressions(n *Expressions)
@@ -42,6 +43,7 @@ type Visitor interface {
 	VisitFunctionLiteral(n *FunctionLiteral)
 	VisitIdentifier(n *Identifier)
 	VisitIfStatement(n *IfStatement)
+	VisitImportStatement(n *ImportStatement)
 	VisitInvalidExpression(n *InvalidExpression)
 	VisitLabelledStatement(n *LabelledStatement)
 	VisitMemberExpression(n *MemberExpression)
@@ -172,6 +174,9 @@ func (nv *NoopVisitor) VisitDoWhileStatement(n *DoWhileStatement) {
 func (nv *NoopVisitor) VisitEmptyStatement(n *EmptyStatement) {
 	n.VisitChildrenWith(nv.V)
 }
+func (nv *NoopVisitor) VisitExportStatement(n *ExportStatement) {
+	n.VisitChildrenWith(nv.V)
+}
 func (nv *NoopVisitor) VisitExpression(n *Expression) {
 	n.VisitChildrenWith(nv.V)
 }
@@ -209,6 +214,9 @@ func (nv *NoopVisitor) VisitIdentifier(n *Identifier) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitIfStatement(n *IfStatement) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitImportStatement(n *ImportStatement) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitInvalidExpression(n *InvalidExpression) {
@@ -529,6 +537,12 @@ func (n *EmptyStatement) VisitWith(v Visitor) {
 }
 func (n *EmptyStatement) VisitChildrenWith(v Visitor) {
 }
+func (n *ExportStatement) VisitWith(v Visitor) {
+	v.VisitExportStatement(n)
+}
+func (n *ExportStatement) VisitChildrenWith(v Visitor) {
+	n.Stmt.VisitWith(v)
+}
 func (n *Expression) VisitWith(v Visitor) {
 	v.VisitExpression(n)
 }
@@ -629,6 +643,13 @@ func (n *IfStatement) VisitChildrenWith(v Visitor) {
 	if n.Alternate != nil {
 		n.Alternate.VisitWith(v)
 	}
+}
+func (n *ImportStatement) VisitWith(v Visitor) {
+	v.VisitImportStatement(n)
+}
+func (n *ImportStatement) VisitChildrenWith(v Visitor) {
+	n.As.VisitWith(v)
+	n.What.VisitWith(v)
 }
 func (n *InvalidExpression) VisitWith(v Visitor) {
 	v.VisitInvalidExpression(n)

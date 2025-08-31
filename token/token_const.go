@@ -128,6 +128,11 @@ const (
 	Async
 	Await
 	Yield
+
+	Import
+	As
+	From
+	Export
 )
 
 var token2string = [...]string{
@@ -232,6 +237,10 @@ var token2string = [...]string{
 	Continue:                 "continue",
 	Debugger:                 "debugger",
 	InstanceOf:               "instanceof",
+	As:                       "as",
+	From:                     "from",
+	Import:                   "import",
+	Export:                   "export",
 }
 
 var keywordTable = map[string]keyword{
@@ -327,15 +336,19 @@ var keywordTable = map[string]keyword{
 		futureKeyword: true,
 	},
 	"export": {
-		token:         Keyword,
-		futureKeyword: true,
+		token: Export,
 	},
 	"extends": {
 		token: Extends,
 	},
+	"as": {
+		token: As,
+	},
+	"from": {
+		token: From,
+	},
 	"import": {
-		token:         Keyword,
-		futureKeyword: true,
+		token: Import,
 	},
 	"super": {
 		token: Super,

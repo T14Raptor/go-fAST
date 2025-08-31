@@ -37,6 +37,18 @@ type (
 		Label *Identifier `optional:"true"`
 	}
 
+	ImportStatement struct {
+		Idx  Idx
+		From string
+		As   Identifier
+		What Identifier
+	}
+
+	ExportStatement struct {
+		Idx  Idx
+		Stmt Stmt
+	}
+
 	CaseStatements []CaseStatement
 
 	CaseStatement struct {
@@ -187,3 +199,5 @@ func (*ThrowStatement) _stmt()      {}
 func (*TryStatement) _stmt()        {}
 func (*WhileStatement) _stmt()      {}
 func (*WithStatement) _stmt()       {}
+func (*ImportStatement) _stmt()     {}
+func (*ExportStatement) _stmt()     {}

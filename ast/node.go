@@ -83,6 +83,8 @@ func (n *ReturnStatement) Idx0() Idx     { return n.Return }
 func (n *SwitchStatement) Idx0() Idx     { return n.Switch }
 func (n *ThrowStatement) Idx0() Idx      { return n.Throw }
 func (n *TryStatement) Idx0() Idx        { return n.Try }
+func (n *ImportStatement) Idx0() Idx     { return n.Idx }
+func (n *ExportStatement) Idx0() Idx     { return n.Idx }
 func (n *WhileStatement) Idx0() Idx      { return n.While }
 func (n *WithStatement) Idx0() Idx       { return n.With }
 func (n *VariableDeclaration) Idx0() Idx { return n.Idx }
@@ -230,9 +232,11 @@ func (y *YieldExpression) Idx1() Idx {
 }
 func (n *ForLoopInitializer) Idx1() Idx { return 0 }
 
-func (n *ConciseBody) Idx0() Idx { return n.Body.Idx0() }
-func (n *ConciseBody) Idx1() Idx { return n.Body.Idx1() }
-func (n *Expression) Idx0() Idx  { return n.Expr.Idx0() }
-func (n *Expression) Idx1() Idx  { return n.Expr.Idx1() }
-func (n *Statement) Idx0() Idx   { return n.Stmt.Idx0() }
-func (n *Statement) Idx1() Idx   { return n.Stmt.Idx1() }
+func (n *ConciseBody) Idx0() Idx     { return n.Body.Idx0() }
+func (n *ConciseBody) Idx1() Idx     { return n.Body.Idx1() }
+func (n *Expression) Idx0() Idx      { return n.Expr.Idx0() }
+func (n *Expression) Idx1() Idx      { return n.Expr.Idx1() }
+func (n *Statement) Idx0() Idx       { return n.Stmt.Idx0() }
+func (n *Statement) Idx1() Idx       { return n.Stmt.Idx1() }
+func (n *ImportStatement) Idx1() Idx { return n.Idx }
+func (n *ExportStatement) Idx1() Idx { return n.Idx }

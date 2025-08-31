@@ -35,6 +35,10 @@ func (p *parser) parseStatement() ast.Stmt {
 	}
 
 	switch p.token {
+	case token.Import:
+		return p.parseImportStatement()
+	case token.Export:
+		return p.parseExportStatement()
 	case token.Semicolon:
 		return p.parseEmptyStatement()
 	case token.LeftBrace:
@@ -947,4 +951,23 @@ func (p *parser) nextStatement() {
 		}
 		p.next()
 	}
+}
+
+func (p *parser) parseImportStatement() ast.Stmt {
+	// This can be one of two forms:
+	// 1. import * as env from 'env';
+	// 2. import * from 'env';
+	p.expect(token.Import)
+	what := p.parseIdentifier()
+	p.expect(token.As)
+	as := p.parseIdentifier()
+	p.expect(token.From)
+	from, _, _ := p.scanString(p.chrOffset, false)
+	stmt := &ast.ImportStatement{What: *what, As: *as, From: from}
+	return stmt
+}
+
+func (p *parser) parseExportStatement() ast.Stmt {
+	p.expect(token.Export)
+	return &ast.ExportStatement{Stmt: p.parseStatement()}
 }
