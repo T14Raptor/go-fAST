@@ -56,6 +56,11 @@ func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 	g.gen(n.Body)
 }
 
+func (g *GenVisitor) VisitAwaitExpression(n *ast.AwaitExpression) {
+	g.out.WriteString("await ")
+	g.gen(n.Argument.Expr)
+}
+
 func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 	g.out.WriteString("[")
 	for i, ex := range n.Value {
