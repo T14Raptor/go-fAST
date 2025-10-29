@@ -64,6 +64,7 @@ type Visitor interface {
 	VisitPropertyKeyed(n *PropertyKeyed)
 	VisitPropertyShort(n *PropertyShort)
 	VisitRegExpLiteral(n *RegExpLiteral)
+	VisitRemoveVisitor(n *RemoveVisitor)
 	VisitReturnStatement(n *ReturnStatement)
 	VisitSequenceExpression(n *SequenceExpression)
 	VisitSpreadElement(n *SpreadElement)
@@ -275,6 +276,9 @@ func (nv *NoopVisitor) VisitPropertyShort(n *PropertyShort) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitRegExpLiteral(n *RegExpLiteral) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitRemoveVisitor(n *RemoveVisitor) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitReturnStatement(n *ReturnStatement) {
@@ -772,6 +776,12 @@ func (n *RegExpLiteral) VisitWith(v Visitor) {
 	v.VisitRegExpLiteral(n)
 }
 func (n *RegExpLiteral) VisitChildrenWith(v Visitor) {
+}
+func (n *RemoveVisitor) VisitWith(v Visitor) {
+	v.VisitRemoveVisitor(n)
+}
+func (n *RemoveVisitor) VisitChildrenWith(v Visitor) {
+	n.NoopVisitor.VisitWith(v)
 }
 func (n *ReturnStatement) VisitWith(v Visitor) {
 	v.VisitReturnStatement(n)
