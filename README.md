@@ -18,6 +18,9 @@ To use `go-fAST` in your Go project, you need to install it using `go get`:
 go get github.com/t14raptor/go-fast
 ```
 
+## Docs
+[Documentation](https://yoghurtbot-io.gitbook.io/go-fast)
+
 ## Credits
 
 We'd like to extend our heartfelt thanks to the following individuals and projects for their invaluable contributions:
