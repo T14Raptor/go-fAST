@@ -1,8 +1,6 @@
 package ast
 
-import "slices"
-
-// RemoveVisitor is a visitor that can remove nodes from the AST.
+// RemoveVisitor is a helper visitor that can remove nodes from the AST.
 type RemoveVisitor struct {
 	NoopVisitor
 	remove bool
@@ -11,44 +9,49 @@ type RemoveVisitor struct {
 // Remove marks the current node for removal.
 //
 // If you override a Visit method that has deletion logic:
-// 	- [RemoveVisitor.VisitStatements]
-// 	- [RemoveVisitor.VisitExpressions]
-// 	- [RemoveVisitor.VisitSequenceExpression]
-// 	- [RemoveVisitor.VisitVariableDeclarators]
-// 	- [RemoveVisitor.VisitVariableDeclaration]
-// 	- [RemoveVisitor.VisitClassElements]
-// 	- [RemoveVisitor.VisitProperties]
+//   - [RemoveVisitor.VisitStatements]
+//   - [RemoveVisitor.VisitExpressions]
+//   - [RemoveVisitor.VisitSequenceExpression]
+//   - [RemoveVisitor.VisitVariableDeclarators]
+//   - [RemoveVisitor.VisitVariableDeclaration]
+//   - [RemoveVisitor.VisitClassElements]
+//   - [RemoveVisitor.VisitProperties]
+//
 // make sure to either call the base implementation or handle removal manually.
 func (v *RemoveVisitor) Remove() {
 	v.remove = true
 }
 
 func (v *RemoveVisitor) VisitStatements(n *Statements) {
-	count := len(*n)
-	for i := 0; i < count; {
+	w := 0
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
 		if v.remove {
 			v.remove = false
-			*n = slices.Delete(*n, i, i+1)
-			count--
-		} else {
-			i++
+			continue
 		}
+		(*n)[w] = (*n)[i]
+		w++
 	}
+
+	clear((*n)[w:])
+	*n = (*n)[:w]
 }
 
 func (v *RemoveVisitor) VisitExpressions(n *Expressions) {
-	count := len(*n)
-	for i := 0; i < count; {
+	w := 0
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
 		if v.remove {
 			v.remove = false
-			*n = slices.Delete(*n, i, i+1)
-			count--
-		} else {
-			i++
+			continue
 		}
+		(*n)[w] = (*n)[i]
+		w++
 	}
+
+	clear((*n)[w:])
+	*n = (*n)[:w]
 }
 
 func (v *RemoveVisitor) VisitSequenceExpression(n *SequenceExpression) {
@@ -59,17 +62,19 @@ func (v *RemoveVisitor) VisitSequenceExpression(n *SequenceExpression) {
 }
 
 func (v *RemoveVisitor) VisitVariableDeclarators(n *VariableDeclarators) {
-	count := len(*n)
-	for i := 0; i < count; {
+	w := 0
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
 		if v.remove {
 			v.remove = false
-			*n = slices.Delete(*n, i, i+1)
-			count--
-		} else {
-			i++
+			continue
 		}
+		(*n)[w] = (*n)[i]
+		w++
 	}
+
+	clear((*n)[w:])
+	*n = (*n)[:w]
 }
 
 func (v *RemoveVisitor) VisitVariableDeclaration(n *VariableDeclaration) {
@@ -80,29 +85,33 @@ func (v *RemoveVisitor) VisitVariableDeclaration(n *VariableDeclaration) {
 }
 
 func (v *RemoveVisitor) VisitClassElements(n *ClassElements) {
-	count := len(*n)
-	for i := 0; i < count; {
+	w := 0
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
 		if v.remove {
 			v.remove = false
-			*n = slices.Delete(*n, i, i+1)
-			count--
-		} else {
-			i++
+			continue
 		}
+		(*n)[w] = (*n)[i]
+		w++
 	}
+
+	clear((*n)[w:])
+	*n = (*n)[:w]
 }
 
 func (v *RemoveVisitor) VisitProperties(n *Properties) {
-	count := len(*n)
-	for i := 0; i < count; {
+	w := 0
+	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
 		if v.remove {
 			v.remove = false
-			*n = slices.Delete(*n, i, i+1)
-			count--
-		} else {
-			i++
+			continue
 		}
+		(*n)[w] = (*n)[i]
+		w++
 	}
+
+	clear((*n)[w:])
+	*n = (*n)[:w]
 }
