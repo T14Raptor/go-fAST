@@ -2,29 +2,29 @@ package ext
 
 import "github.com/t14raptor/go-fast/ast"
 
-// RemoveVisitor is a helper visitor that can help remove nodes from the AST.
+// RemoveHelper is a visitor that assists in removing specific nodes from ASTs during traversal.
 //
 // If you override a Visit method that has deletion logic:
-//   - [RemoveVisitor.VisitStatements]
-//   - [RemoveVisitor.VisitExpressions]
-//   - [RemoveVisitor.VisitSequenceExpression]
-//   - [RemoveVisitor.VisitVariableDeclarators]
-//   - [RemoveVisitor.VisitVariableDeclaration]
-//   - [RemoveVisitor.VisitClassElements]
-//   - [RemoveVisitor.VisitProperties]
+//   - [RemoveHelper.VisitStatements]
+//   - [RemoveHelper.VisitExpressions]
+//   - [RemoveHelper.VisitSequenceExpression]
+//   - [RemoveHelper.VisitVariableDeclarators]
+//   - [RemoveHelper.VisitVariableDeclaration]
+//   - [RemoveHelper.VisitClassElements]
+//   - [RemoveHelper.VisitProperties]
 //
 // make sure to either call the base implementation or handle removal manually.
-type RemoveVisitor struct {
+type RemoveHelper struct {
 	ast.NoopVisitor
 	remove bool
 }
 
 // Remove marks the current node for removal.
-func (v *RemoveVisitor) Remove() {
+func (v *RemoveHelper) Remove() {
 	v.remove = true
 }
 
-func (v *RemoveVisitor) VisitStatements(n *ast.Statements) {
+func (v *RemoveHelper) VisitStatements(n *ast.Statements) {
 	w := 0
 	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
@@ -45,7 +45,7 @@ func (v *RemoveVisitor) VisitStatements(n *ast.Statements) {
 	*n = (*n)[:w]
 }
 
-func (v *RemoveVisitor) VisitExpressions(n *ast.Expressions) {
+func (v *RemoveHelper) VisitExpressions(n *ast.Expressions) {
 	w := 0
 	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
@@ -66,14 +66,14 @@ func (v *RemoveVisitor) VisitExpressions(n *ast.Expressions) {
 	*n = (*n)[:w]
 }
 
-func (v *RemoveVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
+func (v *RemoveHelper) VisitSequenceExpression(n *ast.SequenceExpression) {
 	n.VisitChildrenWith(v.V)
 	if len(n.Sequence) == 0 {
 		v.Remove()
 	}
 }
 
-func (v *RemoveVisitor) VisitVariableDeclarators(n *ast.VariableDeclarators) {
+func (v *RemoveHelper) VisitVariableDeclarators(n *ast.VariableDeclarators) {
 	w := 0
 	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
@@ -94,14 +94,14 @@ func (v *RemoveVisitor) VisitVariableDeclarators(n *ast.VariableDeclarators) {
 	*n = (*n)[:w]
 }
 
-func (v *RemoveVisitor) VisitVariableDeclaration(n *ast.VariableDeclaration) {
+func (v *RemoveHelper) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	n.VisitChildrenWith(v.V)
 	if len(n.List) == 0 {
 		v.Remove()
 	}
 }
 
-func (v *RemoveVisitor) VisitClassElements(n *ast.ClassElements) {
+func (v *RemoveHelper) VisitClassElements(n *ast.ClassElements) {
 	w := 0
 	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
@@ -122,7 +122,7 @@ func (v *RemoveVisitor) VisitClassElements(n *ast.ClassElements) {
 	*n = (*n)[:w]
 }
 
-func (v *RemoveVisitor) VisitProperties(n *ast.Properties) {
+func (v *RemoveHelper) VisitProperties(n *ast.Properties) {
 	w := 0
 	for i := 0; i < len(*n); i++ {
 		(*n)[i].VisitWith(v.V)
