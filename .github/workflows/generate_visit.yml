@@ -5,7 +5,6 @@ on:
     paths:
       - 'ast/**'
       - '!ast/visit.go'
-      - '!ast/utilities.go'
   workflow_dispatch:
 
 jobs:
