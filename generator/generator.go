@@ -680,7 +680,9 @@ func (g *GenVisitor) VisitWhileStatement(n *ast.WhileStatement) {
 }
 
 func (g *GenVisitor) VisitWithStatement(n *ast.WithStatement) {
+	g.out.WriteString("with (")
 	g.gen(n.Object.Expr)
+	g.out.WriteString(") ")
 	g.gen(n.Body.Stmt)
 }
 
