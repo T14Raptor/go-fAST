@@ -152,16 +152,20 @@ func (g *GenVisitor) VisitBlockStatement(n *ast.BlockStatement) {
 	g.out.WriteString("{")
 
 	g.indent++
-	for _, st := range n.List {
-		g.lineAndPad()
-		g.gen(st.Stmt)
-	}
+	g.VisitStatements(&n.List)
 	g.indent--
 
 	if len(n.List) > 0 {
 		g.lineAndPad()
 	}
 	g.out.WriteString("}")
+}
+
+func (g *GenVisitor) VisitStatements(n *ast.Statements) {
+	for _, st := range *n {
+		g.lineAndPad()
+		g.gen(st.Stmt)
+	}
 }
 
 func (g *GenVisitor) VisitBooleanLiteral(n *ast.BooleanLiteral) {
