@@ -43,7 +43,7 @@ func newChild(fieldName string, optional bool) Child {
 func main() {
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, "./ast", func(info fs.FileInfo) bool {
-		return info.Name() != "visit.go"
+		return info.Name() != "visit.go" && info.Name() != "match.go"
 	}, parser.ParseComments)
 	if err != nil {
 		log.Fatalf("%v", err)

@@ -54,7 +54,7 @@ func newChild(fieldName, fieldType string, cloneable, pointer, optional bool) Ch
 func main() {
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, "./ast", func(info fs.FileInfo) bool {
-		return info.Name() != "clone.go" && info.Name() != "visit.go"
+		return info.Name() != "clone.go" && info.Name() != "visit.go" && info.Name() != "match.go"
 	}, parser.ParseComments)
 	if err != nil {
 		log.Fatalf("%v", err)
