@@ -208,6 +208,10 @@ type (
 	}
 )
 
+func NewExpr(expr Expr) *Expression {
+	return &Expression{Expr: expr}
+}
+
 func (*BlockStatement) _conciseBody() {}
 func (*Expression) _conciseBody()     {}
 
