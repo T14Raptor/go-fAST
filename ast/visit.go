@@ -2,6 +2,7 @@
 package ast
 
 type Visitor interface {
+	VisitAny(n *Any)
 	VisitArrayLiteral(n *ArrayLiteral)
 	VisitArrayPattern(n *ArrayPattern)
 	VisitArrowFunctionLiteral(n *ArrowFunctionLiteral)
@@ -14,6 +15,7 @@ type Visitor interface {
 	VisitBooleanLiteral(n *BooleanLiteral)
 	VisitBreakStatement(n *BreakStatement)
 	VisitCallExpression(n *CallExpression)
+	VisitCapture(n *Capture)
 	VisitCaseStatement(n *CaseStatement)
 	VisitCaseStatements(n *CaseStatements)
 	VisitCatchStatement(n *CatchStatement)
@@ -91,6 +93,9 @@ type NoopVisitor struct {
 	V Visitor
 }
 
+func (nv *NoopVisitor) VisitAny(n *Any) {
+	n.VisitChildrenWith(nv.V)
+}
 func (nv *NoopVisitor) VisitArrayLiteral(n *ArrayLiteral) {
 	n.VisitChildrenWith(nv.V)
 }
@@ -125,6 +130,9 @@ func (nv *NoopVisitor) VisitBreakStatement(n *BreakStatement) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitCallExpression(n *CallExpression) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitCapture(n *Capture) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitCaseStatement(n *CaseStatement) {
@@ -343,6 +351,11 @@ func (nv *NoopVisitor) VisitWithStatement(n *WithStatement) {
 func (nv *NoopVisitor) VisitYieldExpression(n *YieldExpression) {
 	n.VisitChildrenWith(nv.V)
 }
+func (n *Any) VisitWith(v Visitor) {
+	v.VisitAny(n)
+}
+func (n *Any) VisitChildrenWith(v Visitor) {
+}
 func (n *ArrayLiteral) VisitWith(v Visitor) {
 	v.VisitArrayLiteral(n)
 }
@@ -419,6 +432,11 @@ func (n *CallExpression) VisitWith(v Visitor) {
 func (n *CallExpression) VisitChildrenWith(v Visitor) {
 	n.Callee.VisitWith(v)
 	n.ArgumentList.VisitWith(v)
+}
+func (n *Capture) VisitWith(v Visitor) {
+	v.VisitCapture(n)
+}
+func (n *Capture) VisitChildrenWith(v Visitor) {
 }
 func (n *CaseStatement) VisitWith(v Visitor) {
 	v.VisitCaseStatement(n)
