@@ -996,9 +996,7 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (strin
 	var sb strings.Builder
 	var chars []uint16
 	if unicode {
-		chars = make([]uint16, 1, length+1)
-		// BOM
-		chars[0] = 0xFEFF
+		chars = make([]uint16, 0, length)
 	} else {
 		sb.Grow(length)
 	}
@@ -1167,7 +1165,7 @@ func parseStringLiteral(literal string, length int, unicode, strict bool) (strin
 	}
 
 	if unicode {
-		if len(chars) != length+1 {
+		if len(chars) != length {
 			panic(fmt.Errorf("unexpected unicode length while parsing '%s'", literal))
 		}
 		return string(utf16.Decode(chars)), ""
