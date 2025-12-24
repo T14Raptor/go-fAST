@@ -134,36 +134,36 @@ func (s *simplifier) optimizeMemberExpression(expr *ast.Expression) {
 		// about pristine_globals here.
 		case Len:
 			s.changed = true
-			expr.Expr = &ast.NumberLiteral{Idx: memExpr.Idx0(), Value: float64(len(utf16.Encode([]rune(obj.Value))))}
+			expr.Expr = &ast.NumberLiteral{Idx: memExpr.Idx0(), Value: float64(utf8.RuneCountInString(obj.Value))}
 
 		// 'foo'[1]
 		case Index:
-			idxF := float64(op)
-			if _, frac := math.Modf(idxF); frac != 0.0 || idxF < 0.0 {
+			idx := float64(op)
+			if _, frac := math.Modf(float64(idx)); frac != 0.0 || idx < 0.0 || int(idx) >= len(obj.Value) {
 				// Prototype changes affect indexing if the index is out of bounds, so we
 				// don't replace out-of-bound indexes.
 				return
 			}
 
-			idx := int(idxF)
-			units := utf16.Encode([]rune(obj.Value))
-			if idx < 0 || idx >= len(units) {
-				// Prototype changes affect indexing if the index is out of bounds, so we
-				// don't replace out-of-bound indexes.
-				return
+			// utf16 encode value
+			var input string
+			for _, c := range obj.Value {
+				surrogates := utf16.Encode([]rune{c})
+				if len(surrogates) == 2 {
+					input += fmt.Sprintf("\\u%04X\\u%04X", surrogates[0], surrogates[1])
+				} else {
+					input += string(c)
+				}
 			}
 
-			u := units[idx]
-			val := string(rune(u))
-			var raw string
-			if u >= 0xD800 && u <= 0xDFFF {
-				raw = fmt.Sprintf("\"\\u%04X\"", u)
-			} else {
-				raw = strconv.Quote(val)
+			value, ok := nthChar(input, int(idx))
+			if !ok {
+				return
 			}
 
 			s.changed = true
-			expr.Expr = &ast.StringLiteral{Idx: memExpr.Idx0(), Value: val, Raw: &raw}
+			raw := fmt.Sprintf("\"%s\"", value)
+			expr.Expr = &ast.StringLiteral{Idx: memExpr.Idx0(), Value: value, Raw: &raw}
 
 		// 'foo'['']
 		case IndexStr:

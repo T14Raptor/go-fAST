@@ -2,6 +2,8 @@ package simplifier
 
 import (
 	"slices"
+	"strings"
+	"unicode/utf16"
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/ast/ext"
@@ -45,6 +47,42 @@ func directnessMaters(n *ast.Expression) bool {
 
 func makeBoolExpr(value bool, orig ast.Expressions) ast.Expression {
 	return ext.PreserveEffects(ast.Expression{Expr: &ast.BooleanLiteral{Value: value}}, orig)
+}
+
+func nthChar(s string, idx int) (string, bool) {
+	for _, c := range s {
+		if len(utf16.Encode([]rune{c})) > 1 {
+			return "", false
+		}
+	}
+
+	if !strings.Contains(s, "\\ud") && !strings.Contains(s, "\\uD") {
+		if idx < len([]rune(s)) {
+			return string([]rune(s)[idx]), true
+		}
+		return "", false
+	}
+
+	iter := []rune(s)
+	for i := 0; i < len(iter); i++ {
+		c := iter[i]
+		if c == '\\' && i+1 < len(iter) && iter[i+1] == 'u' {
+			if idx == 0 {
+				if i+5 < len(iter) {
+					return string(iter[i : i+6]), true
+				}
+				return "", false
+			}
+			i += 5
+		} else {
+			if idx == 0 {
+				return string(c), true
+			}
+		}
+		idx--
+	}
+
+	return "", false
 }
 
 func needZeroForThis(e *ast.Expression) bool {
