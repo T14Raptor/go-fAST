@@ -276,7 +276,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Expr.(type) {
 	case *ast.AssignExpression, *ast.BinaryExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression, *ast.NumberLiteral,
-		*ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.UpdateExpression:
+		*ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.UpdateExpression, *ast.AwaitExpression:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
 		g.out.WriteString(")")
