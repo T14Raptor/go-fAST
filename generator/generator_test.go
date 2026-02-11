@@ -8,7 +8,7 @@ import (
 	"github.com/t14raptor/go-fast/parser"
 )
 
-func ParseSource(src string) (ast.VisitableNode, error) {
+func parseSource(src string) (ast.VisitableNode, error) {
 	ast, err := parser.ParseFile(src)
 	if err != nil {
 		return nil, err
@@ -16,7 +16,7 @@ func ParseSource(src string) (ast.VisitableNode, error) {
 	return ast, nil
 }
 
-func GenerateASTNoIndent(program ast.VisitableNode) string {
+func generateASTNoIndent(program ast.VisitableNode) string {
 	output := Generate(program)
 	return strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(output, "\n", ""), "    ", ""), "'", "\"")
 }
@@ -76,12 +76,12 @@ func TestSequenceExpressionInNewExpression(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, err := ParseSource(tt.input)
+			ctx, err := parseSource(tt.input)
 			if err != nil {
 				t.Fatalf("Failed to parse input: %v", err)
 			}
 
-			result := GenerateASTNoIndent(ctx)
+			result := generateASTNoIndent(ctx)
 
 			if result != tt.expected {
 				t.Errorf("\nInput:    %s\nExpected: %s\nGot:      %s", tt.input, tt.expected, result)
