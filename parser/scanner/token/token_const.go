@@ -136,6 +136,11 @@ const (
 	Async
 	Await
 	Yield
+
+	TemplateHead
+	TemplateMiddle
+	TemplateTail
+	NoSubstitutionTemplate
 )
 
 var token2string = [...]string{
