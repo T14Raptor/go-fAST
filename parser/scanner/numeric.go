@@ -1,8 +1,10 @@
 package scanner
 
 import (
-	"github.com/t14raptor/go-fast/token"
 	"unicode/utf8"
+	"unsafe"
+
+	"github.com/t14raptor/go-fast/token"
 )
 
 func (s *Scanner) readZero() token.Token {
@@ -51,7 +53,7 @@ func (s *Scanner) readNonDecimal(base int) token.Token {
 	if b, ok := s.PeekByte(); ok && digitValue(b) < base {
 		s.ConsumeByte()
 	} else {
-		// TODO error
+		s.unexpectedErr()
 		return token.Undetermined
 	}
 
@@ -64,11 +66,10 @@ func (s *Scanner) readNonDecimal(base int) token.Token {
 		if b == '_' {
 			s.ConsumeByte()
 
-			// TODO
 			if b, ok := s.PeekByte(); ok && digitValue(b) < base {
 				s.ConsumeByte()
 			} else {
-				// TODO error
+				s.unexpectedErr()
 				return token.Undetermined
 			}
 		} else if b, ok := s.PeekByte(); ok && digitValue(b) < base {
@@ -124,37 +125,40 @@ func (s *Scanner) readDecimalDigits() {
 	if b, ok := s.PeekByte(); ok && isDecimalDigit(b) {
 		s.ConsumeByte()
 	} else {
-		// TODO error
+		s.unexpectedErr()
 		return
 	}
 	s.decimalDigitsAfterFirstDigit()
 }
 
 func (s *Scanner) decimalDigitsAfterFirstDigit() {
-	for {
-		b, ok := s.PeekByte()
-		if !ok {
-			break
+	pos := s.src.pos
+	base := s.src.base
+	end := s.src.len
+
+	// Fast path: scan pure digit runs with direct memory access.
+	for pos < end {
+		b := *(*byte)(unsafe.Add(base, pos))
+		if b >= '0' && b <= '9' {
+			pos++
+			continue
 		}
-
-		switch b {
-		case '_':
-			s.ConsumeRune()
-
-			if b, ok := s.PeekByte(); ok && isDecimalDigit(b) {
+		if b == '_' {
+			// Numeric separator — must be followed by a digit.
+			s.src.pos = pos + 1
+			if nb, ok := s.PeekByte(); ok && isDecimalDigit(nb) {
 				s.ConsumeByte()
-			} else {
-				// TODO error
-				return
+				pos = s.src.pos
+				continue
 			}
-			continue
-			// TODO
-		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
-			s.ConsumeRune()
-			continue
+			// Trailing numeric separator
+			s.unexpectedErr()
+			return
 		}
 		break
 	}
+
+	s.src.pos = pos
 }
 
 func (s *Scanner) decLitAfterDecPoint() token.Token {
@@ -199,6 +203,7 @@ func (s *Scanner) checkAfterNumericLiteral(kind token.Token) token.Token {
 		return kind
 	}
 
+	offset := s.src.Offset()
 	s.ConsumeRune()
 	for {
 		if c, ok := s.PeekRune(); ok && isIdentifierStart(c) {
@@ -207,7 +212,7 @@ func (s *Scanner) checkAfterNumericLiteral(kind token.Token) token.Token {
 			break
 		}
 	}
-	// TODO report error
+	s.error(invalidNumberEnd(offset, s.src.Offset()))
 	return token.Undetermined
 }
 

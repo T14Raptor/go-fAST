@@ -5,22 +5,26 @@ import (
 	"unicode"
 )
 
+// ParseRegExp re-tokenizes the current `/` or `/=` as a regular expression.
 func (s *Scanner) ParseRegExp() (string, string, string) {
 	offset := s.Offset() - 1 // Opening slash already gotten
-	if s.token.Kind == token.QuotientAssign {
+	if s.Token.Kind == token.QuotientAssign {
 		offset -= 1 // =
 	}
 
 	var (
 		inEscape    bool
 		inCharClass bool
-		chr         rune
 	)
 	for {
 		chr, ok := s.NextRune()
-		if !ok || isLineTerminator(chr) {
-			//p.error(errUnexpectedEndOfInput)
-			return "", "", ""
+		if !ok {
+			s.error(unterminatedRegExp(s.Token.Idx0, s.src.Offset()))
+			break
+		}
+		if isLineTerminator(chr) {
+			s.error(unterminatedRegExp(s.Token.Idx0, s.src.Offset()))
+			break
 		}
 
 		if inEscape {
@@ -36,22 +40,51 @@ func (s *Scanner) ParseRegExp() (string, string, string) {
 		}
 	}
 
-	pattern := s.src.FromPositionToCurrent(offset + 1)
+	// Pattern is between the slashes (exclusive of closing /)
+	// Current position is after closing /, so subtract 1
+	pattern := s.src.Slice(offset+1, s.src.Offset()-1)
 
+	// Parse flags with duplicate/invalid flag detection
 	flags := ""
-	if !isLineTerminator(chr) && !isLineWhiteSpace(chr) {
-		s.Next()
-
-		if s.token.Kind == token.Identifier { // gim
-			flags = s.token.String(s)
-
-			s.Next()
+	flagStart := s.src.Offset()
+	var seenFlags [256]bool
+	for {
+		c, ok := s.PeekByte()
+		if !ok || !isIdentFlagByte(c) {
+			break
 		}
-	} else {
-		s.NextRune()
+		s.ConsumeByte()
+
+		// Check for valid regex flags: d, g, i, m, s, u, v, y
+		if !isValidRegExpFlag(c) {
+			flagOffset := s.src.Offset()
+			s.error(regExpFlag(c, flagOffset-1, flagOffset))
+		} else if seenFlags[c] {
+			flagOffset := s.src.Offset()
+			s.error(regExpFlagTwice(c, flagOffset-1, flagOffset))
+		}
+		seenFlags[c] = true
+	}
+	if s.src.Offset() > flagStart {
+		flags = s.src.FromPositionToCurrent(flagStart)
 	}
 
-	return pattern, flags, s.src.FromPositionToCurrent(offset)
+	literal := s.src.Slice(offset, s.src.Offset())
+	return pattern, flags, literal
+}
+
+// isIdentFlagByte returns true for bytes that could be regex flag characters.
+func isIdentFlagByte(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '$'
+}
+
+// isValidRegExpFlag returns true for valid ECMAScript regex flags.
+func isValidRegExpFlag(c byte) bool {
+	switch c {
+	case 'd', 'g', 'i', 'm', 's', 'u', 'v', 'y':
+		return true
+	}
+	return false
 }
 
 func isLineWhiteSpace(chr rune) bool {

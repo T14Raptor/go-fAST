@@ -40,11 +40,14 @@ const (
 	ShiftRightAssign         // >>=
 	UnsignedShiftRightAssign // >>>=
 
-	LogicalAnd // &&
-	LogicalOr  // ||
-	Coalesce   // ??
-	Increment  // ++
-	Decrement  // --
+	LogicalAnd       // &&
+	LogicalOr        // ||
+	Coalesce         // ??
+	LogicalAndAssign // &&=
+	LogicalOrAssign  // ||=
+	CoalesceAssign   // ??=
+	Increment        // ++
+	Decrement        // --
 
 	Equal       // ==
 	StrictEqual // ===
@@ -130,6 +133,11 @@ const (
 	Async
 	Await
 	Yield
+
+	TemplateHead
+	TemplateMiddle
+	TemplateTail
+	NoSubstitutionTemplate
 )
 
 var token2string = [...]string{
@@ -170,6 +178,9 @@ var token2string = [...]string{
 	LogicalAnd:               "&&",
 	LogicalOr:                "||",
 	Coalesce:                 "??",
+	LogicalAndAssign:         "&&=",
+	LogicalOrAssign:          "||=",
+	CoalesceAssign:           "??=",
 	Increment:                "++",
 	Decrement:                "--",
 	Equal:                    "==",

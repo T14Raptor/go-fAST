@@ -7,30 +7,40 @@ import (
 )
 
 type Source struct {
-	ptr unsafe.Pointer
+	base unsafe.Pointer
+	pos  ast.Idx
+	len  ast.Idx
 
-	start, end unsafe.Pointer
+	str string
 }
 
-func NewSource(src string) *Source {
-	s := &Source{
-		start: unsafe.Pointer(unsafe.StringData(src)),
+func NewSource(src string) Source {
+	return Source{
+		str:  src,
+		base: unsafe.Pointer(unsafe.StringData(src)),
+		pos:  0,
+		len:  ast.Idx(len(src)),
 	}
-	s.end = unsafe.Add(s.start, len(src)-1)
-	s.ptr = s.start
-	return s
-}
-
-func (s *Source) Slice(from, to ast.Idx) string {
-	return newString(unsafe.Add(s.start, from), uintptr(to)-uintptr(from))
 }
 
 func (s *Source) EOF() bool {
-	return s.ptr == s.end
+	return s.pos >= s.len
 }
 
 func (s *Source) Offset() ast.Idx {
-	return ast.Idx(uintptr(s.ptr) - uintptr(s.start))
+	return s.pos
+}
+
+func (s *Source) EndOffset() ast.Idx {
+	return s.len
+}
+
+func (s *Source) SetPosition(pos ast.Idx) {
+	s.pos = pos
+}
+
+func (s *Source) ReadPosition(pos ast.Idx) byte {
+	return *(*byte)(unsafe.Add(s.base, int(pos)))
 }
 
 func (s *Source) NextRune() (rune, bool) {
@@ -38,17 +48,17 @@ func (s *Source) NextRune() (rune, bool) {
 	if !ok {
 		return 0, false
 	}
-	if b <= utf8.RuneSelf {
-		s.ptr = unsafe.Add(s.ptr, 1)
+	if b < utf8.RuneSelf {
+		s.pos++
 		return rune(b), true
 	}
 
-	str := newString(s.ptr, uintptr(s.end)-uintptr(s.ptr))
+	str := newString(unsafe.Add(s.base, s.pos), uintptr(s.len-s.pos))
 	var chr rune
 	for _, chr = range str {
 		break
 	}
-	s.ptr = unsafe.Add(s.ptr, utf8.RuneLen(chr))
+	s.pos += ast.Idx(utf8.RuneLen(chr))
 	return chr, true
 }
 
@@ -57,11 +67,11 @@ func (s *Source) PeekRune() (rune, bool) {
 	if !ok {
 		return 0, false
 	}
-	if b <= utf8.RuneSelf {
+	if b < utf8.RuneSelf {
 		return rune(b), true
 	}
 
-	str := newString(s.ptr, uintptr(s.end)-uintptr(s.ptr))
+	str := newString(unsafe.Add(s.base, s.pos), uintptr(s.len-s.pos))
 	var chr rune
 	for _, chr = range str {
 		break
@@ -77,8 +87,8 @@ func (s *Source) NextByte() (byte, bool) {
 }
 
 func (s *Source) NextByteUnchecked() byte {
-	b := s.PeekByteUnchecked()
-	s.ptr = unsafe.Add(s.ptr, 1)
+	b := *(*byte)(unsafe.Add(s.base, s.pos))
+	s.pos++
 	return b
 }
 
@@ -90,28 +100,31 @@ func (s *Source) PeekByte() (byte, bool) {
 }
 
 func (s *Source) PeekTwoBytes() ([2]byte, bool) {
-	if uintptr(s.end)-uintptr(s.ptr) >= 2 {
-		return *(*[2]byte)(s.ptr), true
+	if s.len-s.pos >= 2 {
+		return *(*[2]byte)(unsafe.Add(s.base, s.pos)), true
 	}
 	return [2]byte{}, false
 }
 
 func (s *Source) PeekByteUnchecked() byte {
-	return *(*byte)(s.ptr)
+	return *(*byte)(unsafe.Add(s.base, s.pos))
 }
 
 func (s *Source) AdvanceIfByteEquals(b byte) (matched bool) {
 	nextB, ok := s.PeekByte()
 	if ok && nextB == b {
-		s.ptr = unsafe.Add(s.ptr, 1)
+		s.pos++
 		return true
 	}
 	return false
 }
 
 func (s *Source) FromPositionToCurrent(pos ast.Idx) string {
-	p := unsafe.Add(s.start, pos)
-	return newString(p, uintptr(s.ptr)-uintptr(p))
+	return newString(unsafe.Add(s.base, pos), uintptr(s.pos-pos))
+}
+
+func (s *Source) Slice(from, to ast.Idx) string {
+	return newString(unsafe.Add(s.base, from), uintptr(to-from))
 }
 
 type unsafeString struct {

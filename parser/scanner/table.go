@@ -6,618 +6,486 @@ import (
 	"unicode"
 )
 
-type byteHandler func(s *Scanner) token.Token
-
-var byteHandlers = [256]byteHandler{
-	//0    1    2    3    4    5    6    7    8    9    A    B    C    D    E    F
-	err, err, err, err, err, err, err, err, err, sps, lin, isp, isp, lin, err, err, // 0
-	err, err, err, err, err, err, err, err, err, err, err, err, err, err, err, err, // 1
-	sps, exl, qod, has, idt, prc, amp, qos, pno, pnc, atr, pls, com, min, prd, slh, // 2
-	zer, dig, dig, dig, dig, dig, dig, dig, dig, dig, col, sem, lss, eql, gtr, qst, // 3
-	err, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, // 4
-	idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, idt, bto, esc, btc, crt, idt, // 5
-	tpl, l_a, l_b, l_c, l_d, l_e, l_f, idt, idt, l_i, idt, idt, l_l, idt, l_n, l_o, // 6
-	idt, idt, l_r, l_s, l_t, idt, l_v, l_w, idt, l_y, idt, beo, pip, bec, tld, err, // 7
-	uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, // 8
-	uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, // 9
-	uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, // A
-	uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, // B
-	uer, uer, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, // C
-	uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, // D
-	uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, uni, // E
-	uni, uni, uni, uni, uni, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, uer, // F
-}
-
-// `\0` `\1` etc
-func err(s *Scanner) token.Token {
-	s.ConsumeByte()
-	//p.errorUnexpected(p.chr) TODO
-	return token.Undetermined
-}
-
-// <SPACE> <TAB> Normal Whitespace
-func sps(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.Skip
-}
-
-// <VT> <FF> Irregular Whitespace
-func isp(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.Skip
-}
-
-// '\r' '\n'
-func lin(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return s.handleLineBreak()
-}
-
-// !
-func exl(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('=') {
-		if s.AdvanceIfByteEquals('=') {
-			return token.StrictNotEqual
-		}
-		return token.NotEqual
-	}
-	return token.Not
-}
-
-// "
-func qod(s *Scanner) token.Token {
-	// SAFETY: This function is only called for `"`
-	// String literal
-	return s.scanStringLiteralDoubleQuote()
-}
-
-// '
-func qos(s *Scanner) token.Token {
-	// SAFETY: This function is only called for `"`
-	// String literal
-	return s.scanStringLiteralSingleQuote()
-}
-
-// #
-func has(s *Scanner) token.Token {
-	// Possible shebang (#!)
-	//if p.chrOffset == 1 && p.chr == '!' {
-	//	s.skipSingleLineComment()
-	//		return token.Skip
-	//	}
-	// Otherwise, private identifier
-	s.scanIdentifierTail()
-	return token.PrivateIdentifier
-}
-
-// `A..=Z`, `a..=z` (except special cases below), `_`, `$`
-func idt(s *Scanner) token.Token {
-	s.scanIdentifierTail()
-	return token.Identifier
-}
-
-// %
-func prc(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('=') {
-		return token.RemainderAssign
-	}
-	return token.Remainder
-}
-
-// &
-func amp(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('&') {
-		if s.AdvanceIfByteEquals('=') {
-			// TODO
-			return token.LogicalAnd
-		}
-		return token.LogicalAnd
-	} else if s.AdvanceIfByteEquals('=') {
-		return token.AndAssign
-	}
-	return token.And
-}
-
-// (
-func pno(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.LeftParenthesis
-}
-
-// )
-func pnc(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.RightParenthesis
-}
-
-// *
-func atr(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('*') {
-		if s.AdvanceIfByteEquals('=') {
-			return token.ExponentAssign
-		}
-		return token.Exponent
-	} else if s.AdvanceIfByteEquals('=') {
-		return token.MultiplyAssign
-	}
-	return token.Multiply
-}
-
-// +
-func pls(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('+') {
-		return token.Increment
-	} else if s.AdvanceIfByteEquals('=') {
-		return token.AddAssign
-	}
-	return token.Plus
-}
-
-// ,
-func com(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.Comma
-}
-
-// -
-func min(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('-') {
-		return token.Decrement
-	} else if s.AdvanceIfByteEquals('=') {
-		return token.SubtractAssign
-	}
-	return token.Minus
-}
-
-// .
-func prd(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return s.readDot()
-}
-
-// /
-func slh(s *Scanner) token.Token {
-	s.ConsumeByte()
-	b, ok := s.PeekByte()
-	if !ok {
-		return token.Eof
-	}
+func (s *Scanner) handleByte(b byte) token.Token {
 	switch b {
-	case '/':
+	// ---- Whitespace ----
+	case '\t', ' ': // 0x09, 0x20
 		s.ConsumeByte()
-		s.skipSingleLineComment()
 		return token.Skip
+
+	case '\n', '\r': // 0x0A, 0x0D
+		s.ConsumeByte()
+		return s.handleLineBreak()
+
+	case 0x0B, 0x0C: // VT, FF — irregular whitespace
+		s.ConsumeByte()
+		return token.Skip
+
+	// ---- Single-character punctuation / delimiters ----
+	case '(':
+		s.ConsumeByte()
+		return token.LeftParenthesis
+	case ')':
+		s.ConsumeByte()
+		return token.RightParenthesis
+	case ',':
+		s.ConsumeByte()
+		return token.Comma
+	case ':':
+		s.ConsumeByte()
+		return token.Colon
+	case ';':
+		s.ConsumeByte()
+		return token.Semicolon
+	case '[':
+		s.ConsumeByte()
+		return token.LeftBracket
+	case ']':
+		s.ConsumeByte()
+		return token.RightBracket
+	case '{':
+		s.ConsumeByte()
+		return token.LeftBrace
+	case '}':
+		s.ConsumeByte()
+		return token.RightBrace
+	case '~':
+		s.ConsumeByte()
+		return token.BitwiseNot
+
+	// ---- Operators / multi-character punctuation ----
+	case '!':
+		s.ConsumeByte()
+		if s.AdvanceIfByteEquals('=') {
+			if s.AdvanceIfByteEquals('=') {
+				return token.StrictNotEqual
+			}
+			return token.NotEqual
+		}
+		return token.Not
+
+	case '%':
+		s.ConsumeByte()
+		if s.AdvanceIfByteEquals('=') {
+			return token.RemainderAssign
+		}
+		return token.Remainder
+
+	case '&':
+		s.ConsumeByte()
+		if s.AdvanceIfByteEquals('&') {
+			if s.AdvanceIfByteEquals('=') {
+				return token.LogicalAndAssign
+			}
+			return token.LogicalAnd
+		} else if s.AdvanceIfByteEquals('=') {
+			return token.AndAssign
+		}
+		return token.And
+
 	case '*':
 		s.ConsumeByte()
-		s.skipMultiLineComment()
-		return token.Skip
-	}
-	// regex is handled separately, see `next_regex`
-	if s.AdvanceIfByteEquals('=') {
-		return token.QuotientAssign
-	}
-	return token.Slash
-}
-
-// 0
-func zer(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return s.readZero()
-}
-
-// 1 to 9
-func dig(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return s.decimalLiteralAfterFirstDigit()
-}
-
-// :
-func col(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.Colon
-}
-
-// ;
-func sem(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.Semicolon
-}
-
-// <
-func lss(s *Scanner) token.Token {
-	s.ConsumeByte()
-
-	if s.AdvanceIfByteEquals('=') {
-		return token.ShiftLeft
-	} else if s.AdvanceIfByteEquals('<') {
-		if s.AdvanceIfByteEquals('=') {
-			return token.ShiftLeftAssign
+		if s.AdvanceIfByteEquals('*') {
+			if s.AdvanceIfByteEquals('=') {
+				return token.ExponentAssign
+			}
+			return token.Exponent
+		} else if s.AdvanceIfByteEquals('=') {
+			return token.MultiplyAssign
 		}
-		return token.LessOrEqual
-	}
-	return token.Less
-}
+		return token.Multiply
 
-// =
-func eql(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('=') {
-		if s.AdvanceIfByteEquals('=') {
-			return token.StrictEqual
+	case '+':
+		s.ConsumeByte()
+		if s.AdvanceIfByteEquals('+') {
+			return token.Increment
+		} else if s.AdvanceIfByteEquals('=') {
+			return token.AddAssign
 		}
-		return token.Equal
-	} else if s.AdvanceIfByteEquals('>') {
-		return token.Arrow
-	}
-	return token.Assign
-}
+		return token.Plus
 
-// >
-func gtr(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('=') {
-		return token.GreaterOrEqual
-	}
-	if s.AdvanceIfByteEquals('>') {
+	case '-':
+		s.ConsumeByte()
+		if s.AdvanceIfByteEquals('-') {
+			return token.Decrement
+		} else if s.AdvanceIfByteEquals('=') {
+			return token.SubtractAssign
+		}
+		return token.Minus
+
+	case '.':
+		s.ConsumeByte()
+		return s.readDot()
+
+	case '/':
+		s.ConsumeByte()
+		b2, ok := s.PeekByte()
+		if ok {
+			switch b2 {
+			case '/':
+				s.ConsumeByte()
+				s.skipSingleLineComment()
+				return token.Skip
+			case '*':
+				s.ConsumeByte()
+				s.skipMultiLineComment()
+				return token.Skip
+			}
+		}
 		if s.AdvanceIfByteEquals('=') {
-			return token.ShiftRightAssign
+			return token.QuotientAssign
+		}
+		return token.Slash
+
+	case '<':
+		s.ConsumeByte()
+		if s.AdvanceIfByteEquals('<') {
+			if s.AdvanceIfByteEquals('=') {
+				return token.ShiftLeftAssign
+			}
+			return token.ShiftLeft
+		} else if s.AdvanceIfByteEquals('=') {
+			return token.LessOrEqual
+		}
+		return token.Less
+
+	case '=':
+		s.ConsumeByte()
+		if s.AdvanceIfByteEquals('=') {
+			if s.AdvanceIfByteEquals('=') {
+				return token.StrictEqual
+			}
+			return token.Equal
+		} else if s.AdvanceIfByteEquals('>') {
+			return token.Arrow
+		}
+		return token.Assign
+
+	case '>':
+		s.ConsumeByte()
+		if s.AdvanceIfByteEquals('=') {
+			return token.GreaterOrEqual
 		}
 		if s.AdvanceIfByteEquals('>') {
 			if s.AdvanceIfByteEquals('=') {
-				return token.UnsignedShiftRightAssign
+				return token.ShiftRightAssign
 			}
-			return token.UnsignedShiftRight
+			if s.AdvanceIfByteEquals('>') {
+				if s.AdvanceIfByteEquals('=') {
+					return token.UnsignedShiftRightAssign
+				}
+				return token.UnsignedShiftRight
+			}
+			return token.ShiftRight
 		}
-		return token.ShiftRight
-	}
-	return token.Greater
-}
+		return token.Greater
 
-// ?
-func qst(s *Scanner) token.Token {
-	s.ConsumeByte()
-
-	next2Bytes, ok := s.src.PeekTwoBytes()
-	if ok {
-		switch next2Bytes[0] {
-		case '?':
-			if next2Bytes[1] == '=' {
-				s.ConsumeByte()
-				s.ConsumeByte()
-				return token.Coalesce
-			}
-			s.ConsumeByte()
-			return token.Coalesce
-			// parse `?.1` as `?` `.1`
-		case '.':
-			if !unicode.IsDigit(rune(next2Bytes[1])) {
-				s.ConsumeByte()
-				return token.QuestionDot
-			}
-		}
-		return token.QuestionMark
-	}
-
-	// At EOF, or only 1 byte left
-	nextByte, ok := s.PeekByte()
-	if !ok {
-		return token.Eof
-	}
-	switch nextByte {
 	case '?':
 		s.ConsumeByte()
-		return token.Coalesce
-	case '.':
+		next2Bytes, ok := s.src.PeekTwoBytes()
+		if ok {
+			switch next2Bytes[0] {
+			case '?':
+				if next2Bytes[1] == '=' {
+					s.ConsumeByte()
+					s.ConsumeByte()
+					return token.CoalesceAssign
+				}
+				s.ConsumeByte()
+				return token.Coalesce
+			case '.':
+				if !unicode.IsDigit(rune(next2Bytes[1])) {
+					s.ConsumeByte()
+					return token.QuestionDot
+				}
+			}
+			return token.QuestionMark
+		}
+		nextByte, ok := s.PeekByte()
+		if !ok {
+			return token.QuestionMark
+		}
+		switch nextByte {
+		case '?':
+			s.ConsumeByte()
+			return token.Coalesce
+		case '.':
+			s.ConsumeByte()
+			return token.QuestionDot
+		}
+		return token.QuestionMark
+
+	case '^':
 		s.ConsumeByte()
-		return token.QuestionDot
-	}
-	return token.QuestionMark
-}
+		if s.AdvanceIfByteEquals('=') {
+			return token.ExclusiveOrAssign
+		}
+		return token.ExclusiveOr
 
-// [
-func bto(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.LeftBracket
-}
-
-// \
-func esc(s *Scanner) token.Token {
-	return s.identifierBackslashHandler()
-}
-
-// ]
-func btc(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.RightBracket
-}
-
-// ^
-func crt(s *Scanner) token.Token {
-	s.ConsumeByte()
-	if s.AdvanceIfByteEquals('=') {
-		return token.ExclusiveOrAssign
-	}
-	return token.ExclusiveOr
-}
-
-// `
-func tpl(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.Backtick
-}
-
-// {
-func beo(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.LeftBrace
-}
-
-// |
-func pip(s *Scanner) token.Token {
-	s.ConsumeByte()
-
-	b, ok := s.PeekByte()
-	if !ok {
-		return token.Eof
-	}
-	switch b {
 	case '|':
 		s.ConsumeByte()
-		return token.LogicalOr
-	case '=':
+		if s.AdvanceIfByteEquals('|') {
+			if s.AdvanceIfByteEquals('=') {
+				return token.LogicalOrAssign
+			}
+			return token.LogicalOr
+		} else if s.AdvanceIfByteEquals('=') {
+			return token.OrAssign
+		}
+		return token.Or
+
+	// ---- String / template literals ----
+
+	case '"':
+		return s.scanStringLiteralDoubleQuote()
+
+	case '\'':
+		return s.scanStringLiteralSingleQuote()
+
+	case '`':
 		s.ConsumeByte()
-		return token.OrAssign
-	}
-	return token.Or
-}
+		return s.ReadTemplateLiteral(token.TemplateHead, token.NoSubstitutionTemplate)
 
-// }
-func bec(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.RightBrace
-}
+	// ---- Special ----
 
-// ~
-func tld(s *Scanner) token.Token {
-	s.ConsumeByte()
-	return token.BitwiseNot
-}
+	case '#':
+		// Check for shebang (#!) at the very start of the file
+		if s.src.Offset() == 0 {
+			afterHash := s.src.Offset() + 1
+			if afterHash < s.src.EndOffset() && s.src.ReadPosition(afterHash) == '!' {
+				s.ConsumeByte() // #
+				s.ConsumeByte() // !
+				s.skipSingleLineComment()
+				return token.Skip
+			}
+		}
+		s.scanIdentifierTail()
+		return token.PrivateIdentifier
 
-// a
-func l_a(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "await":
-		return token.Await
-	case "async":
-		return token.Async
-	}
-	return token.Identifier
-}
+	case '\\':
+		return s.identifierBackslashHandler()
 
-// b
-func l_b(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "break":
-		return token.Break
-	case "boolean":
-		return token.Boolean
-	}
-	return token.Identifier
-}
+	// ---- Numeric literals ----
 
-// c
-func l_c(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "case":
-		return token.Case
-	case "catch":
-		return token.Catch
-	case "class":
-		return token.Class
-	case "const":
-		return token.Const
-	case "continue":
-		return token.Continue
-	}
-	return token.Identifier
-}
+	case '0':
+		s.ConsumeByte()
+		return s.readZero()
 
-// d
-func l_d(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "debugger":
-		return token.Debugger
-	case "default":
-		return token.Default
-	case "delete":
-		return token.Delete
-	case "do":
-		return token.Do
-	}
-	return token.Identifier
-}
+	case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		s.ConsumeByte()
+		return s.decimalLiteralAfterFirstDigit()
 
-// e
-func l_e(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "else":
-		return token.Else
-	case "enum":
-		return token.Keyword
-	case "export":
-		return token.Keyword
-	case "extends":
-		return token.Extends
-	}
-	return token.Identifier
-}
+	// ---- Identifier start: keyword-leading lowercase letters ----
 
-// f
-func l_f(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "false":
-		return token.Boolean
-	case "finally":
-		return token.Finally
-	case "for":
-		return token.For
-	case "function":
-		return token.Function
-	}
-	return token.Identifier
-}
-
-// i
-func l_i(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "if":
-		return token.If
-	case "import":
-		return token.Keyword
-	case "in":
-		return token.In
-	case "instanceof":
-		return token.InstanceOf
-	}
-	return token.Identifier
-}
-
-// l
-func l_l(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "let":
-		return token.Let
-	}
-	return token.Identifier
-}
-
-// n
-func l_n(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "new":
-		return token.New
-	case "null":
-		return token.Null
-	case "number":
-		return token.Number
-	}
-	return token.Identifier
-}
-
-// o
-func l_o(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "of":
-		return token.Of
-	}
-	return token.Identifier
-}
-
-// r
-func l_r(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "return":
-		return token.Return
-	}
-	return token.Identifier
-}
-
-// s
-func l_s(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "super":
-		return token.Super
-	case "static":
-		return token.Static
-	case "switch":
-		return token.Switch
-	case "string":
-		return token.String
-	}
-	return token.Identifier
-}
-
-// t
-func l_t(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "this":
-		return token.This
-	case "throw":
-		return token.Throw
-	case "true":
-		return token.Boolean
-	case "typeof":
-		return token.Typeof
-	case "try":
-		return token.Try
-	}
-	return token.Identifier
-}
-
-// v
-func l_v(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "var":
-		return token.Var
-	case "void":
-		return token.Void
-	}
-	return token.Identifier
-}
-
-// w
-func l_w(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "while":
-		return token.While
-	case "with":
-		return token.With
-	}
-	return token.Identifier
-}
-
-// y
-func l_y(s *Scanner) token.Token {
-	switch s.scanIdentifierTail() {
-	case "yield":
-		return token.Yield
-	}
-	return token.Identifier
-}
-
-// Non-ASCII characters.
-// NB: Must not use `ascii_byte_handler!` macro, as this handler is for non-ASCII chars.
-func uni(s *Scanner) token.Token {
-	switch c, _ := s.PeekRune(); {
-	case unicodeid.IsIDStartUnicode(c):
-		s.scanIdentifierTailAfterUnicode(s.src.Offset())
+	case 'a':
+		switch s.scanIdentifierTail() {
+		case "await":
+			return token.Await
+		case "async":
+			return token.Async
+		}
 		return token.Identifier
-	case unicode.IsSpace(c):
-		s.ConsumeRune()
-		return token.Skip
-	case isLineTerminator(c):
-		s.ConsumeRune()
-		s.token.OnNewLine = true
-		return token.Skip
-	default:
-		s.ConsumeRune()
-		//p.errorUnexpected(c) TODO
-		return token.Undetermined
-	}
-}
 
-// UTF-8 continuation bytes (0x80 - 0xBF) (i.e. middle of a multi-byte UTF-8 sequence)
-// + and byte values which are not legal in UTF-8 strings (0xC0, 0xC1, 0xF5 - 0xFF).
-// `handle_byte()` should only be called with 1st byte of a valid UTF-8 character,
-// so something has gone wrong if we get here.
-// https://datatracker.ietf.org/doc/html/rfc3629
-// NB: Must not use `ascii_byte_handler!` macro, as this handler is for non-ASCII bytes.
-func uer(s *Scanner) token.Token {
-	panic("unreachable")
+	case 'b':
+		switch s.scanIdentifierTail() {
+		case "break":
+			return token.Break
+		}
+		return token.Identifier
+
+	case 'c':
+		switch s.scanIdentifierTail() {
+		case "case":
+			return token.Case
+		case "catch":
+			return token.Catch
+		case "class":
+			return token.Class
+		case "const":
+			return token.Const
+		case "continue":
+			return token.Continue
+		}
+		return token.Identifier
+
+	case 'd':
+		switch s.scanIdentifierTail() {
+		case "debugger":
+			return token.Debugger
+		case "default":
+			return token.Default
+		case "delete":
+			return token.Delete
+		case "do":
+			return token.Do
+		}
+		return token.Identifier
+
+	case 'e':
+		switch s.scanIdentifierTail() {
+		case "else":
+			return token.Else
+		case "enum":
+			return token.Keyword
+		case "export":
+			return token.Keyword
+		case "extends":
+			return token.Extends
+		}
+		return token.Identifier
+
+	case 'f':
+		switch s.scanIdentifierTail() {
+		case "false":
+			return token.Boolean
+		case "finally":
+			return token.Finally
+		case "for":
+			return token.For
+		case "function":
+			return token.Function
+		}
+		return token.Identifier
+
+	case 'i':
+		switch s.scanIdentifierTail() {
+		case "if":
+			return token.If
+		case "import":
+			return token.Keyword
+		case "in":
+			return token.In
+		case "instanceof":
+			return token.InstanceOf
+		}
+		return token.Identifier
+
+	case 'l':
+		switch s.scanIdentifierTail() {
+		case "let":
+			return token.Let
+		}
+		return token.Identifier
+
+	case 'n':
+		switch s.scanIdentifierTail() {
+		case "new":
+			return token.New
+		case "null":
+			return token.Null
+		}
+		return token.Identifier
+
+	case 'o':
+		switch s.scanIdentifierTail() {
+		case "of":
+			return token.Of
+		}
+		return token.Identifier
+
+	case 'r':
+		switch s.scanIdentifierTail() {
+		case "return":
+			return token.Return
+		}
+		return token.Identifier
+
+	case 's':
+		switch s.scanIdentifierTail() {
+		case "super":
+			return token.Super
+		case "static":
+			return token.Static
+		case "switch":
+			return token.Switch
+		}
+		return token.Identifier
+
+	case 't':
+		switch s.scanIdentifierTail() {
+		case "this":
+			return token.This
+		case "throw":
+			return token.Throw
+		case "true":
+			return token.Boolean
+		case "typeof":
+			return token.Typeof
+		case "try":
+			return token.Try
+		}
+		return token.Identifier
+
+	case 'v':
+		switch s.scanIdentifierTail() {
+		case "var":
+			return token.Var
+		case "void":
+			return token.Void
+		}
+		return token.Identifier
+
+	case 'w':
+		switch s.scanIdentifierTail() {
+		case "while":
+			return token.While
+		case "with":
+			return token.With
+		}
+		return token.Identifier
+
+	case 'y':
+		switch s.scanIdentifierTail() {
+		case "yield":
+			return token.Yield
+		}
+		return token.Identifier
+
+	// ---- Identifier start: uppercase A-Z, non-keyword lowercase, _, $ ----
+
+	case '$', '_',
+		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
+		'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+		'g', 'h', 'j', 'k', 'm', 'p', 'q', 'u', 'x', 'z':
+		s.scanIdentifierTail()
+		return token.Identifier
+
+	// ---- Invalid ASCII ----
+
+	case 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+		0x0E, 0x0F,
+		0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17,
+		0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
+		'@', 0x7F:
+		c := s.ConsumeRune()
+		s.error(invalidCharacter(c, s.Token.Idx0, s.src.Offset()))
+		return token.Undetermined
+
+	// ---- Non-ASCII: valid UTF-8 leading bytes ----
+
+	case 0xC2, 0xC3, 0xC4, 0xC5, 0xC6, 0xC7, 0xC8, 0xC9, 0xCA, 0xCB, 0xCC, 0xCD, 0xCE, 0xCF,
+		0xD0, 0xD1, 0xD2, 0xD3, 0xD4, 0xD5, 0xD6, 0xD7, 0xD8, 0xD9, 0xDA, 0xDB, 0xDC, 0xDD, 0xDE, 0xDF,
+		0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xEB, 0xEC, 0xED, 0xEE, 0xEF,
+		0xF0, 0xF1, 0xF2, 0xF3, 0xF4:
+		switch c, _ := s.PeekRune(); {
+		case unicodeid.IsIDStartUnicode(c):
+			s.scanIdentifierTailAfterUnicode(s.src.Offset())
+			return token.Identifier
+		case unicode.IsSpace(c):
+			s.ConsumeRune()
+			return token.Skip
+		case isLineTerminator(c):
+			s.ConsumeRune()
+			s.Token.OnNewLine = true
+			return token.Skip
+		default:
+			start := s.src.Offset()
+			s.ConsumeRune()
+			s.error(invalidCharacter(c, start, s.src.Offset()))
+			return token.Undetermined
+		}
+
+	default:
+		panic("unreachable")
+	}
 }

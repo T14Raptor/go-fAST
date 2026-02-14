@@ -4,6 +4,9 @@ import (
 	"unsafe"
 )
 
+// miniArena is a typed bump allocator that hands out pointers into
+// pre-allocated slices of T. When a chunk fills up, a new chunk is
+// allocated at 1.5x the previous size.
 type miniArena[T any] struct {
 	elementSize uintptr
 

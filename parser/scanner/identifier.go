@@ -1,14 +1,18 @@
 package scanner
 
 import (
+	"strings"
+	"unicode/utf8"
+	"unsafe"
+
 	"github.com/nukilabs/unicodeid"
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"strings"
-	"unicode/utf8"
 )
 
-var asciiStart, asciiContinue [128]bool
+// Lookup tables for ASCII identifier characters.
+// Non-ASCII bytes (>= 128) are always false, branching to the Unicode path.
+var asciiStart, asciiContinue [256]bool
 
 func init() {
 	for i := 0; i < 128; i++ {
@@ -53,31 +57,27 @@ func isIdentifierPart(chr rune) bool {
 }
 
 func (s *Scanner) scanIdentifierTail() string {
-	start := s.src.Offset()
-	s.ConsumeByte()
+	start := s.src.pos
+	pos := start + 1 // skip first byte (already identified as identifier start by caller)
+	base := s.src.base
+	end := s.src.len
 
-	var b byte
-	for {
-		var eof bool
-		b, eof = s.PeekByte()
-		if eof {
-			// todo
-		}
-
+	for pos < end {
+		b := *(*byte)(unsafe.Add(base, pos))
 		if !asciiContinue[b] {
-			break
+			s.src.pos = pos
+			if b >= utf8.RuneSelf {
+				return s.scanIdentifierTailUnicode(start)
+			}
+			if b == '\\' {
+				return s.scanIdentifierBackslash(start, false)
+			}
+			return s.src.FromPositionToCurrent(start)
 		}
-
-		s.ConsumeByte()
+		pos++
 	}
 
-	if b >= utf8.RuneSelf {
-		return s.scanIdentifierTailUnicode(start)
-	}
-	if b == '\\' {
-		return s.scanIdentifierBackslash(start, false)
-	}
-
+	s.src.pos = pos
 	return s.src.FromPositionToCurrent(start)
 }
 
@@ -156,7 +156,7 @@ outer:
 		}
 	}
 
-	escaped := str.String()
-	s.token.escaped = &escaped
-	return escaped
+	s.EscapedStr = str.String()
+	s.Token.HasEscape = true
+	return s.EscapedStr
 }

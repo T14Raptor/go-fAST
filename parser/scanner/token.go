@@ -6,20 +6,17 @@ import (
 )
 
 type Token struct {
-	Kind      token.Token
-	OnNewLine bool
+	Kind token.Token
 
-	// 6 bytes of padding so that the next field starts at offset 8, the compiler automatically
-	// does this, but for some reason it results in performance worse than manual padding.
-	_ [6]byte
-
-	escaped    *string
+	OnNewLine  bool
+	HasEscape  bool
+	_          [5]byte
 	Idx0, Idx1 ast.Idx
 }
 
 func (t Token) String(s *Scanner) string {
-	if t.escaped != nil {
-		return *t.escaped
+	if t.HasEscape {
+		return s.EscapedStr
 	}
 
 	raw := s.src.Slice(t.Idx0, t.Idx1)
@@ -28,10 +25,40 @@ func (t Token) String(s *Scanner) string {
 		return raw[1 : len(raw)-1]
 	case token.PrivateIdentifier:
 		return raw[1:]
+	case token.NoSubstitutionTemplate, token.TemplateTail:
+		// Strip opening (` or }) and closing (`)
+		return raw[1 : len(raw)-1]
+	case token.TemplateHead, token.TemplateMiddle:
+		// Strip opening (` or }) and closing (${)
+		return raw[1 : len(raw)-2]
 	}
 	return raw
 }
 
 func (t Token) Raw(s *Scanner) string {
 	return s.src.Slice(t.Idx0, t.Idx1)
+}
+
+// TemplateLiteral returns the raw source text of a template literal element
+// (without the surrounding delimiters).
+func (t Token) TemplateLiteral(s *Scanner) string {
+	raw := s.src.Slice(t.Idx0, t.Idx1)
+	switch t.Kind {
+	case token.NoSubstitutionTemplate, token.TemplateTail:
+		// ` ... ` or } ... `
+		return raw[1 : len(raw)-1]
+	case token.TemplateHead, token.TemplateMiddle:
+		// ` ... ${ or } ... ${
+		return raw[1 : len(raw)-2]
+	}
+	return raw
+}
+
+// TemplateParsed returns the escape-processed content of a template literal element.
+// If no escapes were present, returns the same as TemplateLiteral.
+func (t Token) TemplateParsed(s *Scanner) string {
+	if t.HasEscape {
+		return s.EscapedStr
+	}
+	return t.TemplateLiteral(s)
 }

@@ -13,13 +13,10 @@ type parser struct {
 
 	scanner *scanner.Scanner
 
-	chr       rune // The current character
-	chrOffset int  // The offset of current character
-
 	scope             *scope
 	implicitSemicolon bool // An implicit semicolon exists
 
-	errors ErrorList
+	errors error
 
 	recover struct {
 		// Scratch when trying to seek to the next statement, etc.
@@ -27,20 +24,18 @@ type parser struct {
 		count int
 	}
 
-	exprArena *miniArena[ast.Expression]
-	stmtArena *miniArena[ast.Statement]
+	alloc nodeAllocator
 }
 
 // newParser ...
 func newParser(src string) *parser {
-	return &parser{
+	p := &parser{
 		str: src,
 
-		scanner: scanner.NewScanner(src),
-
-		exprArena: newArena[ast.Expression](1024),
-		stmtArena: newArena[ast.Statement](1024),
+		alloc: newNodeAllocator(),
 	}
+	p.scanner = scanner.NewScanner(src, &p.errors)
+	return p
 }
 
 // ParseFile parses the source code of a single JavaScript/ECMAScript source file and returns
@@ -55,12 +50,44 @@ func (p *parser) parse() (*ast.Program, error) {
 	p.next()
 	program := p.parseProgram()
 	p.closeScope()
-	return program, p.errors.Err()
+	return program, p.errors
 }
 
 // next ...
 func (p *parser) next() {
-	p.token = p.scanner.Next()
+	p.scanner.Next()
+	p.token = p.scanner.Token
+}
+
+type parserState struct {
+	c scanner.Checkpoint
+
+	tok scanner.Token
+
+	errors error // parser error count at checkpoint time
+}
+
+func (p *parser) mark() parserState {
+	return parserState{
+		c:      p.scanner.Checkpoint(),
+		tok:    p.token,
+		errors: p.errors,
+	}
+}
+
+func (p *parser) restore(state parserState) {
+	p.scanner.Rewind(state.c)
+	p.token = state.tok
+	// Truncate parser errors back to checkpoint state
+	p.errors = state.errors
+}
+
+func (p *parser) peek() scanner.Token {
+	st := p.mark()
+	p.scanner.Next()
+	tok := p.scanner.Token
+	p.restore(st)
+	return tok
 }
 
 func (p *parser) currentString() string {
@@ -102,16 +129,4 @@ func (p *parser) expect(value token.Token) ast.Idx {
 	}
 	p.next()
 	return idx
-}
-
-func (p *parser) makeExpr(expr ast.Expr) *ast.Expression {
-	expression := p.exprArena.make()
-	expression.Expr = expr
-	return expression
-}
-
-func (p *parser) makeStmt(stmt ast.Stmt) *ast.Statement {
-	statement := p.stmtArena.make()
-	statement.Stmt = stmt
-	return statement
 }

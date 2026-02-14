@@ -7,32 +7,34 @@ import (
 )
 
 func (s *Scanner) identifierUnicodeEscapeSequence(str *strings.Builder, checkIdentifierStart bool) {
+	start := s.src.Offset()
+
 	b, ok := s.PeekByte()
 	if !ok || b != 'u' {
-		// TODO report error
+		s.error(invalidUnicodeEscapeSequence(start, s.src.Offset()))
 		return
 	}
 	s.ConsumeByte()
 
-	b, ok = s.PeekByte()
+	b, _ = s.PeekByte()
 	var value rune
 	if b == '{' {
-		value = s.codePoint()
+		value = s.unicodeCodePoint()
 	} else {
 		value = s.surrogatePair()
 	}
-	if value == '\\' {
-		// TODO error fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
+	if value == '\\' || value == -1 {
+		s.error(invalidUnicodeEscapeSequence(start, s.src.Offset()))
 		return
 	}
 
 	if checkIdentifierStart {
 		if !isIdentifierStart(value) {
-			// TODO error fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
+			s.error(invalidUnicodeEscapeSequence(start, s.src.Offset()))
 			return
 		}
 	} else if !isIdentifierPart(value) {
-		// TODO error fmt.Sprintf("Invalid identifier escape value: %c (%s)", value, string(value))
+		s.error(invalidUnicodeEscapeSequence(start, s.src.Offset()))
 		return
 	}
 
@@ -48,7 +50,7 @@ func (s *Scanner) stringUnicodeEscapeSequence(str *strings.Builder, isValid *boo
 
 	var value rune
 	if b == '{' {
-		value = s.codePoint()
+		value = s.unicodeCodePoint()
 	} else {
 		value = s.surrogatePair()
 	}
@@ -88,20 +90,30 @@ func (s *Scanner) hexFourDigits() (val rune) {
 	return val
 }
 
+// hexDigit peeks the next byte and, if it's a hex digit, consumes it and returns its value.
+// If not a hex digit (or at EOF), returns (0, false) without consuming.
 func (s *Scanner) hexDigit() (rune, bool) {
-	chr, ok := s.NextRune()
+	b, ok := s.PeekByte()
 	if !ok {
 		return 0, false
 	}
-	switch {
-	case '0' <= chr && chr <= '9':
-		return chr - '0', true
-	case 'a' <= chr && chr <= 'f':
-		return chr - 'a' + 10, true
-	case 'A' <= chr && chr <= 'F':
-		return chr - 'A' + 10, true
+
+	// `b | 32` folds uppercase to lowercase in one branch.
+	var value byte
+	if b >= '0' && b <= '9' {
+		value = b - '0'
+	} else {
+		lower := b | 32
+		if lower >= 'a' && lower <= 'f' {
+			value = lower - 'a' + 10
+		} else {
+			return 0, false
+		}
 	}
-	return 0, false
+
+	// Only consume after confirming it's a valid hex digit.
+	s.ConsumeByte()
+	return rune(value), true
 }
 
 func (s *Scanner) codePoint() rune {
@@ -142,17 +154,31 @@ func (s *Scanner) surrogatePair() rune {
 	return utf16.DecodeRune(high, low)
 }
 
-func (s *Scanner) readStringEscapeSequence(str *strings.Builder, isValid *bool) {
+// readStringEscapeSequence processes one escape sequence after the backslash has been consumed.
+//
+// When inTemplate is false (string literals):
+//   - Legacy octal escapes (\0-\7) are valid and produce the octal value
+//   - \8 and \9 are identity escapes (NonOctalDecimalEscapeSequence)
+//
+// When inTemplate is true (template literals):
+//   - \0 followed by a digit is invalid
+//   - \1-\9 are all invalid
+func (s *Scanner) readStringEscapeSequence(str *strings.Builder, inTemplate bool, isValid *bool) {
 	chr, ok := s.NextRune()
 	if !ok {
-		// TODO
+		*isValid = false
 		return
 	}
 
 	switch chr {
+	// \ LineTerminatorSequence - line continuation produces nothing
 	case '\u000a', '\u2028', '\u2029':
+		// LF, LS, PS
 	case '\u000d':
+		// CR - also consume LF if present (\r\n line continuation)
 		s.AdvanceIfByteEquals('\n')
+
+	// SingleEscapeCharacter :: one of ' " \ b f n r t v
 	case '\'', '"', '\\':
 		str.WriteRune(chr)
 	case 'b':
@@ -167,16 +193,60 @@ func (s *Scanner) readStringEscapeSequence(str *strings.Builder, isValid *bool) 
 		str.WriteRune('\u0009')
 	case 'v':
 		str.WriteRune('\u000b')
+
+	// HexEscapeSequence
 	case 'x':
-		if d, ok := s.hexDigit(); ok {
-			if nextD, ok := s.hexDigit(); ok {
-				val := d<<4 | nextD
-				str.WriteRune(val)
-			}
+		d1, ok1 := s.hexDigit()
+		if !ok1 {
+			*isValid = false
+			return
 		}
+		d2, ok2 := s.hexDigit()
+		if !ok2 {
+			*isValid = false
+			return
+		}
+		str.WriteRune((d1 << 4) | d2)
+
+	// UnicodeEscapeSequence
 	case 'u':
 		s.stringUnicodeEscapeSequence(str, isValid)
+
+	// \0 [lookahead ∉ DecimalDigit]
 	case '0':
-		// TODO
+		if b, ok := s.PeekByte(); ok && b >= '0' && b <= '9' {
+			if inTemplate {
+				// In templates: \0 followed by digit is invalid
+				s.ConsumeByte()
+				*isValid = false
+			} else {
+				// In strings: LegacyOctalEscapeSequence starting with 0
+				s.readLegacyOctal()
+			}
+		} else {
+			str.WriteRune('\u0000')
+		}
+
+	case '1', '2', '3', '4', '5', '6', '7':
+		if inTemplate {
+			// In templates: \1-\7 are invalid escape sequences
+			*isValid = false
+		} else {
+			// In strings: LegacyOctalEscapeSequence
+			s.readLegacyOctal()
+		}
+
+	case '8', '9':
+		if inTemplate {
+			// In templates: \8 and \9 are invalid
+			*isValid = false
+		} else {
+			// In strings: NonOctalDecimalEscapeSequence - just the character itself
+			str.WriteRune(chr)
+		}
+
+	default:
+		// Identity escape - the character itself
+		str.WriteRune(chr)
 	}
 }

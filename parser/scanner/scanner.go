@@ -1,57 +1,94 @@
 package scanner
 
 import (
+	"errors"
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
 	"unsafe"
 )
 
 type Scanner struct {
-	token Token
+	Token Token
 
-	src *Source
+	src Source
+
+	EscapedStr string // escape-processed string for current token (pointer-free)
+
+	errors *error
 }
 
-func NewScanner(src string) *Scanner {
+func NewScanner(src string, errors *error) *Scanner {
 	return &Scanner{
 		src: NewSource(src),
+
+		errors: errors,
 	}
 }
 
-func (s *Scanner) Next() Token {
-	for {
-		s.token.Idx0 = s.src.Offset()
+func (s *Scanner) Next() {
+	s.Token.HasEscape = false
+	s.Token.OnNewLine = false
 
-		b, ok := s.PeekByte()
-		if !ok {
-			s.token.Kind = token.Eof
+	for {
+		s.Token.Idx0 = s.src.pos
+
+		if s.src.pos >= s.src.len {
+			s.Token.Kind = token.Eof
 			break
 		}
 
-		if s.token.Kind = byteHandlers[b](s); s.token.Kind != token.Skip {
+		b := *(*byte)(unsafe.Add(s.src.base, s.src.pos))
+		if k := s.handleByte(b); k != token.Skip {
+			s.Token.Kind = k
 			break
 		}
 	}
-	s.token.Idx1 = s.src.Offset()
-	return s.token
+	s.Token.Idx1 = s.src.pos
+}
+
+func (s *Scanner) error(d Error) {
+	*s.errors = errors.Join(*s.errors, d)
+}
+
+// unexpectedErr reports an unexpected character/end error at the current position.
+func (s *Scanner) unexpectedErr() {
+	if s.src.EOF() {
+		s.error(unexpectedEnd(s.src.Offset()))
+	} else {
+		b := s.src.PeekByteUnchecked()
+		start := s.src.Offset()
+		s.src.pos++
+		s.error(invalidCharacter(rune(b), start, s.src.Offset()))
+	}
+}
+
+// unterminatedRange returns the range from the current Token start to the current position.
+func (s *Scanner) unterminatedRange() (ast.Idx, ast.Idx) {
+	return s.Token.Idx0, s.src.Offset()
 }
 
 type Checkpoint struct {
-	pos unsafe.Pointer
-	tok Token
-	// TODO errors
+	pos        ast.Idx // Scanner byte offset (plain int, no pointer — GC-safe)
+	tok        Token
+	escapedStr string
+	errors     error // Number of errors at checkpoint time
 }
 
 func (s *Scanner) Checkpoint() Checkpoint {
 	return Checkpoint{
-		pos: s.src.ptr,
-		tok: s.token,
+		pos:        s.src.pos,
+		tok:        s.Token,
+		escapedStr: s.EscapedStr,
+		errors:     *s.errors,
 	}
 }
 
 func (s *Scanner) Rewind(c Checkpoint) {
-	s.src.ptr = c.pos
-	s.token = c.tok
+	s.src.pos = c.pos
+	s.Token = c.tok
+	s.EscapedStr = c.escapedStr
+	// Truncate errors back to checkpoint state
+	*s.errors = c.errors
 }
 
 func (s *Scanner) Offset() ast.Idx {
@@ -85,4 +122,11 @@ func (s *Scanner) PeekByte() (byte, bool) {
 
 func (s *Scanner) AdvanceIfByteEquals(b byte) bool {
 	return s.src.AdvanceIfByteEquals(b)
+}
+
+func (s *Scanner) NextTemplatePart() Token {
+	s.Token.Idx0 = s.src.Offset()
+	s.Token.Kind = s.ReadTemplateLiteral(token.TemplateMiddle, token.TemplateTail)
+	s.Token.Idx1 = s.src.Offset()
+	return s.Token
 }
