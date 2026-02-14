@@ -13,38 +13,10 @@ const (
 	IdentTypeBinding                  // Binding (declaration)
 )
 
-type DeclKind int
-
 const (
-	DeclKindVar DeclKind = iota
-	DeclKindFunction
+	UnresolvedMark ast.ScopeContext = 0
+	TopLevelMark   ast.ScopeContext = 1
 )
-
-type ScopeKind int
-
-const (
-	ScopeKindBlock ScopeKind = iota
-	ScopeKindFunction
-)
-
-type Scope struct {
-	parent *Scope
-
-	kind ScopeKind
-
-	ctx ast.ScopeContext
-
-	declaredSymbols map[string]DeclKind
-}
-
-func (s *Scope) isDeclared(id string) (DeclKind, bool) {
-	for scope := s; scope != nil; scope = scope.parent {
-		if declKind, exists := scope.declaredSymbols[id]; exists {
-			return declKind, true
-		}
-	}
-	return 0, false
-}
 
 type Resolver struct {
 	ast.NoopVisitor
@@ -57,12 +29,7 @@ type Resolver struct {
 	nextCtxt ast.ScopeContext
 }
 
-const (
-	UnresolvedMark ast.ScopeContext = 0
-	TopLevelMark   ast.ScopeContext = 1
-)
-
-func Resolve(p *ast.Program) *Resolver {
+func Resolve(p ast.VisitableNode) *Resolver {
 	r := &Resolver{
 		identType: IdentTypeRef,
 		nextCtxt:  TopLevelMark,
@@ -135,20 +102,36 @@ func (r *Resolver) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 
 func (r *Resolver) VisitBlockStatement(n *ast.BlockStatement) {
 	r.pushScope(ScopeKindBlock)
+	n.ScopeContext = r.current.ctx
 	n.VisitChildrenWith(r)
 	r.popScope()
 }
 
 func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
-	r.pushScope(ScopeKindBlock) // Using Block scope for ForOfStatement
+	r.pushScope(ScopeKindBlock)
 
 	oldIdentType := r.identType
 	r.identType = IdentTypeRef
 
-	// Handle the 'Into' part (left-hand side of for...of)
 	n.Into.VisitWith(r)
+	n.Source.VisitWith(r)
 
-	// Handle the 'Source' part (right-hand side of for...of)
+	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
+		blockStmt.ScopeContext = r.current.ctx
+	}
+	n.Body.VisitWith(r)
+
+	r.identType = oldIdentType
+	r.popScope()
+}
+
+func (r *Resolver) VisitForInStatement(n *ast.ForInStatement) {
+	r.pushScope(ScopeKindBlock)
+
+	oldIdentType := r.identType
+	r.identType = IdentTypeRef
+
+	n.Into.VisitWith(r)
 	n.Source.VisitWith(r)
 
 	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
@@ -161,7 +144,7 @@ func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
 }
 
 func (r *Resolver) VisitForStatement(n *ast.ForStatement) {
-	r.pushScope(ScopeKindBlock) // Using Block scope as ForStatement is not defined
+	r.pushScope(ScopeKindBlock)
 
 	oldIdentType := r.identType
 	r.identType = IdentTypeBinding
@@ -222,7 +205,7 @@ func (r *Resolver) VisitProgram(n *ast.Program) {
 
 func (r *Resolver) VisitStatements(n *ast.Statements) {
 	// Handle hoisting
-	h := NewHoister(r)
+	h := newHoister(r)
 	h.V = h
 	n.VisitWith(h)
 
@@ -241,7 +224,7 @@ func (r *Resolver) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 		r.identType = oldIdentType
 
 		if decl.Initializer != nil {
-			decl.Initializer.VisitChildrenWith(r)
+			decl.Initializer.VisitWith(r)
 		}
 	}
 
@@ -273,5 +256,11 @@ func (r *Resolver) VisitIdentifier(n *ast.Identifier) {
 		} else {
 			r.modify(n, r.declKind)
 		}
+	}
+}
+
+func (r *Resolver) VisitMemberProperty(n *ast.MemberProperty) {
+	if computed, ok := n.Prop.(*ast.ComputedProperty); ok {
+		computed.VisitWith(r)
 	}
 }
