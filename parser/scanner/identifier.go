@@ -26,7 +26,7 @@ func init() {
 	}
 }
 
-// Fast path for checking “start” of an identifier.
+// Fast path for checking the starting character of an identifier.
 func isIdentifierStart(chr rune) bool {
 	// 0) Invalid path
 	if chr == -1 {
@@ -41,7 +41,7 @@ func isIdentifierStart(chr rune) bool {
 	return unicodeid.IsIDStartUnicode(chr)
 }
 
-// Fast path for checking “continuation” of an identifier.
+// Fast path for checking continuation characters of an identifier.
 func isIdentifierPart(chr rune) bool {
 	// 0) Invalid path
 	if chr == -1 {

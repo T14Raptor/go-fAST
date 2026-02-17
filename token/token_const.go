@@ -82,6 +82,11 @@ const (
 
 	PrivateIdentifier
 
+	TemplateHead
+	TemplateMiddle
+	TemplateTail
+	NoSubstitutionTemplate
+
 	Identifier
 	Keyword
 	Boolean
@@ -133,11 +138,6 @@ const (
 	Async
 	Await
 	Yield
-
-	TemplateHead
-	TemplateMiddle
-	TemplateTail
-	NoSubstitutionTemplate
 )
 
 var token2string = [...]string{

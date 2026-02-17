@@ -40,7 +40,7 @@ func (s *Source) SetPosition(pos ast.Idx) {
 }
 
 func (s *Source) ReadPosition(pos ast.Idx) byte {
-	return *(*byte)(unsafe.Add(s.base, int(pos)))
+	return *(*byte)(unsafe.Add(s.base, pos))
 }
 
 func (s *Source) NextRune() (rune, bool) {

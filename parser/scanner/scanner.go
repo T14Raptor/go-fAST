@@ -12,7 +12,7 @@ type Scanner struct {
 
 	src Source
 
-	EscapedStr string // escape-processed string for current token (pointer-free)
+	EscapedStr string // escape-processed string for current token
 
 	errors *error
 }
@@ -68,10 +68,10 @@ func (s *Scanner) unterminatedRange() (ast.Idx, ast.Idx) {
 }
 
 type Checkpoint struct {
-	pos        ast.Idx // Scanner byte offset (plain int, no pointer — GC-safe)
+	pos        ast.Idx
 	tok        Token
 	escapedStr string
-	errors     error // Number of errors at checkpoint time
+	errors     error
 }
 
 func (s *Scanner) Checkpoint() Checkpoint {
@@ -87,7 +87,6 @@ func (s *Scanner) Rewind(c Checkpoint) {
 	s.src.pos = c.pos
 	s.Token = c.tok
 	s.EscapedStr = c.escapedStr
-	// Truncate errors back to checkpoint state
 	*s.errors = c.errors
 }
 
@@ -125,7 +124,7 @@ func (s *Scanner) AdvanceIfByteEquals(b byte) bool {
 }
 
 func (s *Scanner) NextTemplatePart() Token {
-	s.Token.Idx0 = s.src.Offset()
+	s.Token.Idx0 = s.src.Offset() - 1
 	s.Token.Kind = s.ReadTemplateLiteral(token.TemplateMiddle, token.TemplateTail)
 	s.Token.Idx1 = s.src.Offset()
 	return s.Token

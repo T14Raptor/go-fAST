@@ -64,7 +64,7 @@ type parserState struct {
 
 	tok scanner.Token
 
-	errors error // parser error count at checkpoint time
+	errors error
 }
 
 func (p *parser) mark() parserState {
