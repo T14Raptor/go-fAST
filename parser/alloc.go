@@ -121,6 +121,10 @@ func newNodeAllocator() nodeAllocator {
 		exprSlice: newArena[ast.Expression](1024),
 		stmtSlice: newArena[ast.Statement](1024),
 
+		// Slice backing arenas.
+		exprSlice: *newArena[ast.Expression](1024),
+		stmtSlice: *newArena[ast.Statement](1024),
+
 		// Identifiers are the most frequent node.
 		ident: newArena[ast.Identifier](1024),
 
