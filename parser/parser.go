@@ -25,6 +25,13 @@ type parser struct {
 	}
 
 	alloc nodeAllocator
+
+	// Scratch buffers used as a stack for building Expression/Statement
+	// slices without per-call heap allocations. Each builder saves
+	// len(buf) as a mark, appends elements, copies the subslice to the
+	// arena, then restores buf to the saved mark.
+	exprBuf []ast.Expression
+	stmtBuf []ast.Statement
 }
 
 // newParser ...
@@ -32,7 +39,9 @@ func newParser(src string) *parser {
 	p := &parser{
 		str: src,
 
-		alloc: newNodeAllocator(),
+		alloc:   newNodeAllocator(),
+		exprBuf: make([]ast.Expression, 0, 64),
+		stmtBuf: make([]ast.Statement, 0, 64),
 	}
 	p.scanner = scanner.NewScanner(src, &p.errors)
 	return p
@@ -104,7 +113,7 @@ func (p *parser) currentOffset() ast.Idx {
 
 func (p *parser) canInsertSemicolon() bool {
 	kind := p.currentKind()
-	return kind == token.Semicolon || kind == token.RightBrace /*|| p.scanner.EOF()*/ || p.token.OnNewLine
+	return kind == token.Semicolon || kind == token.RightBrace || kind == token.Eof || p.token.OnNewLine
 }
 
 func (p *parser) semicolon() bool {
@@ -120,6 +129,22 @@ func (p *parser) semicolon() bool {
 
 func (p *parser) idxOf(offset int) ast.Idx {
 	return ast.Idx(1 + offset)
+}
+
+// finishExprBuf copies exprBuf[mark:] into an arena-backed Expressions slice
+// and restores the scratch buffer to the saved mark.
+func (p *parser) finishExprBuf(mark int) ast.Expressions {
+	result := p.alloc.CopyExpressions(p.exprBuf[mark:])
+	p.exprBuf = p.exprBuf[:mark]
+	return result
+}
+
+// finishStmtBuf copies stmtBuf[mark:] into an arena-backed Statements slice
+// and restores the scratch buffer to the saved mark.
+func (p *parser) finishStmtBuf(mark int) ast.Statements {
+	result := p.alloc.CopyStatements(p.stmtBuf[mark:])
+	p.stmtBuf = p.stmtBuf[:mark]
+	return result
 }
 
 func (p *parser) expect(value token.Token) ast.Idx {

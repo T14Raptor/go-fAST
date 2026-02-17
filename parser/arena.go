@@ -39,3 +39,29 @@ func (a *miniArena[T]) resize() {
 	a.a = unsafe.Pointer(&make([]T, a.len)[0])
 	a.index = 0
 }
+
+// makeSlice allocates n contiguous elements from the arena and returns a
+// slice whose backing array lives in arena memory. If the current chunk
+// doesn't have enough room, a new chunk is allocated that is large enough.
+func (a *miniArena[T]) makeSlice(n int) []T {
+	if n == 0 {
+		return nil
+	}
+	un := uintptr(n)
+	if a.index+un > a.len {
+		// Need a new chunk that fits at least n elements.
+		newLen := uintptr(float64(a.len) * 1.5)
+		if newLen < un {
+			newLen = un
+		}
+		a.len = newLen
+		a.a = unsafe.Pointer(&make([]T, newLen)[0])
+		a.index = 0
+	}
+	start := unsafe.Add(a.a, a.index*a.elementSize)
+	a.index += un
+	if a.index == a.len {
+		a.resize()
+	}
+	return unsafe.Slice((*T)(start), n)
+}

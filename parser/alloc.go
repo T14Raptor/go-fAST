@@ -14,6 +14,11 @@ type nodeAllocator struct {
 	expr miniArena[ast.Expression]
 	stmt miniArena[ast.Statement]
 
+	// Slice backing arenas — separate from the per-element arenas so that
+	// contiguous slice allocations don't fragment with individual node allocs.
+	exprSlice miniArena[ast.Expression]
+	stmtSlice miniArena[ast.Statement]
+
 	// Concrete expression nodes.
 	ident     miniArena[ast.Identifier]
 	strLit    miniArena[ast.StringLiteral]
@@ -102,6 +107,10 @@ func newNodeAllocator() nodeAllocator {
 		// Wrapper types — high volume.
 		expr: *newArena[ast.Expression](1024),
 		stmt: *newArena[ast.Statement](1024),
+
+		// Slice backing arenas.
+		exprSlice: *newArena[ast.Expression](1024),
+		stmtSlice: *newArena[ast.Statement](1024),
 
 		// Identifiers are the most frequent node.
 		ident: *newArena[ast.Identifier](1024),
@@ -205,6 +214,28 @@ func (a *nodeAllocator) Statement(stmt ast.Stmt) *ast.Statement {
 	n := a.stmt.make()
 	n.Stmt = stmt
 	return n
+}
+
+// CopyExpressions allocates a contiguous []Expression from the arena and copies
+// src into it. The returned slice's backing array lives in arena memory.
+func (a *nodeAllocator) CopyExpressions(src []ast.Expression) ast.Expressions {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.exprSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
+// CopyStatements allocates a contiguous []Statement from the arena and copies
+// src into it. The returned slice's backing array lives in arena memory.
+func (a *nodeAllocator) CopyStatements(src []ast.Statement) ast.Statements {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.stmtSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
 }
 
 // stringPtr arena-allocates a *string, avoiding the heap escape of &localVar.

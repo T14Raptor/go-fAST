@@ -20,92 +20,92 @@ func (p *parser) parseEmptyStatement() ast.Stmt {
 }
 
 func (p *parser) parseStatementList() (list ast.Statements) {
-	list = make(ast.Statements, 0, 8)
+	mark := len(p.stmtBuf)
 	for p.currentKind() != token.RightBrace && p.currentKind() != token.Eof {
 		p.scope.allowLet = true
-		list = append(list, ast.Statement{Stmt: p.parseStatement()})
+		p.stmtBuf = append(p.stmtBuf, *p.parseStatement())
 	}
 
-	return list
+	return p.finishStmtBuf(mark)
 }
 
-func (p *parser) parseStatement() ast.Stmt {
+func (p *parser) parseStatement() *ast.Statement {
 	tok := p.currentKind()
 	if tok == token.Eof {
 		p.errorUnexpectedToken(tok)
-		return p.alloc.BadStatement(p.currentOffset(), p.currentOffset()+1)
+		return p.alloc.Statement(p.alloc.BadStatement(p.currentOffset(), p.currentOffset()+1))
 	}
 
 	switch tok {
 	case token.Semicolon:
-		return p.parseEmptyStatement()
+		return p.alloc.Statement(p.parseEmptyStatement())
 	case token.LeftBrace:
-		return p.parseBlockStatement()
+		return p.alloc.Statement(p.parseBlockStatement())
 	case token.If:
-		return p.parseIfStatement()
+		return p.alloc.Statement(p.parseIfStatement())
 	case token.Do:
-		return p.parseDoWhileStatement()
+		return p.alloc.Statement(p.parseDoWhileStatement())
 	case token.While:
-		return p.parseWhileStatement()
+		return p.alloc.Statement(p.parseWhileStatement())
 	case token.For:
 		return p.parseForOrForInStatement()
 	case token.Break:
-		return p.parseBreakStatement()
+		return p.alloc.Statement(p.parseBreakStatement())
 	case token.Continue:
-		return p.parseContinueStatement()
+		return p.alloc.Statement(p.parseContinueStatement())
 	case token.Debugger:
-		return p.parseDebuggerStatement()
+		return p.alloc.Statement(p.parseDebuggerStatement())
 	case token.With:
-		return p.parseWithStatement()
+		return p.alloc.Statement(p.parseWithStatement())
 	case token.Var:
-		return p.parseLexicalDeclaration(p.currentKind())
+		return p.alloc.Statement(p.parseLexicalDeclaration(p.currentKind()))
 	case token.Let:
 		tok := p.peek().Kind
 		if tok == token.LeftBracket || p.scope.allowLet && (token.ID(tok) || tok == token.LeftBrace) {
-			return p.parseLexicalDeclaration(p.currentKind())
+			return p.alloc.Statement(p.parseLexicalDeclaration(p.currentKind()))
 		}
 	case token.Const:
-		return p.parseLexicalDeclaration(p.currentKind())
+		return p.alloc.Statement(p.parseLexicalDeclaration(p.currentKind()))
 	case token.Async:
 		if f := p.parseMaybeAsyncFunction(true); f != nil {
-			return p.alloc.FunctionDeclaration(f)
+			return p.alloc.Statement(p.alloc.FunctionDeclaration(f))
 		}
 	case token.Function:
-		return p.alloc.FunctionDeclaration(p.parseFunction(true, false, p.currentOffset()))
+		return p.alloc.Statement(p.alloc.FunctionDeclaration(p.parseFunction(true, false, p.currentOffset())))
 	case token.Class:
-		return p.alloc.ClassDeclaration(p.parseClass(true))
+		return p.alloc.Statement(p.alloc.ClassDeclaration(p.parseClass(true)))
 	case token.Switch:
-		return p.parseSwitchStatement()
+		return p.alloc.Statement(p.parseSwitchStatement())
 	case token.Return:
-		return p.parseReturnStatement()
+		return p.alloc.Statement(p.parseReturnStatement())
 	case token.Throw:
-		return p.parseThrowStatement()
+		return p.alloc.Statement(p.parseThrowStatement())
 	case token.Try:
-		return p.parseTryStatement()
+		return p.alloc.Statement(p.parseTryStatement())
 	}
 
 	expression := p.parseExpression()
 
-	if identifier, isIdentifier := expression.(*ast.Identifier); isIdentifier && p.currentKind() == token.Colon {
+	if identifier, isIdentifier := expression.Expr.(*ast.Identifier); isIdentifier && p.currentKind() == token.Colon {
 		// LabelledStatement
 		colon := p.currentOffset()
 		p.next() // :
 		label := identifier.Name
 		for _, value := range p.scope.labels {
 			if label == value {
-				p.error(label)
+				p.errorf("%s", label)
 			}
 		}
 		p.scope.labels = append(p.scope.labels, label) // Push the label
 		p.scope.allowLet = false
 		statement := p.parseStatement()
 		p.scope.labels = p.scope.labels[:len(p.scope.labels)-1] // Pop the label
-		return p.alloc.LabelledStatement(identifier, colon, p.alloc.Statement(statement))
+		return p.alloc.Statement(p.alloc.LabelledStatement(identifier, colon, statement))
 	}
 
 	p.semicolon()
 
-	return p.alloc.ExpressionStatement(p.alloc.Expression(expression))
+	return p.alloc.Statement(p.alloc.ExpressionStatement(expression))
 }
 
 func (p *parser) parseTryStatement() ast.Stmt {
@@ -129,7 +129,7 @@ func (p *parser) parseTryStatement() ast.Stmt {
 	}
 
 	if node.Catch == nil && node.Finally == nil {
-		p.error("Missing catch or finally after try")
+		p.errorf("Missing catch or finally after try")
 		return p.alloc.BadStatement(node.Try, node.Body.Idx1())
 	}
 
@@ -149,7 +149,7 @@ func (p *parser) parseFunctionParameterList() ast.ParameterList {
 	for p.currentKind() != token.RightParenthesis && p.currentKind() != token.Eof {
 		if p.currentKind() == token.Ellipsis {
 			p.next()
-			rest = p.reinterpretAsDestructBindingTarget(p.parseAssignmentExpression())
+			rest = p.reinterpretAsDestructBindingTarget(p.parseAssignmentExpression().Expr)
 			break
 		}
 		p.parseVariableDeclaration(&list)
@@ -206,7 +206,7 @@ func (p *parser) parseFunction(declaration, async bool, start ast.Idx) *ast.Func
 	if p.currentKind() == token.Identifier {
 		name = p.parseIdentifier()
 	} else if declaration {
-		// Use expect error handling
+		// Use expect errorf handling
 		p.expect(token.Identifier)
 	}
 	node.Name = name
@@ -261,7 +261,7 @@ func (p *parser) parseArrowFunctionBody(async bool) *ast.ConciseBody {
 		}()
 	}
 
-	return p.alloc.ConciseBody(p.alloc.Expression(p.parseAssignmentExpression()))
+	return p.alloc.ConciseBody(p.parseAssignmentExpression())
 }
 
 func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
@@ -276,7 +276,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 	if p.currentKind() == token.Identifier {
 		name = p.parseIdentifier()
 	} else if declaration {
-		// Use expect error handling
+		// Use expect errorf handling
 		p.expect(token.Identifier)
 	}
 
@@ -346,7 +346,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 		_, private := value.(*ast.PrivateIdentifier)
 
 		if static && !private && keyName == "prototype" {
-			p.error("Classes may not have a static property named 'prototype'")
+			p.errorf("Classes may not have a static property named 'prototype'")
 		}
 
 		if kind == "" && p.currentKind() == token.LeftParenthesis {
@@ -358,14 +358,14 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			if keyName == "constructor" && !computed {
 				if !static {
 					if kind != ast.PropertyKindMethod {
-						p.error("Class constructor may not be an accessor")
+						p.errorf("Class constructor may not be an accessor")
 					} else if async {
-						p.error("Class constructor may not be an async method")
+						p.errorf("Class constructor may not be an async method")
 					} else if generator {
-						p.error("Class constructor may not be a generator")
+						p.errorf("Class constructor may not be a generator")
 					}
 				} else if private {
-					p.error("Class constructor may not be a private method")
+					p.errorf("Class constructor may not be a private method")
 				}
 			}
 			md := p.alloc.MethodDefinition(start, p.alloc.Expression(value), kind,
@@ -381,9 +381,9 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 				}
 			}
 			if isCtor {
-				p.error("Classes may not have a field named 'constructor'")
+				p.errorf("Classes may not have a field named 'constructor'")
 			}
-			var initializer ast.Expr
+			var initializer *ast.Expression
 			if p.currentKind() == token.Assign {
 				p.next()
 				initializer = p.parseExpression()
@@ -394,7 +394,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 				break
 			}
 			node.Body = append(node.Body, ast.ClassElement{Element: p.alloc.FieldDefinition(
-				start, p.alloc.Expression(value), p.alloc.Expression(initializer), static, computed,
+				start, p.alloc.Expression(value), initializer, static, computed,
 			)})
 		}
 	}
@@ -415,7 +415,7 @@ func (p *parser) parseReturnStatement() ast.Stmt {
 	idx := p.expect(token.Return)
 
 	if !p.scope.inFunction {
-		p.error("Illegal return statement")
+		p.errorf("Illegal return statement")
 		p.nextStatement()
 		return p.alloc.BadStatement(idx, p.currentOffset())
 	}
@@ -423,7 +423,7 @@ func (p *parser) parseReturnStatement() ast.Stmt {
 	node := p.alloc.ReturnStatement(idx)
 
 	if !p.implicitSemicolon && p.currentKind() != token.Semicolon && p.currentKind() != token.RightBrace && p.currentKind() != token.Eof {
-		node.Argument = p.alloc.Expression(p.parseExpression())
+		node.Argument = p.parseExpression()
 	}
 
 	p.semicolon()
@@ -436,15 +436,15 @@ func (p *parser) parseThrowStatement() ast.Stmt {
 
 	if p.implicitSemicolon {
 		/*if p.token == -1 { // Hackish
-			p.error("Unexpected end of input")
+			p.errorf("Unexpected end of input")
 		} else {
-			p.error("Illegal newline after throw")
+			p.errorf("Illegal newline after throw")
 		}*/
 		p.nextStatement()
 		return p.alloc.BadStatement(idx, p.currentOffset())
 	}
 
-	node := p.alloc.ThrowStatement(idx, p.alloc.Expression(p.parseExpression()))
+	node := p.alloc.ThrowStatement(idx, p.parseExpression())
 
 	p.semicolon()
 
@@ -454,7 +454,7 @@ func (p *parser) parseThrowStatement() ast.Stmt {
 func (p *parser) parseSwitchStatement() ast.Stmt {
 	p.expect(token.Switch)
 	p.expect(token.LeftParenthesis)
-	node := p.alloc.SwitchStatement(p.alloc.Expression(p.parseExpression()))
+	node := p.alloc.SwitchStatement(p.parseExpression())
 	p.expect(token.RightParenthesis)
 
 	p.expect(token.LeftBrace)
@@ -474,7 +474,7 @@ func (p *parser) parseSwitchStatement() ast.Stmt {
 		clause := p.parseCaseStatement()
 		if clause.Test == nil {
 			if node.Default != -1 {
-				p.error("Already saw a default in switch")
+				p.errorf("Already saw a default in switch")
 			}
 			node.Default = index
 		}
@@ -487,10 +487,10 @@ func (p *parser) parseSwitchStatement() ast.Stmt {
 func (p *parser) parseWithStatement() ast.Stmt {
 	p.expect(token.With)
 	p.expect(token.LeftParenthesis)
-	node := p.alloc.WithStatement(p.alloc.Expression(p.parseExpression()))
+	node := p.alloc.WithStatement(p.parseExpression())
 	p.expect(token.RightParenthesis)
 	p.scope.allowLet = false
-	node.Body = p.alloc.Statement(p.parseStatement())
+	node.Body = p.parseStatement()
 
 	return node
 }
@@ -503,10 +503,11 @@ func (p *parser) parseCaseStatement() ast.CaseStatement {
 		p.next()
 	} else {
 		p.expect(token.Case)
-		node.Test = p.alloc.Expression(p.parseExpression())
+		node.Test = p.parseExpression()
 	}
 	p.expect(token.Colon)
 
+	mark := len(p.stmtBuf)
 	for {
 		if k := p.currentKind(); k == token.Eof ||
 			k == token.RightBrace ||
@@ -515,13 +516,14 @@ func (p *parser) parseCaseStatement() ast.CaseStatement {
 			break
 		}
 		p.scope.allowLet = true
-		node.Consequent = append(node.Consequent, ast.Statement{Stmt: p.parseStatement()})
+		p.stmtBuf = append(p.stmtBuf, *p.parseStatement())
 	}
+	node.Consequent = p.finishStmtBuf(mark)
 
 	return node
 }
 
-func (p *parser) parseIterationStatement() ast.Stmt {
+func (p *parser) parseIterationStatement() *ast.Statement {
 	inIteration := p.scope.inIteration
 	p.scope.inIteration = true
 	defer func() {
@@ -537,7 +539,7 @@ func (p *parser) parseForIn(idx ast.Idx, into *ast.ForInto) *ast.ForInStatement 
 	source := p.parseExpression()
 	p.expect(token.RightParenthesis)
 
-	return p.alloc.ForInStatement(idx, into, p.alloc.Expression(source), p.alloc.Statement(p.parseIterationStatement()))
+	return p.alloc.ForInStatement(idx, into, source, p.parseIterationStatement())
 }
 
 func (p *parser) parseForOf(idx ast.Idx, into *ast.ForInto) *ast.ForOfStatement {
@@ -546,7 +548,7 @@ func (p *parser) parseForOf(idx ast.Idx, into *ast.ForInto) *ast.ForOfStatement 
 	source := p.parseAssignmentExpression()
 	p.expect(token.RightParenthesis)
 
-	return p.alloc.ForOfStatement(idx, into, p.alloc.Expression(source), p.alloc.Statement(p.parseIterationStatement()))
+	return p.alloc.ForOfStatement(idx, into, source, p.parseIterationStatement())
 }
 
 func (p *parser) parseFor(idx ast.Idx, initializer *ast.ForLoopInitializer) *ast.ForStatement {
@@ -555,19 +557,19 @@ func (p *parser) parseFor(idx ast.Idx, initializer *ast.ForLoopInitializer) *ast
 	var test, update ast.Expr
 
 	if p.currentKind() != token.Semicolon {
-		test = p.parseExpression()
+		test = p.parseExpression().Expr
 	}
 	p.expect(token.Semicolon)
 
 	if p.currentKind() != token.RightParenthesis {
-		update = p.parseExpression()
+		update = p.parseExpression().Expr
 	}
 	p.expect(token.RightParenthesis)
 
-	return p.alloc.ForStatement(idx, initializer, p.alloc.Expression(test), p.alloc.Expression(update), p.alloc.Statement(p.parseIterationStatement()))
+	return p.alloc.ForStatement(idx, initializer, p.alloc.Expression(test), p.alloc.Expression(update), p.parseIterationStatement())
 }
 
-func (p *parser) parseForOrForInStatement() ast.Stmt {
+func (p *parser) parseForOrForInStatement() *ast.Statement {
 	idx := p.expect(token.For)
 	p.expect(token.LeftParenthesis)
 
@@ -603,7 +605,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 			}
 			if forIn || forOf {
 				if list[0].Initializer != nil {
-					p.error("for-in loop variable declaration may not have an initializer")
+					p.errorf("for-in loop variable declaration may not have an initializer")
 				}
 				into = p.alloc.ForIntoPtr(p.alloc.VariableDeclaration(0, tok, ast.VariableDeclarators{list[0]}))
 			} else {
@@ -612,7 +614,7 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 				initializer = p.alloc.ForLoopInitializer(p.alloc.VariableDeclaration(idx, tok, list))
 			}
 		} else {
-			expr := p.parseExpression()
+			exprNode := p.parseExpression()
 			if p.currentKind() == token.In {
 				p.next()
 				forIn = true
@@ -621,42 +623,42 @@ func (p *parser) parseForOrForInStatement() ast.Stmt {
 				forOf = true
 			}
 			if forIn || forOf {
-				switch e := expr.(type) {
-				case *ast.Identifier, *ast.PrivateDotExpression, *ast.VariableDeclarator:
+				switch e := exprNode.Expr.(type) {
+				case *ast.Identifier, *ast.PrivateDotExpression, *ast.VariableDeclarator, *ast.MemberExpression:
 					// These are all acceptable
 				case *ast.ObjectLiteral:
-					expr = p.reinterpretAsObjectAssignmentPattern(e)
+					exprNode.Expr = p.reinterpretAsObjectAssignmentPattern(e)
 				case *ast.ArrayLiteral:
-					expr = p.reinterpretAsArrayAssignmentPattern(e)
+					exprNode.Expr = p.reinterpretAsArrayAssignmentPattern(e)
 				default:
-					p.error("Invalid left-hand side in for-in or for-of")
+					p.errorf("Invalid left-hand side in for-in or for-of")
 					p.nextStatement()
-					return p.alloc.BadStatement(idx, p.currentOffset())
+					return p.alloc.Statement(p.alloc.BadStatement(idx, p.currentOffset()))
 				}
-				into = p.alloc.ForIntoPtr(p.alloc.Expression(expr))
+				into = p.alloc.ForIntoPtr(exprNode)
 			} else {
-				initializer = p.alloc.ForLoopInitializer(p.alloc.Expression(expr))
+				initializer = p.alloc.ForLoopInitializer(exprNode)
 			}
 		}
 		p.scope.allowIn = allowIn
 	}
 
 	if forIn {
-		return p.parseForIn(idx, into)
+		return p.alloc.Statement(p.parseForIn(idx, into))
 	}
 	if forOf {
-		return p.parseForOf(idx, into)
+		return p.alloc.Statement(p.parseForOf(idx, into))
 	}
 
 	p.expect(token.Semicolon)
-	return p.parseFor(idx, initializer)
+	return p.alloc.Statement(p.parseFor(idx, initializer))
 }
 
 func (p *parser) ensurePatternInit(list []ast.VariableDeclarator) {
 	for _, item := range list {
 		if _, ok := item.Target.Target.(ast.Pattern); ok {
 			if item.Initializer == nil {
-				p.error("Missing initializer in destructuring declaration")
+				p.errorf("Missing initializer in destructuring declaration")
 				break
 			}
 		}
@@ -666,7 +668,7 @@ func (p *parser) ensurePatternInit(list []ast.VariableDeclarator) {
 func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.VariableDeclaration {
 	idx := p.expect(tok)
 	if !p.scope.allowLet && tok != token.Var {
-		p.error("Lexical declaration cannot appear in a single-statement context")
+		p.errorf("Lexical declaration cannot appear in a single-statement context")
 	}
 
 	list := p.parseVariableDeclarationList()
@@ -689,12 +691,12 @@ func (p *parser) parseDoWhileStatement() ast.Stmt {
 		node.Body = p.alloc.Statement(p.parseBlockStatement())
 	} else {
 		p.scope.allowLet = false
-		node.Body = p.alloc.Statement(p.parseStatement())
+		node.Body = p.parseStatement()
 	}
 
 	p.expect(token.While)
 	p.expect(token.LeftParenthesis)
-	node.Test = p.alloc.Expression(p.parseExpression())
+	node.Test = p.parseExpression()
 	p.expect(token.RightParenthesis)
 	if p.currentKind() == token.Semicolon {
 		p.next()
@@ -706,9 +708,9 @@ func (p *parser) parseDoWhileStatement() ast.Stmt {
 func (p *parser) parseWhileStatement() ast.Stmt {
 	p.expect(token.While)
 	p.expect(token.LeftParenthesis)
-	node := p.alloc.WhileStatement(p.alloc.Expression(p.parseExpression()))
+	node := p.alloc.WhileStatement(p.parseExpression())
 	p.expect(token.RightParenthesis)
-	node.Body = p.alloc.Statement(p.parseIterationStatement())
+	node.Body = p.parseIterationStatement()
 
 	return node
 }
@@ -716,33 +718,33 @@ func (p *parser) parseWhileStatement() ast.Stmt {
 func (p *parser) parseIfStatement() ast.Stmt {
 	p.expect(token.If)
 	p.expect(token.LeftParenthesis)
-	node := p.alloc.IfStatement(p.alloc.Expression(p.parseExpression()))
+	node := p.alloc.IfStatement(p.parseExpression())
 	p.expect(token.RightParenthesis)
 
 	if p.currentKind() == token.LeftBrace {
 		node.Consequent = p.alloc.Statement(p.parseBlockStatement())
 	} else {
 		p.scope.allowLet = false
-		node.Consequent = p.alloc.Statement(p.parseStatement())
+		node.Consequent = p.parseStatement()
 	}
 
 	if p.currentKind() == token.Else {
 		p.next()
 		p.scope.allowLet = false
-		node.Alternate = p.alloc.Statement(p.parseStatement())
+		node.Alternate = p.parseStatement()
 	}
 
 	return node
 }
 
 func (p *parser) parseSourceElements() (body ast.Statements) {
-	body = make(ast.Statements, 0, 16)
+	mark := len(p.stmtBuf)
 	for p.currentKind() != token.Eof {
 		p.scope.allowLet = true
-		body = append(body, ast.Statement{Stmt: p.parseStatement()})
+		p.stmtBuf = append(p.stmtBuf, *p.parseStatement())
 	}
 
-	return body
+	return p.finishStmtBuf(mark)
 }
 
 func (p *parser) parseProgram() *ast.Program {
@@ -771,7 +773,7 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 	if p.currentKind() == token.Identifier {
 		identifier := p.parseIdentifier()
 		if !p.scope.hasLabel(identifier.Name) {
-			p.error(identifier.Name)
+			p.errorf("%s", identifier.Name)
 			return p.alloc.BadStatement(idx, identifier.Idx1())
 		}
 		p.semicolon()
@@ -781,7 +783,7 @@ func (p *parser) parseBreakStatement() ast.Stmt {
 	p.expect(token.Identifier)
 
 illegal:
-	p.error("Illegal break statement")
+	p.errorf("Illegal break statement")
 	p.nextStatement()
 	return p.alloc.BadStatement(idx, p.currentOffset())
 }
@@ -806,7 +808,7 @@ func (p *parser) parseContinueStatement() ast.Stmt {
 	if p.currentKind() == token.Identifier {
 		identifier := p.parseIdentifier()
 		if !p.scope.hasLabel(identifier.Name) {
-			p.error(identifier.Name)
+			p.errorf("%s", identifier.Name)
 			return p.alloc.BadStatement(idx, identifier.Idx1())
 		}
 		if !p.scope.inIteration {
@@ -819,12 +821,12 @@ func (p *parser) parseContinueStatement() ast.Stmt {
 	p.expect(token.Identifier)
 
 illegal:
-	p.error("Illegal continue statement")
+	p.errorf("Illegal continue statement")
 	p.nextStatement()
 	return p.alloc.BadStatement(idx, p.currentOffset())
 }
 
-// Find the next statement after an error (recover)
+// Find the next statement after an errorf (recover)
 func (p *parser) nextStatement() {
 	for {
 		switch p.currentKind() {
@@ -848,7 +850,7 @@ func (p *parser) nextStatement() {
 			// Reaching here indicates a parser bug, likely an
 			// incorrect token list in this function, but it only
 			// leads to skipping of possibly correct code if a
-			// previous error is present, and thus is preferred
+			// previous errorf is present, and thus is preferred
 			// over a non-terminating parse.
 		case token.Eof:
 			return

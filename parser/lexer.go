@@ -12,7 +12,7 @@ func parseNumberLiteral(literal string) (value float64, err error) {
 		return float64(n), nil
 	}
 
-	parseIntErr := err // Save this first error, just in case
+	parseIntErr := err // Save this first errorf, just in case
 
 	value, err = strconv.ParseFloat(literal, 64)
 	if err == nil {

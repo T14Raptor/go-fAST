@@ -8,10 +8,10 @@ import (
 type Token struct {
 	Kind token.Token
 
-	OnNewLine  bool
-	HasEscape  bool
-	_          [5]byte
-	Idx0, Idx1 ast.Idx
+	OnNewLine bool
+	HasEscape bool
+
+	Idx0, Idx1 ast.Idx // 8 bytes
 }
 
 func (t Token) String(s *Scanner) string {
