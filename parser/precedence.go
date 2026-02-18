@@ -46,7 +46,6 @@ const (
 
 // tokenPrecedence maps each token kind to its left binding power.
 // Zero means the token is not a binary/logical operator.
-// The table is 256 bytes (one cache line batch) and stays hot in L1.
 var tokenPrecedence [256]Precedence
 
 func init() {
@@ -86,7 +85,39 @@ func kindToPrecedence(kind token.Token) Precedence {
 	return tokenPrecedence[kind]
 }
 
+// isLogical is a lookup table for logical operators (&&, ||, ??).
+var isLogical [256]bool
+
+func init() {
+	isLogical[token.LogicalAnd] = true
+	isLogical[token.LogicalOr] = true
+	isLogical[token.Coalesce] = true
+}
+
 // isLogicalOperator returns true if the token is a logical operator (&&, ||, ??).
 func isLogicalOperator(kind token.Token) bool {
-	return kind == token.LogicalAnd || kind == token.LogicalOr || kind == token.Coalesce
+	return isLogical[kind]
+}
+
+// assignToOperator maps compound assignment tokens to their base operator.
+// Zero means the token is not an assignment operator.
+var assignToOperator [256]token.Token
+
+func init() {
+	assignToOperator[token.Assign] = token.Assign
+	assignToOperator[token.AddAssign] = token.Plus
+	assignToOperator[token.SubtractAssign] = token.Minus
+	assignToOperator[token.MultiplyAssign] = token.Multiply
+	assignToOperator[token.ExponentAssign] = token.Exponent
+	assignToOperator[token.QuotientAssign] = token.Slash
+	assignToOperator[token.RemainderAssign] = token.Remainder
+	assignToOperator[token.AndAssign] = token.And
+	assignToOperator[token.OrAssign] = token.Or
+	assignToOperator[token.ExclusiveOrAssign] = token.ExclusiveOr
+	assignToOperator[token.ShiftLeftAssign] = token.ShiftLeft
+	assignToOperator[token.ShiftRightAssign] = token.ShiftRight
+	assignToOperator[token.UnsignedShiftRightAssign] = token.UnsignedShiftRight
+	assignToOperator[token.LogicalAndAssign] = token.LogicalAnd
+	assignToOperator[token.LogicalOrAssign] = token.LogicalOr
+	assignToOperator[token.CoalesceAssign] = token.Coalesce
 }
