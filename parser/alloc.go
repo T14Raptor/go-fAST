@@ -100,6 +100,9 @@ type nodeAllocator struct {
 
 	// String pointers (for Raw fields on StringLiteral/NumberLiteral).
 	str miniArena[string]
+
+	// Scopes.
+	scopes miniArena[scope]
 }
 
 func newNodeAllocator() nodeAllocator {
@@ -197,6 +200,9 @@ func newNodeAllocator() nodeAllocator {
 
 		// String pointers.
 		str: *newArena[string](256),
+
+		// Scopes.
+		scopes: *newArena[scope](64),
 	}
 }
 

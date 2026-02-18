@@ -58,27 +58,32 @@ func isIdentifierPart(chr rune) bool {
 
 func (s *Scanner) scanIdentifierTail() string {
 	start := s.src.pos
-	pos := start + 1 // skip first byte (already identified as identifier start by caller)
+	pos := start + 1
 	base := s.src.base
 	end := s.src.len
 
-	for pos < end {
-		b := *(*byte)(unsafe.Add(base, pos))
-		if !asciiContinue[b] {
-			s.src.pos = pos
-			if b >= utf8.RuneSelf {
-				return s.scanIdentifierTailUnicode(start)
-			}
-			if b == '\\' {
-				return s.scanIdentifierBackslash(start, false)
-			}
-			return s.src.FromPositionToCurrent(start)
-		}
+	for pos < end && asciiContinue[*(*byte)(unsafe.Add(base, pos))] {
 		pos++
 	}
 
 	s.src.pos = pos
+
+	if pos < end {
+		b := *(*byte)(unsafe.Add(base, pos))
+		if b >= utf8.RuneSelf || b == '\\' {
+			return s.scanIdentifierTailSlow(start, b)
+		}
+	}
+
 	return s.src.FromPositionToCurrent(start)
+}
+
+//go:noinline
+func (s *Scanner) scanIdentifierTailSlow(start ast.Idx, b byte) string {
+	if b >= utf8.RuneSelf {
+		return s.scanIdentifierTailUnicode(start)
+	}
+	return s.scanIdentifierBackslash(start, false)
 }
 
 func (s *Scanner) scanIdentifierTailUnicode(start ast.Idx) string {

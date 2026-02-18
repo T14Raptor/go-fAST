@@ -44,6 +44,7 @@ func (s *Scanner) decimalLiteralAfterFirstDigit() token.Token {
 		return s.checkAfterNumericLiteral(token.Number)
 	}
 
+	s.optionalExp()
 	return s.checkAfterNumericLiteral(token.Number)
 }
 

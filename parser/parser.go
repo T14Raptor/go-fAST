@@ -13,8 +13,7 @@ type parser struct {
 
 	scanner *scanner.Scanner
 
-	scope             *scope
-	implicitSemicolon bool // An implicit semicolon exists
+	scope *scope
 
 	errors error
 
@@ -32,6 +31,9 @@ type parser struct {
 	// arena, then restores buf to the saved mark.
 	exprBuf []ast.Expression
 	stmtBuf []ast.Statement
+	propBuf []ast.Property
+	elemBuf []ast.ClassElement
+	declBuf []ast.VariableDeclarator
 }
 
 // newParser ...
@@ -42,6 +44,9 @@ func newParser(src string) *parser {
 		alloc:   newNodeAllocator(),
 		exprBuf: make([]ast.Expression, 0, 64),
 		stmtBuf: make([]ast.Statement, 0, 64),
+		propBuf: make([]ast.Property, 0, 16),
+		elemBuf: make([]ast.ClassElement, 0, 16),
+		declBuf: make([]ast.VariableDeclarator, 0, 16),
 	}
 	p.scanner = scanner.NewScanner(src, &p.errors)
 	return p
@@ -145,6 +150,48 @@ func (p *parser) finishStmtBuf(mark int) ast.Statements {
 	result := p.alloc.CopyStatements(p.stmtBuf[mark:])
 	p.stmtBuf = p.stmtBuf[:mark]
 	return result
+}
+
+// finishPropBuf copies propBuf[mark:] into a heap-allocated Properties slice
+// and restores the scratch buffer to the saved mark.
+func (p *parser) finishPropBuf(mark int) ast.Properties {
+	src := p.propBuf[mark:]
+	if len(src) == 0 {
+		p.propBuf = p.propBuf[:mark]
+		return nil
+	}
+	dst := make(ast.Properties, len(src))
+	copy(dst, src)
+	p.propBuf = p.propBuf[:mark]
+	return dst
+}
+
+// finishDeclBuf copies declBuf[mark:] into a heap-allocated VariableDeclarators slice
+// and restores the scratch buffer to the saved mark.
+func (p *parser) finishDeclBuf(mark int) ast.VariableDeclarators {
+	src := p.declBuf[mark:]
+	if len(src) == 0 {
+		p.declBuf = p.declBuf[:mark]
+		return nil
+	}
+	dst := make(ast.VariableDeclarators, len(src))
+	copy(dst, src)
+	p.declBuf = p.declBuf[:mark]
+	return dst
+}
+
+// finishElemBuf copies elemBuf[mark:] into a heap-allocated ClassElements slice
+// and restores the scratch buffer to the saved mark.
+func (p *parser) finishElemBuf(mark int) ast.ClassElements {
+	src := p.elemBuf[mark:]
+	if len(src) == 0 {
+		p.elemBuf = p.elemBuf[:mark]
+		return nil
+	}
+	dst := make(ast.ClassElements, len(src))
+	copy(dst, src)
+	p.elemBuf = p.elemBuf[:mark]
+	return dst
 }
 
 func (p *parser) expect(value token.Token) ast.Idx {

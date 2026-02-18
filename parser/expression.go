@@ -25,17 +25,8 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 		p.next()
 		return p.alloc.NullLiteral(idx)
 	case token.Boolean:
-		parsedLiteral := p.currentString()
+		value := p.token.Idx1-p.token.Idx0 == 4 // "true" = 4 chars, "false" = 5
 		p.next()
-		value := false
-		switch parsedLiteral {
-		case "true":
-			value = true
-		case "false":
-			value = false
-		default:
-			p.errorf("Illegal boolean literal")
-		}
 		return p.alloc.BooleanLiteral(idx, value)
 	case token.String:
 		parsedLiteral := p.currentString()
@@ -120,7 +111,7 @@ func (p *parser) parseSuperProperty() ast.Expr {
 
 func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.ParameterList {
 	firstRestIdx := -1
-	params := make([]ast.VariableDeclarator, 0, len(list))
+	mark := len(p.declBuf)
 	for i, item := range list {
 		if _, ok := item.Expr.(*ast.SpreadElement); ok {
 			if firstRestIdx == -1 {
@@ -130,16 +121,17 @@ func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.
 		}
 		if firstRestIdx != -1 {
 			p.errorf("Rest parameter must be last formal parameter")
+			p.declBuf = p.declBuf[:mark]
 			return ast.ParameterList{}
 		}
-		params = append(params, p.reinterpretAsBinding(item.Expr))
+		p.declBuf = append(p.declBuf, p.reinterpretAsBinding(item.Expr))
 	}
 	var rest ast.Expr
 	if firstRestIdx != -1 {
 		rest = p.reinterpretAsBindingRestElement(list[firstRestIdx].Expr)
 	}
 	return ast.ParameterList{
-		List: params,
+		List: p.finishDeclBuf(mark),
 		Rest: rest,
 	}
 }
@@ -242,15 +234,16 @@ func (p *parser) parseVariableDeclaration(declarationList *ast.VariableDeclarato
 	return *node
 }
 
-func (p *parser) parseVariableDeclarationList() (declarationList ast.VariableDeclarators) {
+func (p *parser) parseVariableDeclarationList() ast.VariableDeclarators {
+	mark := len(p.declBuf)
 	for {
-		p.parseVariableDeclaration(&declarationList)
+		p.declBuf = append(p.declBuf, p.parseVariableDeclaration(nil))
 		if p.currentKind() != token.Comma {
 			break
 		}
 		p.next()
 	}
-	return
+	return p.finishDeclBuf(mark)
 }
 
 func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token) {
@@ -370,17 +363,13 @@ func (p *parser) parseObjectProperty() ast.Prop {
 }
 
 func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKind, generator, async bool) *ast.FunctionLiteral {
-	if generator != p.scope.allowYield {
+	savedYield := p.scope.allowYield
+	savedAwait := p.scope.allowAwait
+	if generator != savedYield {
 		p.scope.allowYield = generator
-		defer func() {
-			p.scope.allowYield = !generator
-		}()
 	}
-	if async != p.scope.allowAwait {
+	if async != savedAwait {
 		p.scope.allowAwait = async
-		defer func() {
-			p.scope.allowAwait = !async
-		}()
 	}
 	parameterList := p.parseFunctionParameterList()
 	switch kind {
@@ -397,16 +386,18 @@ func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKin
 	node.ParameterList = parameterList
 	node.Generator = generator
 	node.Body = p.parseFunctionBlock(async, async, generator)
+	p.scope.allowYield = savedYield
+	p.scope.allowAwait = savedAwait
 	return node
 }
 
 func (p *parser) parseObjectLiteral() *ast.ObjectLiteral {
-	value := make([]ast.Property, 0, 4)
+	mark := len(p.propBuf)
 	idx0 := p.expect(token.LeftBrace)
 	for p.currentKind() != token.RightBrace && p.currentKind() != token.Eof {
 		property := p.parseObjectProperty()
 		if property != nil {
-			value = append(value, ast.Property{Prop: property})
+			p.propBuf = append(p.propBuf, ast.Property{Prop: property})
 		}
 		if p.currentKind() != token.RightBrace {
 			p.expect(token.Comma)
@@ -416,7 +407,7 @@ func (p *parser) parseObjectLiteral() *ast.ObjectLiteral {
 	}
 	idx1 := p.expect(token.RightBrace)
 
-	return p.alloc.ObjectLiteral(idx0, idx1, value)
+	return p.alloc.ObjectLiteral(idx0, idx1, p.finishPropBuf(mark))
 }
 
 func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
@@ -611,9 +602,6 @@ L:
 func (p *parser) parseLeftHandSideExpressionAllowCall() ast.Expr {
 	allowIn := p.scope.allowIn
 	p.scope.allowIn = true
-	defer func() {
-		p.scope.allowIn = allowIn
-	}()
 
 	var left ast.Expr
 	start := p.currentOffset()
@@ -637,6 +625,7 @@ L:
 			if optionalChain {
 				p.errorf("Invalid template literal on optional chain")
 				p.nextStatement()
+				p.scope.allowIn = allowIn
 				return p.alloc.InvalidExpression(start, p.currentOffset())
 			}
 			left = p.parseTaggedTemplateLiteral(left)
@@ -658,6 +647,7 @@ L:
 	if optionalChain {
 		left = p.alloc.OptionalChain(p.alloc.Expression(left))
 	}
+	p.scope.allowIn = allowIn
 	return left
 }
 
@@ -680,7 +670,7 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 		operand := p.parseLeftHandSideExpressionAllowCall()
 		if p.currentKind() == token.Increment || p.currentKind() == token.Decrement {
 			// Make sure there is no line terminator here
-			if p.implicitSemicolon {
+			if p.token.OnNewLine {
 				return operand
 			}
 			tkn := p.currentKind()
@@ -854,16 +844,15 @@ func (p *parser) parseArrowFunction(start ast.Idx, paramList ast.ParameterList, 
 }
 
 func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr {
-	if async != p.scope.allowAwait {
+	savedAwait := p.scope.allowAwait
+	if async != savedAwait {
 		p.scope.allowAwait = async
-		defer func() {
-			p.scope.allowAwait = !async
-		}()
 	}
 	p.tokenToBindingId()
 	if p.currentKind() != token.Identifier {
 		p.errorUnexpectedToken(p.currentKind())
 		p.next()
+		p.scope.allowAwait = savedAwait
 		return p.alloc.InvalidExpression(start, p.currentOffset())
 	}
 
@@ -877,7 +866,9 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 		}},
 	}
 
-	return p.parseArrowFunction(start, paramList, async)
+	result := p.parseArrowFunction(start, paramList, async)
+	p.scope.allowAwait = savedAwait
+	return result
 }
 
 func (p *parser) parseAssignmentExpression() *ast.Expression {
@@ -908,41 +899,9 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 		p.tokenToBindingId()
 	}
 	left := p.parseConditionalExpression()
-	var operator token.Token
-	switch p.currentKind() {
-	case token.Assign:
-		operator = p.currentKind()
-	case token.AddAssign:
-		operator = token.Plus
-	case token.SubtractAssign:
-		operator = token.Minus
-	case token.MultiplyAssign:
-		operator = token.Multiply
-	case token.ExponentAssign:
-		operator = token.Exponent
-	case token.QuotientAssign:
-		operator = token.Slash
-	case token.RemainderAssign:
-		operator = token.Remainder
-	case token.AndAssign:
-		operator = token.And
-	case token.OrAssign:
-		operator = token.Or
-	case token.ExclusiveOrAssign:
-		operator = token.ExclusiveOr
-	case token.ShiftLeftAssign:
-		operator = token.ShiftLeft
-	case token.ShiftRightAssign:
-		operator = token.ShiftRight
-	case token.UnsignedShiftRightAssign:
-		operator = token.UnsignedShiftRight
-	case token.LogicalAndAssign:
-		operator = token.LogicalAnd
-	case token.LogicalOrAssign:
-		operator = token.LogicalOr
-	case token.CoalesceAssign:
-		operator = token.Coalesce
-	case token.Arrow:
+	kind := p.currentKind()
+	operator := assignToOperator[kind]
+	if operator == 0 && kind == token.Arrow {
 		var paramList *ast.ParameterList
 		if id, ok := left.(*ast.Identifier); ok {
 			paramList = &ast.ParameterList{
@@ -963,11 +922,9 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 			}
 		} else if async {
 			// async (x, y) => ...
-			if !p.scope.allowAwait {
+			savedAwait := p.scope.allowAwait
+			if !savedAwait {
 				p.scope.allowAwait = true
-				defer func() {
-					p.scope.allowAwait = false
-				}()
 			}
 			if _, ok := left.(*ast.CallExpression); ok {
 				p.restore(state)
@@ -975,6 +932,14 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 				paramL := p.parseFunctionParameterList()
 				paramList = &paramL
 			}
+			if paramList == nil {
+				p.errorf("Malformed arrow function parameter list")
+				p.scope.allowAwait = savedAwait
+				return p.alloc.Expression(p.alloc.InvalidExpression(left.Idx0(), left.Idx1()))
+			}
+			result := p.alloc.Expression(p.parseArrowFunction(start, *paramList, async))
+			p.scope.allowAwait = savedAwait
+			return result
 		}
 		if paramList == nil {
 			p.errorf("Malformed arrow function parameter list")
@@ -1021,12 +986,12 @@ func (p *parser) parseYieldExpression() *ast.YieldExpression {
 
 	node := p.alloc.YieldExpression(idx)
 
-	if !p.implicitSemicolon && p.currentKind() == token.Multiply {
+	if !p.token.OnNewLine && p.currentKind() == token.Multiply {
 		node.Delegate = true
 		p.next()
 	}
 
-	if !p.implicitSemicolon && p.currentKind() != token.Semicolon && p.currentKind() != token.RightBrace && p.currentKind() != token.Eof {
+	if !p.canInsertSemicolon() {
 		state := p.mark()
 		expr := p.parseAssignmentExpression()
 		if _, bad := expr.Expr.(*ast.InvalidExpression); bad {

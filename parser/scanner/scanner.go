@@ -2,9 +2,9 @@ package scanner
 
 import (
 	"errors"
+
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
-	"unsafe"
 )
 
 type Scanner struct {
@@ -23,27 +23,6 @@ func NewScanner(src string, errors *error) *Scanner {
 
 		errors: errors,
 	}
-}
-
-func (s *Scanner) Next() {
-	s.Token.HasEscape = false
-	s.Token.OnNewLine = false
-
-	for {
-		s.Token.Idx0 = s.src.pos
-
-		if s.src.pos >= s.src.len {
-			s.Token.Kind = token.Eof
-			break
-		}
-
-		b := *(*byte)(unsafe.Add(s.src.base, s.src.pos))
-		if k := s.handleByte(b); k != token.Skip {
-			s.Token.Kind = k
-			break
-		}
-	}
-	s.Token.Idx1 = s.src.pos
 }
 
 func (s *Scanner) error(d Error) {

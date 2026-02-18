@@ -1273,3 +1273,769 @@ func TestComplexSnippetsSyntax(t *testing.T) {
 		mustParse(t, code)
 	}
 }
+
+// ===========================================================================
+// AUTOMATIC SEMICOLON INSERTION (ASI) TESTS
+// ===========================================================================
+
+// mustFail verifies that code produces a parse error.
+func mustFail(t *testing.T, code string) {
+	t.Helper()
+	_, err := parser.ParseFile(code)
+	if err == nil {
+		t.Errorf("expected parse error for:\n%s", code)
+	}
+}
+
+func TestASIReturnNewline(t *testing.T) {
+	p := mustParse(t, "function f() {\n  return\n  42\n}")
+	body := bodyOf(firstStmt(p, 0))
+	if got := len(body.List); got != 2 {
+		t.Fatalf("body statements = %d; want 2 (return + expression)", got)
+	}
+	ret, ok := body.List[0].Stmt.(*ast.ReturnStatement)
+	if !ok {
+		t.Fatalf("stmt[0] type = %T; want *ReturnStatement", body.List[0].Stmt)
+	}
+	if ret.Argument != nil {
+		t.Errorf("return argument = %T; want nil (ASI should apply)", ret.Argument.Expr)
+	}
+	if _, ok := body.List[1].Stmt.(*ast.ExpressionStatement); !ok {
+		t.Errorf("stmt[1] type = %T; want *ExpressionStatement", body.List[1].Stmt)
+	}
+}
+
+func TestASIReturnSameLine(t *testing.T) {
+	p := mustParse(t, "function f() { return 42 }")
+	body := bodyOf(firstStmt(p, 0))
+	if got := len(body.List); got != 1 {
+		t.Fatalf("body statements = %d; want 1", got)
+	}
+	ret := body.List[0].Stmt.(*ast.ReturnStatement)
+	if ret.Argument == nil || ret.Argument.Expr == nil {
+		t.Fatal("return argument is nil; want 42")
+	}
+	if n := ret.Argument.Expr.(*ast.NumberLiteral); n.Value != 42 {
+		t.Errorf("return value = %v; want 42", n.Value)
+	}
+}
+
+func TestASIReturnSemicolon(t *testing.T) {
+	p := mustParse(t, "function f() { return; 42 }")
+	body := bodyOf(firstStmt(p, 0))
+	ret := body.List[0].Stmt.(*ast.ReturnStatement)
+	if ret.Argument != nil {
+		t.Errorf("return argument = %T; want nil (explicit semicolon)", ret.Argument.Expr)
+	}
+}
+
+func TestASIReturnRightBrace(t *testing.T) {
+	p := mustParse(t, "function f() { return }")
+	body := bodyOf(firstStmt(p, 0))
+	ret := body.List[0].Stmt.(*ast.ReturnStatement)
+	if ret.Argument != nil {
+		t.Errorf("return argument should be nil before }")
+	}
+}
+
+func TestASIReturnObject(t *testing.T) {
+	p := mustParse(t, "function f() { return { a: 1 } }")
+	body := bodyOf(firstStmt(p, 0))
+	ret := body.List[0].Stmt.(*ast.ReturnStatement)
+	if ret.Argument == nil || ret.Argument.Expr == nil {
+		t.Fatal("return argument is nil; want object literal")
+	}
+	if _, ok := ret.Argument.Expr.(*ast.ObjectLiteral); !ok {
+		t.Errorf("return argument type = %T; want *ObjectLiteral", ret.Argument.Expr)
+	}
+}
+
+func TestASIThrowNewline(t *testing.T) {
+	mustFail(t, "throw\nnew Error()")
+}
+
+func TestASIBreakNewline(t *testing.T) {
+	p := mustParse(t, "outer: for (;;) { inner: for (;;) { break\nouter } }")
+	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.Stmt.(*ast.ForStatement)
+	outerBody := outerFor.Body.Stmt.(*ast.BlockStatement)
+	innerLabelled := outerBody.List[0].Stmt.(*ast.LabelledStatement)
+	innerFor := innerLabelled.Statement.Stmt.(*ast.ForStatement)
+	innerBody := innerFor.Body.Stmt.(*ast.BlockStatement)
+
+	if got := len(innerBody.List); got != 2 {
+		t.Fatalf("inner body = %d; want 2 (break + expr)", got)
+	}
+	brk := innerBody.List[0].Stmt.(*ast.BreakStatement)
+	if brk.Label != nil {
+		t.Errorf("break label = %q; want nil (ASI after break)", brk.Label.Name)
+	}
+}
+
+func TestASIBreakSameLine(t *testing.T) {
+	p := mustParse(t, "outer: for (;;) { break outer }")
+	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.Stmt.(*ast.ForStatement)
+	body := outerFor.Body.Stmt.(*ast.BlockStatement)
+	brk := body.List[0].Stmt.(*ast.BreakStatement)
+	if brk.Label == nil || brk.Label.Name != "outer" {
+		t.Errorf("break label = %v; want outer", brk.Label)
+	}
+}
+
+func TestASIContinueNewline(t *testing.T) {
+	p := mustParse(t, "outer: for (;;) { for (;;) { continue\nouter } }")
+	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.Stmt.(*ast.ForStatement)
+	outerBody := outerFor.Body.Stmt.(*ast.BlockStatement)
+	innerFor := outerBody.List[0].Stmt.(*ast.ForStatement)
+	innerBody := innerFor.Body.Stmt.(*ast.BlockStatement)
+
+	if got := len(innerBody.List); got != 2 {
+		t.Fatalf("inner body = %d; want 2 (continue + expr)", got)
+	}
+	cont := innerBody.List[0].Stmt.(*ast.ContinueStatement)
+	if cont.Label != nil {
+		t.Errorf("continue label = %q; want nil (ASI after continue)", cont.Label.Name)
+	}
+}
+
+func TestASIContinueSameLine(t *testing.T) {
+	p := mustParse(t, "outer: for (;;) { continue outer }")
+	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.Stmt.(*ast.ForStatement)
+	body := outerFor.Body.Stmt.(*ast.BlockStatement)
+	cont := body.List[0].Stmt.(*ast.ContinueStatement)
+	if cont.Label == nil || cont.Label.Name != "outer" {
+		t.Errorf("continue label = %v; want outer", cont.Label)
+	}
+}
+
+func TestASIPostfixNewline(t *testing.T) {
+	p := mustParse(t, "function f() { var i = 0;\ni\n++\ni }")
+	body := bodyOf(firstStmt(p, 0))
+	// var i = 0; i; ++i;
+	if got := len(body.List); got != 3 {
+		t.Fatalf("body statements = %d; want 3", got)
+	}
+	es := body.List[1].Stmt.(*ast.ExpressionStatement)
+	if id, ok := es.Expression.Expr.(*ast.Identifier); !ok || id.Name != "i" {
+		t.Errorf("stmt[1] = %T; want identifier 'i'", es.Expression.Expr)
+	}
+	es2 := body.List[2].Stmt.(*ast.ExpressionStatement)
+	upd, ok := es2.Expression.Expr.(*ast.UpdateExpression)
+	if !ok {
+		t.Fatalf("stmt[2] = %T; want *UpdateExpression", es2.Expression.Expr)
+	}
+	if upd.Postfix {
+		t.Errorf("update should be prefix (++i), not postfix (i++)")
+	}
+}
+
+// ===========================================================================
+// NUMERIC LITERAL TESTS
+// ===========================================================================
+
+func TestNumericLiterals(t *testing.T) {
+	tests := []struct {
+		code string
+		want float64
+	}{
+		{"var x = 0", 0},
+		{"var x = 42", 42},
+		{"var x = 3.14", 3.14},
+		{"var x = .5", 0.5},
+		{"var x = 1.", 1.0},
+		{"var x = 3e9", 3e9},
+		{"var x = 3E9", 3e9},
+		{"var x = 5e-324", 5e-324},
+		{"var x = 1e+10", 1e+10},
+		{"var x = 1.5e2", 150},
+		{"var x = .5e3", 500},
+		{"var x = 0xff", 255},
+		{"var x = 0xFF", 255},
+		{"var x = 0o77", 63},
+		{"var x = 0O77", 63},
+		{"var x = 0b1010", 10},
+		{"var x = 0B1010", 10},
+		{"var x = 0e0", 0},
+		{"var x = 0.0e0", 0},
+		{"var x = 1_000_000", 1_000_000},
+		{"var x = 0xff_ff", 0xffff},
+	}
+	for _, tt := range tests {
+		p := mustParse(t, tt.code)
+		num := initializerExpr(firstStmt(p, 0)).(*ast.NumberLiteral)
+		if num.Value != tt.want {
+			t.Errorf("%s: got %v, want %v", tt.code, num.Value, tt.want)
+		}
+	}
+}
+
+func TestNumericLiteralInExpressions(t *testing.T) {
+	cases := []string{
+		"x = 1 | 3E9",
+		"x = 5e-324 >> 0",
+		"x = 0 << 5e-324",
+		"x = 1e3 + 2e3",
+		"x = 1.5e2 * 2",
+		"x = -1e10",
+	}
+	for _, code := range cases {
+		mustParse(t, code)
+	}
+}
+
+// ===========================================================================
+// OPERATOR PRECEDENCE TESTS
+// ===========================================================================
+
+func TestPrecedenceMultiplicativeOverAdditive(t *testing.T) {
+	p := mustParse(t, "var x = a + b * c")
+	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
+	if bin.Operator != token.Plus {
+		t.Fatalf("top operator = %v; want +", bin.Operator)
+	}
+	right := bin.Right.Expr.(*ast.BinaryExpression)
+	if right.Operator != token.Multiply {
+		t.Errorf("right operator = %v; want *", right.Operator)
+	}
+}
+
+func TestPrecedenceComparisonOverLogical(t *testing.T) {
+	p := mustParse(t, "var x = a < b && c > d")
+	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
+	if bin.Operator != token.LogicalAnd {
+		t.Fatalf("top operator = %v; want &&", bin.Operator)
+	}
+	left := bin.Left.Expr.(*ast.BinaryExpression)
+	if left.Operator != token.Less {
+		t.Errorf("left operator = %v; want <", left.Operator)
+	}
+	right := bin.Right.Expr.(*ast.BinaryExpression)
+	if right.Operator != token.Greater {
+		t.Errorf("right operator = %v; want >", right.Operator)
+	}
+}
+
+func TestPrecedenceOrOverAnd(t *testing.T) {
+	p := mustParse(t, "var x = a || b && c")
+	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
+	if bin.Operator != token.LogicalOr {
+		t.Fatalf("top operator = %v; want ||", bin.Operator)
+	}
+	right := bin.Right.Expr.(*ast.BinaryExpression)
+	if right.Operator != token.LogicalAnd {
+		t.Errorf("right operator = %v; want &&", right.Operator)
+	}
+}
+
+func TestPrecedenceTernaryOverAssignment(t *testing.T) {
+	p := mustParse(t, "x = a ? b : c")
+	assign := exprOf(firstStmt(p, 0)).(*ast.AssignExpression)
+	cond, ok := assign.Right.Expr.(*ast.ConditionalExpression)
+	if !ok {
+		t.Fatalf("rhs type = %T; want *ConditionalExpression", assign.Right.Expr)
+	}
+	if id := cond.Test.Expr.(*ast.Identifier); id.Name != "a" {
+		t.Errorf("test = %q; want a", id.Name)
+	}
+}
+
+func TestPrecedenceUnaryOverBinary(t *testing.T) {
+	p := mustParse(t, "var x = !a && b")
+	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
+	if bin.Operator != token.LogicalAnd {
+		t.Fatalf("top operator = %v; want &&", bin.Operator)
+	}
+	unary, ok := bin.Left.Expr.(*ast.UnaryExpression)
+	if !ok {
+		t.Fatalf("left type = %T; want *UnaryExpression", bin.Left.Expr)
+	}
+	if unary.Operator != token.Not {
+		t.Errorf("unary operator = %v; want !", unary.Operator)
+	}
+}
+
+func TestPrecedenceGrouping(t *testing.T) {
+	p := mustParse(t, "var x = (a + b) * c")
+	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
+	if bin.Operator != token.Multiply {
+		t.Fatalf("top operator = %v; want *", bin.Operator)
+	}
+	left := bin.Left.Expr.(*ast.BinaryExpression)
+	if left.Operator != token.Plus {
+		t.Errorf("grouped operator = %v; want +", left.Operator)
+	}
+}
+
+func TestPrecedenceBitwiseChain(t *testing.T) {
+	// a | b ^ c & d  =>  a | (b ^ (c & d))
+	p := mustParse(t, "var x = a | b ^ c & d")
+	or := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
+	if or.Operator != token.Or {
+		t.Fatalf("top = %v; want |", or.Operator)
+	}
+	xor := or.Right.Expr.(*ast.BinaryExpression)
+	if xor.Operator != token.ExclusiveOr {
+		t.Fatalf("right = %v; want ^", xor.Operator)
+	}
+	and := xor.Right.Expr.(*ast.BinaryExpression)
+	if and.Operator != token.And {
+		t.Errorf("inner = %v; want &", and.Operator)
+	}
+}
+
+func TestPrecedenceNullishCoalescing(t *testing.T) {
+	p := mustParse(t, "var x = a ?? b ?? c")
+	outer := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
+	if outer.Operator != token.Coalesce {
+		t.Fatalf("top = %v; want ??", outer.Operator)
+	}
+	inner := outer.Left.Expr.(*ast.BinaryExpression)
+	if inner.Operator != token.Coalesce {
+		t.Errorf("left = %v; want ??", inner.Operator)
+	}
+}
+
+func TestPrecedenceExponentiationRightAssociative(t *testing.T) {
+	p := mustParse(t, "var x = a ** b ** c")
+	outer := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
+	if outer.Operator != token.Exponent {
+		t.Fatalf("top = %v; want **", outer.Operator)
+	}
+	inner, ok := outer.Right.Expr.(*ast.BinaryExpression)
+	if !ok {
+		t.Fatalf("right = %T; want *BinaryExpression", outer.Right.Expr)
+	}
+	if inner.Operator != token.Exponent {
+		t.Errorf("right op = %v; want **", inner.Operator)
+	}
+}
+
+// ===========================================================================
+// ROUND-TRIP TESTS — broader coverage
+// ===========================================================================
+
+func TestRoundTripStatements(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"throw new Error('bad')", "throw new Error('bad');"},
+		{"debugger", "debugger;"},
+		{"while (true) break", "while (true) break;"},
+		{"while (true) continue", "while (true) continue;"},
+		{"do {} while (x)", "do {} while(x);"},
+		{"with (obj) {}", "with (obj) {}"},
+	}
+	for _, tt := range tests {
+		assertRoundTrip(t, tt.in, tt.want)
+	}
+}
+
+func TestRoundTripExpressions(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"typeof x", "typeof x;"},
+		{"void 0", "void 0;"},
+		{"delete obj.x", "delete obj.x;"},
+		{"new Foo(1, 2)", "new Foo(1, 2);"},
+		{"a instanceof b", "a instanceof b;"},
+		{"a in b", "a in b;"},
+	}
+	for _, tt := range tests {
+		assertRoundTrip(t, tt.in, tt.want)
+	}
+}
+
+func TestRoundTripDeclarations(t *testing.T) {
+	tests := []struct{ in, want string }{
+		{"var x", "var x;"},
+		{"let x = 1", "let x = 1;"},
+		{"const x = 1", "const x = 1;"},
+		{"var a = 1, b = 2, c = 3", "var a = 1, b = 2, c = 3;"},
+	}
+	for _, tt := range tests {
+		assertRoundTrip(t, tt.in, tt.want)
+	}
+}
+
+// ===========================================================================
+// ASYNC / AWAIT TESTS
+// ===========================================================================
+
+func TestAsyncAwaitSyntax(t *testing.T) {
+	cases := []string{
+		"async function f() { await fetch(url) }",
+		"async function f() { const x = await promise }",
+
+		"var f = async () => await 1",
+		"var f = async (x) => await x",
+		"class A { async method() { await this.load() } }",
+		"var obj = { async method() { await 1 } }",
+	}
+	for _, code := range cases {
+		mustParse(t, code)
+	}
+}
+
+// ===========================================================================
+// MEMBER EXPRESSION / CALL CHAIN TESTS
+// ===========================================================================
+
+func TestMemberCallChainAST(t *testing.T) {
+	// a.b.c(1).d[2] — top-level is computed member [2], whose object is dot .d,
+	// whose object is the call a.b.c(1).
+	p := mustParse(t, "a.b.c(1).d[2]")
+	top, ok := exprOf(firstStmt(p, 0)).(*ast.MemberExpression)
+	if !ok {
+		t.Fatalf("top = %T; want *MemberExpression", exprOf(firstStmt(p, 0)))
+	}
+	dot, ok := top.Object.Expr.(*ast.MemberExpression)
+	if !ok {
+		t.Fatalf("top.object = %T; want *MemberExpression (.d)", top.Object.Expr)
+	}
+	call, ok := dot.Object.Expr.(*ast.CallExpression)
+	if !ok {
+		t.Fatalf("dot.object = %T; want *CallExpression", dot.Object.Expr)
+	}
+	if got := len(call.ArgumentList); got != 1 {
+		t.Errorf("call args = %d; want 1", got)
+	}
+}
+
+func TestOptionalChainSyntax(t *testing.T) {
+	cases := []string{
+		"a?.b",
+		"a?.b?.c",
+		"a?.()",
+		"a?.b()",
+		"a?.[0]",
+		"a?.b?.[0]?.()",
+		"(a?.b).c",
+	}
+	for _, code := range cases {
+		mustParse(t, code)
+	}
+}
+
+// ===========================================================================
+// DESTRUCTURING PATTERN TESTS
+// ===========================================================================
+
+func TestDestructuringAssignment(t *testing.T) {
+	cases := []string{
+		"[a, b] = [1, 2]",
+		"[a, ...rest] = arr",
+		"({ a, b } = obj)",
+		"({ a: x, b: y } = obj)",
+		"[a, [b, c]] = nested",
+		"({ a: { b } } = deep)",
+		"[a = 1, b = 2] = arr",
+		"({ a = 1, b = 2 } = obj)",
+	}
+	for _, code := range cases {
+		mustParse(t, code)
+	}
+}
+
+func TestFunctionDefaultParameters(t *testing.T) {
+	cases := []string{
+		"function f(a = 1) {}",
+		"function f(a = 1, b = 2) {}",
+		"function f(a, b = a + 1) {}",
+		"function f({ x = 0, y = 0 } = {}) {}",
+		"function f([a, b] = [1, 2]) {}",
+		"var f = (x = 1) => x",
+	}
+	for _, code := range cases {
+		mustParse(t, code)
+	}
+}
+
+func TestRestParameters(t *testing.T) {
+	cases := []string{
+		"function f(...args) {}",
+		"function f(a, b, ...rest) {}",
+		"var f = (...args) => args",
+	}
+	for _, code := range cases {
+		mustParse(t, code)
+	}
+}
+
+// ===========================================================================
+// FOR-IN / FOR-OF TESTS
+// ===========================================================================
+
+func TestForInStatementAST(t *testing.T) {
+	p := mustParse(t, "for (var k in obj) {}")
+	forIn := firstStmt(p, 0).(*ast.ForInStatement)
+	if forIn.Source == nil {
+		t.Fatal("source is nil")
+	}
+	if id := forIn.Source.Expr.(*ast.Identifier); id.Name != "obj" {
+		t.Errorf("source = %q; want obj", id.Name)
+	}
+}
+
+func TestForOfStatementAST(t *testing.T) {
+	p := mustParse(t, "for (const x of arr) {}")
+	forOf := firstStmt(p, 0).(*ast.ForOfStatement)
+	if forOf.Source == nil {
+		t.Fatal("source is nil")
+	}
+	if id := forOf.Source.Expr.(*ast.Identifier); id.Name != "arr" {
+		t.Errorf("source = %q; want arr", id.Name)
+	}
+}
+
+// ===========================================================================
+// ASSIGNMENT OPERATORS
+// ===========================================================================
+
+func TestAssignmentOperatorsAST(t *testing.T) {
+	ops := []struct {
+		code string
+		tok  token.Token
+	}{
+		{"x = 1", token.Assign},
+		{"x += 1", token.Plus},
+		{"x -= 1", token.Minus},
+		{"x *= 1", token.Multiply},
+		{"x /= 1", token.Slash},
+		{"x %= 1", token.Remainder},
+		{"x **= 1", token.Exponent},
+		{"x <<= 1", token.ShiftLeft},
+		{"x >>= 1", token.ShiftRight},
+		{"x >>>= 1", token.UnsignedShiftRight},
+		{"x &= 1", token.And},
+		{"x |= 1", token.Or},
+		{"x ^= 1", token.ExclusiveOr},
+		{"x &&= 1", token.LogicalAnd},
+		{"x ||= 1", token.LogicalOr},
+		{"x ??= 1", token.Coalesce},
+	}
+	for _, tt := range ops {
+		p := mustParse(t, tt.code)
+		assign := exprOf(firstStmt(p, 0)).(*ast.AssignExpression)
+		if assign.Operator != tt.tok {
+			t.Errorf("%s: operator = %v; want %v", tt.code, assign.Operator, tt.tok)
+		}
+	}
+}
+
+// ===========================================================================
+// UNARY / UPDATE EXPRESSION TESTS
+// ===========================================================================
+
+func TestUnaryExpressionsAST(t *testing.T) {
+	tests := []struct {
+		code string
+		op   token.Token
+	}{
+		{"!x", token.Not},
+		{"~x", token.BitwiseNot},
+		{"+x", token.Plus},
+		{"-x", token.Minus},
+		{"typeof x", token.Typeof},
+		{"void x", token.Void},
+		{"delete x", token.Delete},
+	}
+	for _, tt := range tests {
+		p := mustParse(t, tt.code)
+		unary := exprOf(firstStmt(p, 0)).(*ast.UnaryExpression)
+		if unary.Operator != tt.op {
+			t.Errorf("%s: op = %v; want %v", tt.code, unary.Operator, tt.op)
+		}
+	}
+}
+
+func TestUpdateExpressionsAST(t *testing.T) {
+	tests := []struct {
+		code    string
+		op      token.Token
+		postfix bool
+	}{
+		{"++x", token.Increment, false},
+		{"--x", token.Decrement, false},
+		{"x++", token.Increment, true},
+		{"x--", token.Decrement, true},
+	}
+	for _, tt := range tests {
+		p := mustParse(t, tt.code)
+		upd := exprOf(firstStmt(p, 0)).(*ast.UpdateExpression)
+		if upd.Operator != tt.op {
+			t.Errorf("%s: op = %v; want %v", tt.code, upd.Operator, tt.op)
+		}
+		if upd.Postfix != tt.postfix {
+			t.Errorf("%s: postfix = %v; want %v", tt.code, upd.Postfix, tt.postfix)
+		}
+	}
+}
+
+// ===========================================================================
+// DO-WHILE / WHILE / LABELLED STATEMENT TESTS
+// ===========================================================================
+
+func TestDoWhileAST(t *testing.T) {
+	p := mustParse(t, "do { x++ } while (x < 10)")
+	dw := firstStmt(p, 0).(*ast.DoWhileStatement)
+	if dw.Test == nil {
+		t.Fatal("test is nil")
+	}
+	bin := dw.Test.Expr.(*ast.BinaryExpression)
+	if bin.Operator != token.Less {
+		t.Errorf("test op = %v; want <", bin.Operator)
+	}
+}
+
+func TestWhileAST(t *testing.T) {
+	p := mustParse(t, "while (x > 0) { x-- }")
+	w := firstStmt(p, 0).(*ast.WhileStatement)
+	bin := w.Test.Expr.(*ast.BinaryExpression)
+	if bin.Operator != token.Greater {
+		t.Errorf("test op = %v; want >", bin.Operator)
+	}
+}
+
+func TestLabelledBreakContinue(t *testing.T) {
+	p := mustParse(t, "loop: for (;;) { break loop; }")
+	labelled := firstStmt(p, 0).(*ast.LabelledStatement)
+	if labelled.Label.Name != "loop" {
+		t.Errorf("label = %q; want loop", labelled.Label.Name)
+	}
+	forStmt := labelled.Statement.Stmt.(*ast.ForStatement)
+	body := forStmt.Body.Stmt.(*ast.BlockStatement)
+	brk := body.List[0].Stmt.(*ast.BreakStatement)
+	if brk.Label == nil || brk.Label.Name != "loop" {
+		t.Errorf("break label = %v; want loop", brk.Label)
+	}
+}
+
+// ===========================================================================
+// PARSE ERROR TESTS
+// ===========================================================================
+
+func TestParseErrors(t *testing.T) {
+	cases := []string{
+		"var",
+		"function",
+		"if",
+		"if ()",
+		"for (;;",
+		"switch",
+		"class {",
+		"(1 +)",
+		"var x = {,}",
+		"x.%",
+		"let [",
+		"let {",
+		"=> x",
+	}
+	for _, code := range cases {
+		_, err := parser.ParseFile(code)
+		if err == nil {
+			t.Errorf("expected parse error for: %s", code)
+		}
+	}
+}
+
+// ===========================================================================
+// EDGE CASE SYNTAX TESTS
+// ===========================================================================
+
+func TestEdgeCaseSyntax(t *testing.T) {
+	cases := []string{
+		"",
+		";",
+		";;;;;;",
+		"(((((1)))))",
+		"a, b, c",
+		"1 + 2 + 3 + 4 + 5",
+		"a.b.c.d.e.f",
+		"a()()()()",
+		"new new Foo()",
+		"new Foo.Bar()",
+		"a[0][1][2]",
+		"void typeof delete x",
+		"+'1'",
+		"-'1'",
+		"~0",
+		"!![].length",
+		"0, 1, 2",
+		"x = y = z = 1",
+		"true ? 1 : false ? 2 : 3",
+		`"use strict"`,
+		"var x = /regex/ + 1",
+	}
+	for _, code := range cases {
+		mustParse(t, code)
+	}
+}
+
+func TestComputedPropertyKey(t *testing.T) {
+	p := mustParse(t, "var o = { [1 + 2]: 'three' }")
+	obj := initializerExpr(firstStmt(p, 0)).(*ast.ObjectLiteral)
+	if got := len(obj.Value); got != 1 {
+		t.Fatalf("property count = %d; want 1", got)
+	}
+	pk := obj.Value[0].Prop.(*ast.PropertyKeyed)
+	if !pk.Computed {
+		t.Error("computed = false; want true")
+	}
+	bin := pk.Key.Expr.(*ast.BinaryExpression)
+	if bin.Operator != token.Plus {
+		t.Errorf("key op = %v; want +", bin.Operator)
+	}
+}
+
+func TestNewExpressionAST(t *testing.T) {
+	p := mustParse(t, "new Foo(1, 2)")
+	newExpr := exprOf(firstStmt(p, 0)).(*ast.NewExpression)
+	if id := newExpr.Callee.Expr.(*ast.Identifier); id.Name != "Foo" {
+		t.Errorf("callee = %q; want Foo", id.Name)
+	}
+	if got := len(newExpr.ArgumentList); got != 2 {
+		t.Fatalf("arg count = %d; want 2", got)
+	}
+}
+
+func TestThrowStatementAST(t *testing.T) {
+	p := mustParse(t, "throw new Error('msg')")
+	thr := firstStmt(p, 0).(*ast.ThrowStatement)
+	if thr.Argument == nil {
+		t.Fatal("argument is nil")
+	}
+	if _, ok := thr.Argument.Expr.(*ast.NewExpression); !ok {
+		t.Errorf("argument = %T; want *NewExpression", thr.Argument.Expr)
+	}
+}
+
+func TestEmptyStatementAST(t *testing.T) {
+	p := mustParse(t, ";;;")
+	if got := len(p.Body); got != 3 {
+		t.Fatalf("body = %d; want 3", got)
+	}
+	for i := range p.Body {
+		if _, ok := p.Body[i].Stmt.(*ast.EmptyStatement); !ok {
+			t.Errorf("body[%d] = %T; want *EmptyStatement", i, p.Body[i].Stmt)
+		}
+	}
+}
+
+func TestYieldExpressionAST(t *testing.T) {
+	p := mustParse(t, "function* g() { yield 1; yield* other(); }")
+	body := firstStmt(p, 0).(*ast.FunctionDeclaration).Function.Body
+	if got := len(body.List); got != 2 {
+		t.Fatalf("body = %d; want 2", got)
+	}
+
+	es1 := body.List[0].Stmt.(*ast.ExpressionStatement)
+	y1 := es1.Expression.Expr.(*ast.YieldExpression)
+	if y1.Delegate {
+		t.Error("yield 1 should not be delegate")
+	}
+	if y1.Argument == nil {
+		t.Error("yield 1 should have argument")
+	}
+
+	es2 := body.List[1].Stmt.(*ast.ExpressionStatement)
+	y2 := es2.Expression.Expr.(*ast.YieldExpression)
+	if !y2.Delegate {
+		t.Error("yield* should be delegate")
+	}
+}

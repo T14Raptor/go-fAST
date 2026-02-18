@@ -33,8 +33,9 @@ func (a *miniArena[T]) make() *T {
 	return n
 }
 
+//go:noinline
 func (a *miniArena[T]) resize() {
-	a.len = uintptr(float64(a.len) * 1.5)
+	a.len += a.len >> 1 // 1.5x growth, integer math
 
 	a.a = unsafe.Pointer(&make([]T, a.len)[0])
 	a.index = 0
@@ -49,14 +50,7 @@ func (a *miniArena[T]) makeSlice(n int) []T {
 	}
 	un := uintptr(n)
 	if a.index+un > a.len {
-		// Need a new chunk that fits at least n elements.
-		newLen := uintptr(float64(a.len) * 1.5)
-		if newLen < un {
-			newLen = un
-		}
-		a.len = newLen
-		a.a = unsafe.Pointer(&make([]T, newLen)[0])
-		a.index = 0
+		a.growForSlice(un)
 	}
 	start := unsafe.Add(a.a, a.index*a.elementSize)
 	a.index += un
@@ -64,4 +58,19 @@ func (a *miniArena[T]) makeSlice(n int) []T {
 		a.resize()
 	}
 	return unsafe.Slice((*T)(start), n)
+}
+
+// growForSlice allocates a new chunk large enough to hold at least minElems
+// contiguous elements. Kept out-of-line so the fast path in makeSlice has
+// no write barriers or float conversions.
+//
+//go:noinline
+func (a *miniArena[T]) growForSlice(minElems uintptr) {
+	newLen := a.len + a.len>>1 // 1.5x growth, integer math
+	if newLen < minElems {
+		newLen = minElems
+	}
+	a.len = newLen
+	a.a = unsafe.Pointer(&make([]T, newLen)[0])
+	a.index = 0
 }
