@@ -2,13 +2,13 @@ package ast
 
 import "unsafe"
 
-type PropertyKind string
+type PropertyKind uint8
 
 const (
-	PropertyKindValue  PropertyKind = "value"
-	PropertyKindGet    PropertyKind = "get"
-	PropertyKindSet    PropertyKind = "set"
-	PropertyKindMethod PropertyKind = "method"
+	PropertyKindValue  PropertyKind = iota + 1
+	PropertyKindGet
+	PropertyKindSet
+	PropertyKindMethod
 )
 
 type (
@@ -16,8 +16,9 @@ type (
 
 	//union:PropertyKeyed,PropertyShort,SpreadElement
 	Property struct {
-		ptr  unsafe.Pointer
 		kind PropKind
+
+		ptr unsafe.Pointer
 	}
 
 	PropertyShort struct {
@@ -36,4 +37,3 @@ type (
 		Expr *Expression
 	}
 )
-
