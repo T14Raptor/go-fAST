@@ -82,11 +82,11 @@ func (h *hoister) VisitCatchStatement(n *ast.CatchStatement) {
 func (h *hoister) VisitStatements(n *ast.Statements) {
 	others := make(ast.Statements, 0, len(*n))
 	for i := range *n {
-		switch it := (*n)[i].Stmt.(type) {
-		case *ast.VariableDeclaration:
-			it.VisitWith(h)
-		case *ast.FunctionDeclaration:
-			it.VisitWith(h)
+		switch (*n)[i].Kind() {
+		case ast.StmtVarDecl:
+			(*n)[i].MustVarDecl().VisitWith(h)
+		case ast.StmtFuncDecl:
+			(*n)[i].MustFuncDecl().VisitWith(h)
 		default:
 			others = append(others, (*n)[i])
 		}
@@ -109,7 +109,7 @@ func (h *hoister) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 }
 
 func (h *hoister) VisitBindingTarget(n *ast.BindingTarget) {
-	if ident, ok := n.Target.(*ast.Identifier); ok {
+	if ident, ok := n.Ident(); ok {
 		h.addIdent(ident)
 		return
 	}

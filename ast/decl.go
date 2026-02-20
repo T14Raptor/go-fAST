@@ -12,10 +12,11 @@ type (
 	}
 
 	VariableDeclaration struct {
-		Idx     Idx
-		Token   token.Token
 		List    VariableDeclarators
 		Comment string
+
+		Idx   Idx
+		Token token.Token
 	}
 
 	VariableDeclarators []VariableDeclarator
@@ -25,7 +26,3 @@ type (
 		Initializer *Expression `optional:"true"`
 	}
 )
-
-func (*FunctionDeclaration) _stmt() {}
-func (*ClassDeclaration) _stmt()    {}
-func (*VariableDeclaration) _stmt() {}

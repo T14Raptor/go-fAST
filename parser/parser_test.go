@@ -54,24 +54,28 @@ func assertRoundTrip(t *testing.T, code, want string) {
 	}
 }
 
-// firstStmt returns the Stmt inside the i-th top-level statement.
-func firstStmt(p *ast.Program, i int) ast.Stmt {
-	return p.Body[i].Stmt
+// firstStmt returns the concrete statement node from the i-th top-level statement.
+func firstStmt(p *ast.Program, i int) ast.VisitableNode {
+	return p.Body[i].Unwrap()
 }
 
-// exprOf extracts the inner Expr from an ExpressionStatement.
-func exprOf(s ast.Stmt) ast.Expr {
-	return s.(*ast.ExpressionStatement).Expression.Expr
+// exprOf extracts the inner concrete expression from an ExpressionStatement.
+func exprOf(s ast.VisitableNode) ast.VisitableNode {
+	return s.(*ast.ExpressionStatement).Expression.Unwrap()
 }
 
 // initializerExpr extracts the initializer expression from the first
 // VariableDeclarator of a VariableDeclaration statement.
-func initializerExpr(s ast.Stmt) ast.Expr {
-	return s.(*ast.VariableDeclaration).List[0].Initializer.Expr
+func initializerExpr(s ast.VisitableNode) ast.VisitableNode {
+	init := s.(*ast.VariableDeclaration).List[0].Initializer
+	if init == nil {
+		return nil
+	}
+	return init.Unwrap()
 }
 
 // bodyOf extracts the BlockStatement body from a FunctionDeclaration.
-func bodyOf(s ast.Stmt) *ast.BlockStatement {
+func bodyOf(s ast.VisitableNode) *ast.BlockStatement {
 	return s.(*ast.FunctionDeclaration).Function.Body
 }
 
@@ -91,23 +95,23 @@ func TestArrayLiteralAST(t *testing.T) {
 		t.Fatalf("array length = %d; want 4", got)
 	}
 
-	if _, ok := arr.Value[0].Expr.(*ast.NumberLiteral); !ok {
-		t.Errorf("arr[0] type = %T; want *NumberLiteral", arr.Value[0].Expr)
+	if !arr.Value[0].IsNumLit() {
+		t.Errorf("arr[0] kind = %v; want NumLit", arr.Value[0].Kind())
 	}
-	if n := arr.Value[0].Expr.(*ast.NumberLiteral); n.Value != 1 {
+	if n := arr.Value[0].MustNumLit(); n.Value != 1 {
 		t.Errorf("arr[0] value = %v; want 1", n.Value)
 	}
-	if _, ok := arr.Value[1].Expr.(*ast.StringLiteral); !ok {
-		t.Errorf("arr[1] type = %T; want *StringLiteral", arr.Value[1].Expr)
+	if !arr.Value[1].IsStrLit() {
+		t.Errorf("arr[1] kind = %v; want StrLit", arr.Value[1].Kind())
 	}
-	if s := arr.Value[1].Expr.(*ast.StringLiteral); s.Value != "two" {
+	if s := arr.Value[1].MustStrLit(); s.Value != "two" {
 		t.Errorf("arr[1] value = %q; want \"two\"", s.Value)
 	}
-	if _, ok := arr.Value[2].Expr.(*ast.BooleanLiteral); !ok {
-		t.Errorf("arr[2] type = %T; want *BooleanLiteral", arr.Value[2].Expr)
+	if !arr.Value[2].IsBoolLit() {
+		t.Errorf("arr[2] kind = %v; want BoolLit", arr.Value[2].Kind())
 	}
-	if _, ok := arr.Value[3].Expr.(*ast.NullLiteral); !ok {
-		t.Errorf("arr[3] type = %T; want *NullLiteral", arr.Value[3].Expr)
+	if !arr.Value[3].IsNullLit() {
+		t.Errorf("arr[3] kind = %v; want NullLit", arr.Value[3].Kind())
 	}
 }
 
@@ -119,16 +123,16 @@ func TestArrayLiteralElisionsAST(t *testing.T) {
 		t.Fatalf("array length = %d; want 5", got)
 	}
 	// Positions 1 and 3 should be elisions (Expression with nil Expr).
-	if arr.Value[1].Expr != nil {
-		t.Errorf("arr[1] = %T; want nil (elision)", arr.Value[1].Expr)
+	if !arr.Value[1].IsNone() {
+		t.Errorf("arr[1] kind = %v; want None (elision)", arr.Value[1].Kind())
 	}
-	if arr.Value[3].Expr != nil {
-		t.Errorf("arr[3] = %T; want nil (elision)", arr.Value[3].Expr)
+	if !arr.Value[3].IsNone() {
+		t.Errorf("arr[3] kind = %v; want None (elision)", arr.Value[3].Kind())
 	}
 	// Positions 0, 2, 4 should be NumberLiterals.
 	for _, i := range []int{0, 2, 4} {
-		if _, ok := arr.Value[i].Expr.(*ast.NumberLiteral); !ok {
-			t.Errorf("arr[%d] type = %T; want *NumberLiteral", i, arr.Value[i].Expr)
+		if !arr.Value[i].IsNumLit() {
+			t.Errorf("arr[%d] kind = %v; want NumLit", i, arr.Value[i].Kind())
 		}
 	}
 }
@@ -140,18 +144,18 @@ func TestArrayLiteralSpreadAST(t *testing.T) {
 	if got := len(arr.Value); got != 3 {
 		t.Fatalf("array length = %d; want 3", got)
 	}
-	if _, ok := arr.Value[0].Expr.(*ast.NumberLiteral); !ok {
-		t.Errorf("arr[0] type = %T; want *NumberLiteral", arr.Value[0].Expr)
+	if !arr.Value[0].IsNumLit() {
+		t.Errorf("arr[0] kind = %v; want NumLit", arr.Value[0].Kind())
 	}
-	spread, ok := arr.Value[1].Expr.(*ast.SpreadElement)
-	if !ok {
-		t.Fatalf("arr[1] type = %T; want *SpreadElement", arr.Value[1].Expr)
+	if !arr.Value[1].IsSpread() {
+		t.Fatalf("arr[1] kind = %v; want Spread", arr.Value[1].Kind())
 	}
-	if id, ok := spread.Expression.Expr.(*ast.Identifier); !ok || id.Name != "b" {
-		t.Errorf("spread target = %v; want identifier 'b'", spread.Expression.Expr)
+	spread := arr.Value[1].MustSpread()
+	if !spread.Expression.IsIdent() || spread.Expression.MustIdent().Name != "b" {
+		t.Errorf("spread target = %v; want identifier 'b'", spread.Expression.Kind())
 	}
-	if _, ok := arr.Value[2].Expr.(*ast.NumberLiteral); !ok {
-		t.Errorf("arr[2] type = %T; want *NumberLiteral", arr.Value[2].Expr)
+	if !arr.Value[2].IsNumLit() {
+		t.Errorf("arr[2] kind = %v; want NumLit", arr.Value[2].Kind())
 	}
 }
 
@@ -169,11 +173,11 @@ func TestArrayLiteralLargeAST(t *testing.T) {
 	}
 	// Verify first, middle and last values.
 	for _, idx := range []int{0, n / 2, n - 1} {
-		num, ok := arr.Value[idx].Expr.(*ast.NumberLiteral)
-		if !ok {
-			t.Errorf("arr[%d] type = %T; want *NumberLiteral", idx, arr.Value[idx].Expr)
+		if !arr.Value[idx].IsNumLit() {
+			t.Errorf("arr[%d] kind = %v; want NumLit", idx, arr.Value[idx].Kind())
 			continue
 		}
+		num := arr.Value[idx].MustNumLit()
 		if num.Value != float64(idx) {
 			t.Errorf("arr[%d] value = %v; want %d", idx, num.Value, idx)
 		}
@@ -191,14 +195,14 @@ func TestArgumentListAST(t *testing.T) {
 	if got := len(call.ArgumentList); got != 3 {
 		t.Fatalf("arg count = %d; want 3", got)
 	}
-	if _, ok := call.ArgumentList[0].Expr.(*ast.NumberLiteral); !ok {
-		t.Errorf("arg[0] type = %T; want *NumberLiteral", call.ArgumentList[0].Expr)
+	if !call.ArgumentList[0].IsNumLit() {
+		t.Errorf("arg[0] kind = %v; want NumLit", call.ArgumentList[0].Kind())
 	}
-	if _, ok := call.ArgumentList[1].Expr.(*ast.StringLiteral); !ok {
-		t.Errorf("arg[1] type = %T; want *StringLiteral", call.ArgumentList[1].Expr)
+	if !call.ArgumentList[1].IsStrLit() {
+		t.Errorf("arg[1] kind = %v; want StrLit", call.ArgumentList[1].Kind())
 	}
-	if _, ok := call.ArgumentList[2].Expr.(*ast.BooleanLiteral); !ok {
-		t.Errorf("arg[2] type = %T; want *BooleanLiteral", call.ArgumentList[2].Expr)
+	if !call.ArgumentList[2].IsBoolLit() {
+		t.Errorf("arg[2] kind = %v; want BoolLit", call.ArgumentList[2].Kind())
 	}
 }
 
@@ -209,11 +213,11 @@ func TestArgumentListSpreadAST(t *testing.T) {
 	if got := len(call.ArgumentList); got != 2 {
 		t.Fatalf("arg count = %d; want 2", got)
 	}
-	if _, ok := call.ArgumentList[0].Expr.(*ast.NumberLiteral); !ok {
-		t.Errorf("arg[0] type = %T; want *NumberLiteral", call.ArgumentList[0].Expr)
+	if !call.ArgumentList[0].IsNumLit() {
+		t.Errorf("arg[0] kind = %v; want NumLit", call.ArgumentList[0].Kind())
 	}
-	if _, ok := call.ArgumentList[1].Expr.(*ast.SpreadElement); !ok {
-		t.Errorf("arg[1] type = %T; want *SpreadElement", call.ArgumentList[1].Expr)
+	if !call.ArgumentList[1].IsSpread() {
+		t.Errorf("arg[1] kind = %v; want Spread", call.ArgumentList[1].Kind())
 	}
 }
 
@@ -234,12 +238,12 @@ func TestNestedCallsAST(t *testing.T) {
 		t.Fatalf("outer arg count = %d; want 2", got)
 	}
 
-	inner1 := outer.ArgumentList[0].Expr.(*ast.CallExpression)
+	inner1 := outer.ArgumentList[0].MustCall()
 	if got := len(inner1.ArgumentList); got != 2 {
 		t.Errorf("inner1 arg count = %d; want 2", got)
 	}
 
-	inner2 := outer.ArgumentList[1].Expr.(*ast.CallExpression)
+	inner2 := outer.ArgumentList[1].MustCall()
 	if got := len(inner2.ArgumentList); got != 1 {
 		t.Errorf("inner2 arg count = %d; want 1", got)
 	}
@@ -257,11 +261,11 @@ func TestSequenceExpressionAST(t *testing.T) {
 		t.Fatalf("sequence length = %d; want 3", got)
 	}
 	for i, want := range []float64{1, 2, 3} {
-		num, ok := seq.Sequence[i].Expr.(*ast.NumberLiteral)
-		if !ok {
-			t.Errorf("seq[%d] type = %T; want *NumberLiteral", i, seq.Sequence[i].Expr)
+		if !seq.Sequence[i].IsNumLit() {
+			t.Errorf("seq[%d] kind = %v; want NumLit", i, seq.Sequence[i].Kind())
 			continue
 		}
+		num := seq.Sequence[i].MustNumLit()
 		if num.Value != want {
 			t.Errorf("seq[%d] value = %v; want %v", i, num.Value, want)
 		}
@@ -275,8 +279,8 @@ func TestSequenceExpressionTwoAST(t *testing.T) {
 	if got := len(seq.Sequence); got != 2 {
 		t.Fatalf("sequence length = %d; want 2", got)
 	}
-	n1 := seq.Sequence[0].Expr.(*ast.NumberLiteral)
-	n2 := seq.Sequence[1].Expr.(*ast.NumberLiteral)
+	n1 := seq.Sequence[0].MustNumLit()
+	n2 := seq.Sequence[1].MustNumLit()
 	if n1.Value != 10 || n2.Value != 20 {
 		t.Errorf("values = (%v, %v); want (10, 20)", n1.Value, n2.Value)
 	}
@@ -298,18 +302,18 @@ func TestTemplateLiteralAST(t *testing.T) {
 	}
 
 	// Check that the expressions are identifiers with the right names.
-	id1, ok := tmpl.Expressions[0].Expr.(*ast.Identifier)
-	if !ok {
-		t.Fatalf("expr[0] type = %T; want *Identifier", tmpl.Expressions[0].Expr)
+	if !tmpl.Expressions[0].IsIdent() {
+		t.Fatalf("expr[0] kind = %v; want Ident", tmpl.Expressions[0].Kind())
 	}
+	id1 := tmpl.Expressions[0].MustIdent()
 	if id1.Name != "name" {
 		t.Errorf("expr[0] name = %q; want \"name\"", id1.Name)
 	}
 
-	id2, ok := tmpl.Expressions[1].Expr.(*ast.Identifier)
-	if !ok {
-		t.Fatalf("expr[1] type = %T; want *Identifier", tmpl.Expressions[1].Expr)
+	if !tmpl.Expressions[1].IsIdent() {
+		t.Fatalf("expr[1] kind = %v; want Ident", tmpl.Expressions[1].Kind())
 	}
+	id2 := tmpl.Expressions[1].MustIdent()
 	if id2.Name != "age" {
 		t.Errorf("expr[1] name = %q; want \"age\"", id2.Name)
 	}
@@ -353,11 +357,11 @@ func TestTemplateLiteralManySubstitutionsAST(t *testing.T) {
 	}
 	names := []string{"a", "b", "c", "d", "e"}
 	for i, want := range names {
-		id, ok := tmpl.Expressions[i].Expr.(*ast.Identifier)
-		if !ok {
-			t.Errorf("expr[%d] type = %T; want *Identifier", i, tmpl.Expressions[i].Expr)
+		if !tmpl.Expressions[i].IsIdent() {
+			t.Errorf("expr[%d] kind = %v; want Ident", i, tmpl.Expressions[i].Kind())
 			continue
 		}
+		id := tmpl.Expressions[i].MustIdent()
 		if id.Name != want {
 			t.Errorf("expr[%d] name = %q; want %q", i, id.Name, want)
 		}
@@ -371,17 +375,17 @@ func TestTemplateLiteralNestedAST(t *testing.T) {
 	if got := len(outer.Expressions); got != 1 {
 		t.Fatalf("outer expression count = %d; want 1", got)
 	}
-	inner, ok := outer.Expressions[0].Expr.(*ast.TemplateLiteral)
-	if !ok {
-		t.Fatalf("outer.expr[0] type = %T; want *TemplateLiteral", outer.Expressions[0].Expr)
+	if !outer.Expressions[0].IsTmplLit() {
+		t.Fatalf("outer.expr[0] kind = %v; want TmplLit", outer.Expressions[0].Kind())
 	}
+	inner := outer.Expressions[0].MustTmplLit()
 	if got := len(inner.Expressions); got != 1 {
 		t.Fatalf("inner expression count = %d; want 1", got)
 	}
-	id, ok := inner.Expressions[0].Expr.(*ast.Identifier)
-	if !ok {
-		t.Fatalf("inner.expr[0] type = %T; want *Identifier", inner.Expressions[0].Expr)
+	if !inner.Expressions[0].IsIdent() {
+		t.Fatalf("inner.expr[0] kind = %v; want Ident", inner.Expressions[0].Kind())
 	}
+	id := inner.Expressions[0].MustIdent()
 	if id.Name != "y" {
 		t.Errorf("inner.expr[0] name = %q; want \"y\"", id.Name)
 	}
@@ -394,10 +398,10 @@ func TestTaggedTemplateLiteralAST(t *testing.T) {
 	if tmpl.Tag == nil {
 		t.Fatal("tag is nil; want non-nil")
 	}
-	tagId, ok := tmpl.Tag.Expr.(*ast.Identifier)
-	if !ok {
-		t.Fatalf("tag type = %T; want *Identifier", tmpl.Tag.Expr)
+	if !tmpl.Tag.IsIdent() {
+		t.Fatalf("tag kind = %v; want Ident", tmpl.Tag.Kind())
 	}
+	tagId := tmpl.Tag.MustIdent()
 	if tagId.Name != "tag" {
 		t.Errorf("tag name = %q; want \"tag\"", tagId.Name)
 	}
@@ -440,17 +444,17 @@ func TestRegExpInCallAST(t *testing.T) {
 	if got := len(call.ArgumentList); got != 2 {
 		t.Fatalf("arg count = %d; want 2", got)
 	}
-	re, ok := call.ArgumentList[0].Expr.(*ast.RegExpLiteral)
-	if !ok {
-		t.Fatalf("arg[0] type = %T; want *RegExpLiteral", call.ArgumentList[0].Expr)
+	if !call.ArgumentList[0].IsRegExpLit() {
+		t.Fatalf("arg[0] kind = %v; want RegExpLit", call.ArgumentList[0].Kind())
 	}
+	re := call.ArgumentList[0].MustRegExpLit()
 	if re.Pattern != "foo" || re.Flags != "g" {
 		t.Errorf("regex = /%s/%s; want /foo/g", re.Pattern, re.Flags)
 	}
-	str, ok := call.ArgumentList[1].Expr.(*ast.StringLiteral)
-	if !ok {
-		t.Fatalf("arg[1] type = %T; want *StringLiteral", call.ArgumentList[1].Expr)
+	if !call.ArgumentList[1].IsStrLit() {
+		t.Fatalf("arg[1] kind = %v; want StrLit", call.ArgumentList[1].Kind())
 	}
+	str := call.ArgumentList[1].MustStrLit()
 	if str.Value != "bar" {
 		t.Errorf("arg[1] = %q; want \"bar\"", str.Value)
 	}
@@ -468,12 +472,12 @@ func TestBlockStatementListAST(t *testing.T) {
 		t.Fatalf("statement count = %d; want 4", got)
 	}
 	for i := 0; i < 3; i++ {
-		if _, ok := body.List[i].Stmt.(*ast.VariableDeclaration); !ok {
-			t.Errorf("stmt[%d] type = %T; want *VariableDeclaration", i, body.List[i].Stmt)
+		if !body.List[i].IsVarDecl() {
+			t.Errorf("stmt[%d] kind = %s; want VarDecl", i, body.List[i].Kind())
 		}
 	}
-	if _, ok := body.List[3].Stmt.(*ast.ReturnStatement); !ok {
-		t.Errorf("stmt[3] type = %T; want *ReturnStatement", body.List[3].Stmt)
+	if !body.List[3].IsReturn() {
+		t.Errorf("stmt[3] kind = %s; want Return", body.List[3].Kind())
 	}
 }
 
@@ -493,14 +497,14 @@ func TestBlockStatementNestedAST(t *testing.T) {
 	if got := len(body.List); got != 1 {
 		t.Fatalf("outer statement count = %d; want 1", got)
 	}
-	ifStmt, ok := body.List[0].Stmt.(*ast.IfStatement)
-	if !ok {
-		t.Fatalf("stmt[0] type = %T; want *IfStatement", body.List[0].Stmt)
+	if !body.List[0].IsIf() {
+		t.Fatalf("stmt[0] kind = %v; want If", body.List[0].Kind())
 	}
-	block, ok := ifStmt.Consequent.Stmt.(*ast.BlockStatement)
-	if !ok {
-		t.Fatalf("if body type = %T; want *BlockStatement", ifStmt.Consequent.Stmt)
+	ifStmt := body.List[0].MustIf()
+	if !ifStmt.Consequent.IsBlock() {
+		t.Fatalf("if body kind = %v; want Block", ifStmt.Consequent.Kind())
 	}
+	block := ifStmt.Consequent.MustBlock()
 	if got := len(block.List); got != 2 {
 		t.Fatalf("inner statement count = %d; want 2", got)
 	}
@@ -519,14 +523,14 @@ func TestBlockStatementLargeAST(t *testing.T) {
 		t.Fatalf("statement count = %d; want %d", got, n)
 	}
 	// Spot-check first and last.
-	decl0 := body.List[0].Stmt.(*ast.VariableDeclaration)
-	if decl0.List[0].Target.Target.(*ast.Identifier).Name != "x0" {
-		t.Errorf("first decl name = %q; want \"x0\"", decl0.List[0].Target.Target.(*ast.Identifier).Name)
+	decl0 := body.List[0].MustVarDecl()
+	if decl0.List[0].Target.MustIdent().Name != "x0" {
+		t.Errorf("first decl name = %q; want \"x0\"", decl0.List[0].Target.MustIdent().Name)
 	}
-	declN := body.List[n-1].Stmt.(*ast.VariableDeclaration)
+	declN := body.List[n-1].MustVarDecl()
 	want := fmt.Sprintf("x%d", n-1)
-	if declN.List[0].Target.Target.(*ast.Identifier).Name != want {
-		t.Errorf("last decl name = %q; want %q", declN.List[0].Target.Target.(*ast.Identifier).Name, want)
+	if declN.List[0].Target.MustIdent().Name != want {
+		t.Errorf("last decl name = %q; want %q", declN.List[0].Target.MustIdent().Name, want)
 	}
 }
 
@@ -545,17 +549,17 @@ func TestSourceElementsAST(t *testing.T) {
 	if got := len(p.Body); got != 4 {
 		t.Fatalf("body length = %d; want 4", got)
 	}
-	if _, ok := p.Body[0].Stmt.(*ast.VariableDeclaration); !ok {
-		t.Errorf("body[0] type = %T; want *VariableDeclaration", p.Body[0].Stmt)
+	if !p.Body[0].IsVarDecl() {
+		t.Errorf("body[0] kind = %v; want VarDecl", p.Body[0].Kind())
 	}
-	if _, ok := p.Body[1].Stmt.(*ast.FunctionDeclaration); !ok {
-		t.Errorf("body[1] type = %T; want *FunctionDeclaration", p.Body[1].Stmt)
+	if !p.Body[1].IsFuncDecl() {
+		t.Errorf("body[1] kind = %v; want FuncDecl", p.Body[1].Kind())
 	}
-	if _, ok := p.Body[2].Stmt.(*ast.ClassDeclaration); !ok {
-		t.Errorf("body[2] type = %T; want *ClassDeclaration", p.Body[2].Stmt)
+	if !p.Body[2].IsClassDecl() {
+		t.Errorf("body[2] kind = %v; want ClassDecl", p.Body[2].Kind())
 	}
-	if _, ok := p.Body[3].Stmt.(*ast.VariableDeclaration); !ok {
-		t.Errorf("body[3] type = %T; want *VariableDeclaration", p.Body[3].Stmt)
+	if !p.Body[3].IsVarDecl() {
+		t.Errorf("body[3] kind = %v; want VarDecl", p.Body[3].Kind())
 	}
 }
 
@@ -576,20 +580,20 @@ func TestSwitchCaseConsequentAST(t *testing.T) {
 		t.Errorf("case 1 consequent = %d; want 4", got)
 	}
 	// Verify first statement in case 1 is expression statement calling 'a'.
-	es, ok := sw.Body[0].Consequent[0].Stmt.(*ast.ExpressionStatement)
-	if !ok {
-		t.Fatalf("case1.stmt[0] type = %T; want *ExpressionStatement", sw.Body[0].Consequent[0].Stmt)
+	if !sw.Body[0].Consequent[0].IsExpression() {
+		t.Fatalf("case1.stmt[0] kind = %v; want Expression", sw.Body[0].Consequent[0].Kind())
 	}
-	call, ok := es.Expression.Expr.(*ast.CallExpression)
-	if !ok {
-		t.Fatalf("case1.stmt[0].expr type = %T; want *CallExpression", es.Expression.Expr)
+	es := sw.Body[0].Consequent[0].MustExpression()
+	if !es.Expression.IsCall() {
+		t.Fatalf("case1.stmt[0].expr kind = %v; want Call", es.Expression.Kind())
 	}
-	if id := call.Callee.Expr.(*ast.Identifier); id.Name != "a" {
+	call := es.Expression.MustCall()
+	if id := call.Callee.MustIdent(); id.Name != "a" {
 		t.Errorf("case1.stmt[0] callee = %q; want \"a\"", id.Name)
 	}
 	// Last statement should be break.
-	if _, ok := sw.Body[0].Consequent[3].Stmt.(*ast.BreakStatement); !ok {
-		t.Errorf("case1.stmt[3] type = %T; want *BreakStatement", sw.Body[0].Consequent[3].Stmt)
+	if !sw.Body[0].Consequent[3].IsBreak() {
+		t.Errorf("case1.stmt[3] kind = %v; want Break", sw.Body[0].Consequent[3].Kind())
 	}
 
 	// case 2: 1 statement (d())
@@ -613,11 +617,11 @@ func TestSwitchCaseTestExpressionsAST(t *testing.T) {
 	if got := len(sw.Body); got != 2 {
 		t.Fatalf("case count = %d; want 2", got)
 	}
-	s1 := sw.Body[0].Test.Expr.(*ast.StringLiteral)
+	s1 := sw.Body[0].Test.MustStrLit()
 	if s1.Value != "a" {
 		t.Errorf("case 0 test = %q; want \"a\"", s1.Value)
 	}
-	s2 := sw.Body[1].Test.Expr.(*ast.StringLiteral)
+	s2 := sw.Body[1].Test.MustStrLit()
 	if s2.Value != "b" {
 		t.Errorf("case 1 test = %q; want \"b\"", s2.Value)
 	}
@@ -636,23 +640,23 @@ func TestObjectLiteralAST(t *testing.T) {
 	}
 
 	// First property: a: 1
-	p1 := obj.Value[0].Prop.(*ast.PropertyKeyed)
-	if id := p1.Key.Expr.(*ast.StringLiteral); id.Value != "a" {
+	p1 := obj.Value[0].MustKeyed()
+	if id := p1.Key.MustStrLit(); id.Value != "a" {
 		t.Errorf("prop[0] key = %q; want \"a\"", id.Value)
 	}
-	if n := p1.Value.Expr.(*ast.NumberLiteral); n.Value != 1 {
+	if n := p1.Value.MustNumLit(); n.Value != 1 {
 		t.Errorf("prop[0] value = %v; want 1", n.Value)
 	}
 
 	// Second property: b: 'two'
-	p2 := obj.Value[1].Prop.(*ast.PropertyKeyed)
-	if s := p2.Value.Expr.(*ast.StringLiteral); s.Value != "two" {
+	p2 := obj.Value[1].MustKeyed()
+	if s := p2.Value.MustStrLit(); s.Value != "two" {
 		t.Errorf("prop[1] value = %q; want \"two\"", s.Value)
 	}
 
 	// Third property: c: true
-	p3 := obj.Value[2].Prop.(*ast.PropertyKeyed)
-	if b := p3.Value.Expr.(*ast.BooleanLiteral); !b.Value {
+	p3 := obj.Value[2].MustKeyed()
+	if b := p3.Value.MustBoolLit(); !b.Value {
 		t.Errorf("prop[2] value = %v; want true", b.Value)
 	}
 }
@@ -666,9 +670,9 @@ func TestObjectLiteralShorthandAST(t *testing.T) {
 	}
 	names := []string{"x", "y", "z"}
 	for i, want := range names {
-		ps, ok := obj.Value[i].Prop.(*ast.PropertyShort)
+		ps, ok := obj.Value[i].Short()
 		if !ok {
-			t.Errorf("prop[%d] type = %T; want *PropertyShort", i, obj.Value[i].Prop)
+			t.Errorf("prop[%d] kind = %v; want PropShort", i, obj.Value[i].Kind())
 			continue
 		}
 		if ps.Name.Name != want {
@@ -684,18 +688,18 @@ func TestObjectLiteralSpreadAST(t *testing.T) {
 	if got := len(obj.Value); got != 3 {
 		t.Fatalf("property count = %d; want 3", got)
 	}
-	if _, ok := obj.Value[0].Prop.(*ast.PropertyKeyed); !ok {
-		t.Errorf("prop[0] type = %T; want *PropertyKeyed", obj.Value[0].Prop)
+	if _, ok := obj.Value[0].Keyed(); !ok {
+		t.Errorf("prop[0] kind = %v; want PropKeyed", obj.Value[0].Kind())
 	}
-	spread, ok := obj.Value[1].Prop.(*ast.SpreadElement)
+	spread, ok := obj.Value[1].Spread()
 	if !ok {
-		t.Fatalf("prop[1] type = %T; want *SpreadElement", obj.Value[1].Prop)
+		t.Fatalf("prop[1] kind = %v; want PropSpread", obj.Value[1].Kind())
 	}
-	if id := spread.Expression.Expr.(*ast.Identifier); id.Name != "b" {
+	if id := spread.Expression.MustIdent(); id.Name != "b" {
 		t.Errorf("spread target = %q; want \"b\"", id.Name)
 	}
-	if _, ok := obj.Value[2].Prop.(*ast.PropertyKeyed); !ok {
-		t.Errorf("prop[2] type = %T; want *PropertyKeyed", obj.Value[2].Prop)
+	if _, ok := obj.Value[2].Keyed(); !ok {
+		t.Errorf("prop[2] kind = %v; want PropKeyed", obj.Value[2].Kind())
 	}
 }
 
@@ -718,19 +722,19 @@ func TestForStatementFullAST(t *testing.T) {
 	}
 
 	// Test should be a binary expression: i < 10
-	bin, ok := forStmt.Test.Expr.(*ast.BinaryExpression)
-	if !ok {
-		t.Fatalf("test type = %T; want *BinaryExpression", forStmt.Test.Expr)
+	if !forStmt.Test.IsBinary() {
+		t.Fatalf("test kind = %v; want Binary", forStmt.Test.Kind())
 	}
+	bin := forStmt.Test.MustBinary()
 	if bin.Operator != token.Less {
 		t.Errorf("test op = %v; want <", bin.Operator)
 	}
 
 	// Update should be an update expression: i++
-	upd, ok := forStmt.Update.Expr.(*ast.UpdateExpression)
-	if !ok {
-		t.Fatalf("update type = %T; want *UpdateExpression", forStmt.Update.Expr)
+	if !forStmt.Update.IsUpdate() {
+		t.Fatalf("update kind = %v; want Update", forStmt.Update.Kind())
 	}
+	upd := forStmt.Update.MustUpdate()
 	if !upd.Postfix {
 		t.Errorf("update postfix = false; want true")
 	}
@@ -744,10 +748,10 @@ func TestForStatementEmptyAST(t *testing.T) {
 		t.Errorf("initializer should be nil")
 	}
 	// Test and Update are *Expression wrappers (may have nil inner Expr).
-	if forStmt.Test != nil && forStmt.Test.Expr != nil {
+	if forStmt.Test != nil && !forStmt.Test.IsNone() {
 		t.Errorf("test should be nil or have nil Expr")
 	}
-	if forStmt.Update != nil && forStmt.Update.Expr != nil {
+	if forStmt.Update != nil && !forStmt.Update.IsNone() {
 		t.Errorf("update should be nil or have nil Expr")
 	}
 }
@@ -766,11 +770,11 @@ func TestVariableDeclarationAST(t *testing.T) {
 	names := []string{"x", "y", "z"}
 	values := []float64{1, 2, 3}
 	for i := range names {
-		id := decl.List[i].Target.Target.(*ast.Identifier)
+		id := decl.List[i].Target.MustIdent()
 		if id.Name != names[i] {
 			t.Errorf("decl[%d] name = %q; want %q", i, id.Name, names[i])
 		}
-		num := decl.List[i].Initializer.Expr.(*ast.NumberLiteral)
+		num := decl.List[i].Initializer.MustNumLit()
 		if num.Value != values[i] {
 			t.Errorf("decl[%d] value = %v; want %v", i, num.Value, values[i])
 		}
@@ -786,7 +790,7 @@ func TestIfElseChainAST(t *testing.T) {
 	ifStmt := firstStmt(p, 0).(*ast.IfStatement)
 
 	// Test should be identifier 'a'.
-	if id := ifStmt.Test.Expr.(*ast.Identifier); id.Name != "a" {
+	if id := ifStmt.Test.MustIdent(); id.Name != "a" {
 		t.Errorf("if test = %q; want \"a\"", id.Name)
 	}
 	if ifStmt.Alternate == nil {
@@ -794,11 +798,11 @@ func TestIfElseChainAST(t *testing.T) {
 	}
 
 	// Alternate should be another IfStatement (else if).
-	elseIf, ok := ifStmt.Alternate.Stmt.(*ast.IfStatement)
-	if !ok {
-		t.Fatalf("alternate type = %T; want *IfStatement", ifStmt.Alternate.Stmt)
+	if !ifStmt.Alternate.IsIf() {
+		t.Fatalf("alternate kind = %v; want If", ifStmt.Alternate.Kind())
 	}
-	if id := elseIf.Test.Expr.(*ast.Identifier); id.Name != "b" {
+	elseIf := ifStmt.Alternate.MustIf()
+	if id := elseIf.Test.MustIdent(); id.Name != "b" {
 		t.Errorf("else-if test = %q; want \"b\"", id.Name)
 	}
 	if elseIf.Alternate == nil {
@@ -806,8 +810,8 @@ func TestIfElseChainAST(t *testing.T) {
 	}
 
 	// Final else should be a BlockStatement.
-	if _, ok := elseIf.Alternate.Stmt.(*ast.BlockStatement); !ok {
-		t.Errorf("final else type = %T; want *BlockStatement", elseIf.Alternate.Stmt)
+	if !elseIf.Alternate.IsBlock() {
+		t.Errorf("final else kind = %v; want Block", elseIf.Alternate.Kind())
 	}
 }
 
@@ -824,7 +828,7 @@ func TestArrowFunctionAST(t *testing.T) {
 	}
 	names := []string{"a", "b", "c"}
 	for i, want := range names {
-		id := arrow.ParameterList.List[i].Target.Target.(*ast.Identifier)
+		id := arrow.ParameterList.List[i].Target.MustIdent()
 		if id.Name != want {
 			t.Errorf("param[%d] = %q; want %q", i, id.Name, want)
 		}
@@ -857,13 +861,13 @@ func TestConditionalExpressionAST(t *testing.T) {
 	p := mustParse(t, "var r = a ? 1 : 2")
 	cond := initializerExpr(firstStmt(p, 0)).(*ast.ConditionalExpression)
 
-	if id := cond.Test.Expr.(*ast.Identifier); id.Name != "a" {
+	if id := cond.Test.MustIdent(); id.Name != "a" {
 		t.Errorf("test = %q; want \"a\"", id.Name)
 	}
-	if n := cond.Consequent.Expr.(*ast.NumberLiteral); n.Value != 1 {
+	if n := cond.Consequent.MustNumLit(); n.Value != 1 {
 		t.Errorf("consequent = %v; want 1", n.Value)
 	}
-	if n := cond.Alternate.Expr.(*ast.NumberLiteral); n.Value != 2 {
+	if n := cond.Alternate.MustNumLit(); n.Value != 2 {
 		t.Errorf("alternate = %v; want 2", n.Value)
 	}
 }
@@ -885,7 +889,7 @@ func TestTryCatchFinallyAST(t *testing.T) {
 	if got := len(tr.Catch.Body.List); got != 1 {
 		t.Errorf("catch body statements = %d; want 1", got)
 	}
-	catchParam := tr.Catch.Parameter.Target.(*ast.Identifier)
+	catchParam := tr.Catch.Parameter.MustIdent()
 	if catchParam.Name != "e" {
 		t.Errorf("catch param = %q; want \"e\"", catchParam.Name)
 	}
@@ -942,26 +946,26 @@ func TestDeeplyNestedArraysAST(t *testing.T) {
 		t.Fatalf("outer length = %d; want 2", got)
 	}
 
-	inner0 := outer.Value[0].Expr.(*ast.ArrayLiteral)
+	inner0 := outer.Value[0].MustArrLit()
 	if got := len(inner0.Value); got != 2 {
 		t.Errorf("inner0 length = %d; want 2", got)
 	}
 
-	inner1 := outer.Value[1].Expr.(*ast.ArrayLiteral)
+	inner1 := outer.Value[1].MustArrLit()
 	if got := len(inner1.Value); got != 2 {
 		t.Errorf("inner1 length = %d; want 2", got)
 	}
 
 	// inner1[1] should be [4, [5]]
-	nested := inner1.Value[1].Expr.(*ast.ArrayLiteral)
+	nested := inner1.Value[1].MustArrLit()
 	if got := len(nested.Value); got != 2 {
 		t.Errorf("nested length = %d; want 2", got)
 	}
-	deepest := nested.Value[1].Expr.(*ast.ArrayLiteral)
+	deepest := nested.Value[1].MustArrLit()
 	if got := len(deepest.Value); got != 1 {
 		t.Errorf("deepest length = %d; want 1", got)
 	}
-	if n := deepest.Value[0].Expr.(*ast.NumberLiteral); n.Value != 5 {
+	if n := deepest.Value[0].MustNumLit(); n.Value != 5 {
 		t.Errorf("deepest value = %v; want 5", n.Value)
 	}
 }
@@ -974,24 +978,24 @@ func TestDeeplyNestedCallsAST(t *testing.T) {
 		t.Fatalf("f args = %d; want 2", got)
 	}
 
-	g := f.ArgumentList[0].Expr.(*ast.CallExpression)
+	g := f.ArgumentList[0].MustCall()
 	if got := len(g.ArgumentList); got != 2 {
 		t.Errorf("g args = %d; want 2", got)
 	}
 
-	h := f.ArgumentList[1].Expr.(*ast.CallExpression)
+	h := f.ArgumentList[1].MustCall()
 	if got := len(h.ArgumentList); got != 2 {
 		t.Errorf("h args = %d; want 2", got)
 	}
 
-	i := h.ArgumentList[1].Expr.(*ast.CallExpression)
+	i := h.ArgumentList[1].MustCall()
 	if got := len(i.ArgumentList); got != 2 {
 		t.Errorf("i args = %d; want 2", got)
 	}
-	if n := i.ArgumentList[0].Expr.(*ast.NumberLiteral); n.Value != 4 {
+	if n := i.ArgumentList[0].MustNumLit(); n.Value != 4 {
 		t.Errorf("i arg[0] = %v; want 4", n.Value)
 	}
-	if n := i.ArgumentList[1].Expr.(*ast.NumberLiteral); n.Value != 5 {
+	if n := i.ArgumentList[1].MustNumLit(); n.Value != 5 {
 		t.Errorf("i arg[1] = %v; want 5", n.Value)
 	}
 }
@@ -1012,17 +1016,17 @@ func TestDeeplyNestedStatementsAST(t *testing.T) {
 		t.Fatalf("outer body = %d; want 1", got)
 	}
 
-	ifBlock := body.List[0].Stmt.(*ast.IfStatement).Consequent.Stmt.(*ast.BlockStatement)
+	ifBlock := body.List[0].MustIf().Consequent.MustBlock()
 	if got := len(ifBlock.List); got != 1 {
 		t.Fatalf("if body = %d; want 1", got)
 	}
 
-	whileBlock := ifBlock.List[0].Stmt.(*ast.WhileStatement).Body.Stmt.(*ast.BlockStatement)
+	whileBlock := ifBlock.List[0].MustWhile().Body.MustBlock()
 	if got := len(whileBlock.List); got != 1 {
 		t.Fatalf("while body = %d; want 1", got)
 	}
 
-	forBlock := whileBlock.List[0].Stmt.(*ast.ForStatement).Body.Stmt.(*ast.BlockStatement)
+	forBlock := whileBlock.List[0].MustFor().Body.MustBlock()
 	if got := len(forBlock.List); got != 2 {
 		t.Fatalf("for body = %d; want 2", got)
 	}
@@ -1047,21 +1051,21 @@ func TestMixedNestedSliceBuildersAST(t *testing.T) {
 	}
 
 	// First statement: var a = [1, g(2, 3), [4, 5]]
-	arr := body.List[0].Stmt.(*ast.VariableDeclaration).List[0].Initializer.Expr.(*ast.ArrayLiteral)
+	arr := body.List[0].MustVarDecl().List[0].Initializer.MustArrLit()
 	if got := len(arr.Value); got != 3 {
 		t.Fatalf("array length = %d; want 3", got)
 	}
-	call := arr.Value[1].Expr.(*ast.CallExpression)
+	call := arr.Value[1].MustCall()
 	if got := len(call.ArgumentList); got != 2 {
 		t.Errorf("g() args = %d; want 2", got)
 	}
-	innerArr := arr.Value[2].Expr.(*ast.ArrayLiteral)
+	innerArr := arr.Value[2].MustArrLit()
 	if got := len(innerArr.Value); got != 2 {
 		t.Errorf("inner array length = %d; want 2", got)
 	}
 
 	// Second statement: switch
-	sw := body.List[1].Stmt.(*ast.SwitchStatement)
+	sw := body.List[1].MustSwitch()
 	if got := len(sw.Body); got != 2 {
 		t.Fatalf("case count = %d; want 2", got)
 	}
@@ -1075,28 +1079,28 @@ func TestMixedNestedSliceBuildersAST(t *testing.T) {
 	}
 
 	// Check the return in default has a sequence expression (1, 2, 3).
-	retStmt := sw.Body[1].Consequent[0].Stmt.(*ast.ReturnStatement)
-	seq := retStmt.Argument.Expr.(*ast.SequenceExpression)
+	retStmt := sw.Body[1].Consequent[0].MustReturn()
+	seq := retStmt.Argument.MustSequence()
 	if got := len(seq.Sequence); got != 3 {
 		t.Errorf("sequence length = %d; want 3", got)
 	}
 
 	// Check the return in case 1 calls h with 2 args (array and template).
-	retStmt1 := sw.Body[0].Consequent[0].Stmt.(*ast.ReturnStatement)
-	hCall := retStmt1.Argument.Expr.(*ast.CallExpression)
+	retStmt1 := sw.Body[0].Consequent[0].MustReturn()
+	hCall := retStmt1.Argument.MustCall()
 	if got := len(hCall.ArgumentList); got != 2 {
 		t.Errorf("h() args = %d; want 2", got)
 	}
 	// First arg is [...a]
-	spreadArr := hCall.ArgumentList[0].Expr.(*ast.ArrayLiteral)
+	spreadArr := hCall.ArgumentList[0].MustArrLit()
 	if got := len(spreadArr.Value); got != 1 {
 		t.Errorf("[...a] length = %d; want 1", got)
 	}
-	if _, ok := spreadArr.Value[0].Expr.(*ast.SpreadElement); !ok {
-		t.Errorf("[...a][0] type = %T; want *SpreadElement", spreadArr.Value[0].Expr)
+	if !spreadArr.Value[0].IsSpread() {
+		t.Errorf("[...a][0] kind = %v; want Spread", spreadArr.Value[0].Kind())
 	}
 	// Second arg is template literal.
-	tmpl := hCall.ArgumentList[1].Expr.(*ast.TemplateLiteral)
+	tmpl := hCall.ArgumentList[1].MustTmplLit()
 	if got := len(tmpl.Expressions); got != 1 {
 		t.Errorf("template expressions = %d; want 1", got)
 	}
@@ -1293,15 +1297,15 @@ func TestASIReturnNewline(t *testing.T) {
 	if got := len(body.List); got != 2 {
 		t.Fatalf("body statements = %d; want 2 (return + expression)", got)
 	}
-	ret, ok := body.List[0].Stmt.(*ast.ReturnStatement)
+	ret, ok := body.List[0].Return()
 	if !ok {
-		t.Fatalf("stmt[0] type = %T; want *ReturnStatement", body.List[0].Stmt)
+		t.Fatalf("stmt[0] kind = %v; want Return", body.List[0].Kind())
 	}
 	if ret.Argument != nil {
-		t.Errorf("return argument = %T; want nil (ASI should apply)", ret.Argument.Expr)
+		t.Errorf("return argument = %v; want nil (ASI should apply)", ret.Argument.Kind())
 	}
-	if _, ok := body.List[1].Stmt.(*ast.ExpressionStatement); !ok {
-		t.Errorf("stmt[1] type = %T; want *ExpressionStatement", body.List[1].Stmt)
+	if !body.List[1].IsExpression() {
+		t.Errorf("stmt[1] kind = %v; want Expression", body.List[1].Kind())
 	}
 }
 
@@ -1311,11 +1315,11 @@ func TestASIReturnSameLine(t *testing.T) {
 	if got := len(body.List); got != 1 {
 		t.Fatalf("body statements = %d; want 1", got)
 	}
-	ret := body.List[0].Stmt.(*ast.ReturnStatement)
-	if ret.Argument == nil || ret.Argument.Expr == nil {
+	ret := body.List[0].MustReturn()
+	if ret.Argument == nil || ret.Argument.IsNone() {
 		t.Fatal("return argument is nil; want 42")
 	}
-	if n := ret.Argument.Expr.(*ast.NumberLiteral); n.Value != 42 {
+	if n := ret.Argument.MustNumLit(); n.Value != 42 {
 		t.Errorf("return value = %v; want 42", n.Value)
 	}
 }
@@ -1323,16 +1327,16 @@ func TestASIReturnSameLine(t *testing.T) {
 func TestASIReturnSemicolon(t *testing.T) {
 	p := mustParse(t, "function f() { return; 42 }")
 	body := bodyOf(firstStmt(p, 0))
-	ret := body.List[0].Stmt.(*ast.ReturnStatement)
+	ret := body.List[0].MustReturn()
 	if ret.Argument != nil {
-		t.Errorf("return argument = %T; want nil (explicit semicolon)", ret.Argument.Expr)
+		t.Errorf("return argument = %v; want nil (explicit semicolon)", ret.Argument.Kind())
 	}
 }
 
 func TestASIReturnRightBrace(t *testing.T) {
 	p := mustParse(t, "function f() { return }")
 	body := bodyOf(firstStmt(p, 0))
-	ret := body.List[0].Stmt.(*ast.ReturnStatement)
+	ret := body.List[0].MustReturn()
 	if ret.Argument != nil {
 		t.Errorf("return argument should be nil before }")
 	}
@@ -1341,12 +1345,12 @@ func TestASIReturnRightBrace(t *testing.T) {
 func TestASIReturnObject(t *testing.T) {
 	p := mustParse(t, "function f() { return { a: 1 } }")
 	body := bodyOf(firstStmt(p, 0))
-	ret := body.List[0].Stmt.(*ast.ReturnStatement)
-	if ret.Argument == nil || ret.Argument.Expr == nil {
+	ret := body.List[0].MustReturn()
+	if ret.Argument == nil || ret.Argument.IsNone() {
 		t.Fatal("return argument is nil; want object literal")
 	}
-	if _, ok := ret.Argument.Expr.(*ast.ObjectLiteral); !ok {
-		t.Errorf("return argument type = %T; want *ObjectLiteral", ret.Argument.Expr)
+	if !ret.Argument.IsObjLit() {
+		t.Errorf("return argument kind = %v; want ObjLit", ret.Argument.Kind())
 	}
 }
 
@@ -1356,16 +1360,16 @@ func TestASIThrowNewline(t *testing.T) {
 
 func TestASIBreakNewline(t *testing.T) {
 	p := mustParse(t, "outer: for (;;) { inner: for (;;) { break\nouter } }")
-	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.Stmt.(*ast.ForStatement)
-	outerBody := outerFor.Body.Stmt.(*ast.BlockStatement)
-	innerLabelled := outerBody.List[0].Stmt.(*ast.LabelledStatement)
-	innerFor := innerLabelled.Statement.Stmt.(*ast.ForStatement)
-	innerBody := innerFor.Body.Stmt.(*ast.BlockStatement)
+	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.MustFor()
+	outerBody := outerFor.Body.MustBlock()
+	innerLabelled := outerBody.List[0].MustLabelled()
+	innerFor := innerLabelled.Statement.MustFor()
+	innerBody := innerFor.Body.MustBlock()
 
 	if got := len(innerBody.List); got != 2 {
 		t.Fatalf("inner body = %d; want 2 (break + expr)", got)
 	}
-	brk := innerBody.List[0].Stmt.(*ast.BreakStatement)
+	brk := innerBody.List[0].MustBreak()
 	if brk.Label != nil {
 		t.Errorf("break label = %q; want nil (ASI after break)", brk.Label.Name)
 	}
@@ -1373,9 +1377,9 @@ func TestASIBreakNewline(t *testing.T) {
 
 func TestASIBreakSameLine(t *testing.T) {
 	p := mustParse(t, "outer: for (;;) { break outer }")
-	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.Stmt.(*ast.ForStatement)
-	body := outerFor.Body.Stmt.(*ast.BlockStatement)
-	brk := body.List[0].Stmt.(*ast.BreakStatement)
+	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.MustFor()
+	body := outerFor.Body.MustBlock()
+	brk := body.List[0].MustBreak()
 	if brk.Label == nil || brk.Label.Name != "outer" {
 		t.Errorf("break label = %v; want outer", brk.Label)
 	}
@@ -1383,15 +1387,15 @@ func TestASIBreakSameLine(t *testing.T) {
 
 func TestASIContinueNewline(t *testing.T) {
 	p := mustParse(t, "outer: for (;;) { for (;;) { continue\nouter } }")
-	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.Stmt.(*ast.ForStatement)
-	outerBody := outerFor.Body.Stmt.(*ast.BlockStatement)
-	innerFor := outerBody.List[0].Stmt.(*ast.ForStatement)
-	innerBody := innerFor.Body.Stmt.(*ast.BlockStatement)
+	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.MustFor()
+	outerBody := outerFor.Body.MustBlock()
+	innerFor := outerBody.List[0].MustFor()
+	innerBody := innerFor.Body.MustBlock()
 
 	if got := len(innerBody.List); got != 2 {
 		t.Fatalf("inner body = %d; want 2 (continue + expr)", got)
 	}
-	cont := innerBody.List[0].Stmt.(*ast.ContinueStatement)
+	cont := innerBody.List[0].MustContinue()
 	if cont.Label != nil {
 		t.Errorf("continue label = %q; want nil (ASI after continue)", cont.Label.Name)
 	}
@@ -1399,9 +1403,9 @@ func TestASIContinueNewline(t *testing.T) {
 
 func TestASIContinueSameLine(t *testing.T) {
 	p := mustParse(t, "outer: for (;;) { continue outer }")
-	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.Stmt.(*ast.ForStatement)
-	body := outerFor.Body.Stmt.(*ast.BlockStatement)
-	cont := body.List[0].Stmt.(*ast.ContinueStatement)
+	outerFor := firstStmt(p, 0).(*ast.LabelledStatement).Statement.MustFor()
+	body := outerFor.Body.MustBlock()
+	cont := body.List[0].MustContinue()
 	if cont.Label == nil || cont.Label.Name != "outer" {
 		t.Errorf("continue label = %v; want outer", cont.Label)
 	}
@@ -1414,14 +1418,14 @@ func TestASIPostfixNewline(t *testing.T) {
 	if got := len(body.List); got != 3 {
 		t.Fatalf("body statements = %d; want 3", got)
 	}
-	es := body.List[1].Stmt.(*ast.ExpressionStatement)
-	if id, ok := es.Expression.Expr.(*ast.Identifier); !ok || id.Name != "i" {
-		t.Errorf("stmt[1] = %T; want identifier 'i'", es.Expression.Expr)
+	es := body.List[1].MustExpression()
+	if id, ok := es.Expression.Ident(); !ok || id.Name != "i" {
+		t.Errorf("stmt[1] = %v; want identifier 'i'", es.Expression.Kind())
 	}
-	es2 := body.List[2].Stmt.(*ast.ExpressionStatement)
-	upd, ok := es2.Expression.Expr.(*ast.UpdateExpression)
+	es2 := body.List[2].MustExpression()
+	upd, ok := es2.Expression.Update()
 	if !ok {
-		t.Fatalf("stmt[2] = %T; want *UpdateExpression", es2.Expression.Expr)
+		t.Fatalf("stmt[2] = %v; want Update", es2.Expression.Kind())
 	}
 	if upd.Postfix {
 		t.Errorf("update should be prefix (++i), not postfix (i++)")
@@ -1492,7 +1496,7 @@ func TestPrecedenceMultiplicativeOverAdditive(t *testing.T) {
 	if bin.Operator != token.Plus {
 		t.Fatalf("top operator = %v; want +", bin.Operator)
 	}
-	right := bin.Right.Expr.(*ast.BinaryExpression)
+	right := bin.Right.MustBinary()
 	if right.Operator != token.Multiply {
 		t.Errorf("right operator = %v; want *", right.Operator)
 	}
@@ -1504,11 +1508,11 @@ func TestPrecedenceComparisonOverLogical(t *testing.T) {
 	if bin.Operator != token.LogicalAnd {
 		t.Fatalf("top operator = %v; want &&", bin.Operator)
 	}
-	left := bin.Left.Expr.(*ast.BinaryExpression)
+	left := bin.Left.MustBinary()
 	if left.Operator != token.Less {
 		t.Errorf("left operator = %v; want <", left.Operator)
 	}
-	right := bin.Right.Expr.(*ast.BinaryExpression)
+	right := bin.Right.MustBinary()
 	if right.Operator != token.Greater {
 		t.Errorf("right operator = %v; want >", right.Operator)
 	}
@@ -1520,7 +1524,7 @@ func TestPrecedenceOrOverAnd(t *testing.T) {
 	if bin.Operator != token.LogicalOr {
 		t.Fatalf("top operator = %v; want ||", bin.Operator)
 	}
-	right := bin.Right.Expr.(*ast.BinaryExpression)
+	right := bin.Right.MustBinary()
 	if right.Operator != token.LogicalAnd {
 		t.Errorf("right operator = %v; want &&", right.Operator)
 	}
@@ -1529,11 +1533,11 @@ func TestPrecedenceOrOverAnd(t *testing.T) {
 func TestPrecedenceTernaryOverAssignment(t *testing.T) {
 	p := mustParse(t, "x = a ? b : c")
 	assign := exprOf(firstStmt(p, 0)).(*ast.AssignExpression)
-	cond, ok := assign.Right.Expr.(*ast.ConditionalExpression)
+	cond, ok := assign.Right.Conditional()
 	if !ok {
-		t.Fatalf("rhs type = %T; want *ConditionalExpression", assign.Right.Expr)
+		t.Fatalf("rhs kind = %v; want Conditional", assign.Right.Kind())
 	}
-	if id := cond.Test.Expr.(*ast.Identifier); id.Name != "a" {
+	if id := cond.Test.MustIdent(); id.Name != "a" {
 		t.Errorf("test = %q; want a", id.Name)
 	}
 }
@@ -1544,9 +1548,9 @@ func TestPrecedenceUnaryOverBinary(t *testing.T) {
 	if bin.Operator != token.LogicalAnd {
 		t.Fatalf("top operator = %v; want &&", bin.Operator)
 	}
-	unary, ok := bin.Left.Expr.(*ast.UnaryExpression)
+	unary, ok := bin.Left.Unary()
 	if !ok {
-		t.Fatalf("left type = %T; want *UnaryExpression", bin.Left.Expr)
+		t.Fatalf("left kind = %v; want Unary", bin.Left.Kind())
 	}
 	if unary.Operator != token.Not {
 		t.Errorf("unary operator = %v; want !", unary.Operator)
@@ -1559,7 +1563,7 @@ func TestPrecedenceGrouping(t *testing.T) {
 	if bin.Operator != token.Multiply {
 		t.Fatalf("top operator = %v; want *", bin.Operator)
 	}
-	left := bin.Left.Expr.(*ast.BinaryExpression)
+	left := bin.Left.MustBinary()
 	if left.Operator != token.Plus {
 		t.Errorf("grouped operator = %v; want +", left.Operator)
 	}
@@ -1572,11 +1576,11 @@ func TestPrecedenceBitwiseChain(t *testing.T) {
 	if or.Operator != token.Or {
 		t.Fatalf("top = %v; want |", or.Operator)
 	}
-	xor := or.Right.Expr.(*ast.BinaryExpression)
+	xor := or.Right.MustBinary()
 	if xor.Operator != token.ExclusiveOr {
 		t.Fatalf("right = %v; want ^", xor.Operator)
 	}
-	and := xor.Right.Expr.(*ast.BinaryExpression)
+	and := xor.Right.MustBinary()
 	if and.Operator != token.And {
 		t.Errorf("inner = %v; want &", and.Operator)
 	}
@@ -1588,7 +1592,7 @@ func TestPrecedenceNullishCoalescing(t *testing.T) {
 	if outer.Operator != token.Coalesce {
 		t.Fatalf("top = %v; want ??", outer.Operator)
 	}
-	inner := outer.Left.Expr.(*ast.BinaryExpression)
+	inner := outer.Left.MustBinary()
 	if inner.Operator != token.Coalesce {
 		t.Errorf("left = %v; want ??", inner.Operator)
 	}
@@ -1600,9 +1604,9 @@ func TestPrecedenceExponentiationRightAssociative(t *testing.T) {
 	if outer.Operator != token.Exponent {
 		t.Fatalf("top = %v; want **", outer.Operator)
 	}
-	inner, ok := outer.Right.Expr.(*ast.BinaryExpression)
+	inner, ok := outer.Right.Binary()
 	if !ok {
-		t.Fatalf("right = %T; want *BinaryExpression", outer.Right.Expr)
+		t.Fatalf("right = %v; want Binary", outer.Right.Kind())
 	}
 	if inner.Operator != token.Exponent {
 		t.Errorf("right op = %v; want **", inner.Operator)
@@ -1684,13 +1688,13 @@ func TestMemberCallChainAST(t *testing.T) {
 	if !ok {
 		t.Fatalf("top = %T; want *MemberExpression", exprOf(firstStmt(p, 0)))
 	}
-	dot, ok := top.Object.Expr.(*ast.MemberExpression)
+	dot, ok := top.Object.Member()
 	if !ok {
-		t.Fatalf("top.object = %T; want *MemberExpression (.d)", top.Object.Expr)
+		t.Fatalf("top.object = %v; want Member (.d)", top.Object.Kind())
 	}
-	call, ok := dot.Object.Expr.(*ast.CallExpression)
+	call, ok := dot.Object.Call()
 	if !ok {
-		t.Fatalf("dot.object = %T; want *CallExpression", dot.Object.Expr)
+		t.Fatalf("dot.object = %v; want Call", dot.Object.Kind())
 	}
 	if got := len(call.ArgumentList); got != 1 {
 		t.Errorf("call args = %d; want 1", got)
@@ -1767,7 +1771,7 @@ func TestForInStatementAST(t *testing.T) {
 	if forIn.Source == nil {
 		t.Fatal("source is nil")
 	}
-	if id := forIn.Source.Expr.(*ast.Identifier); id.Name != "obj" {
+	if id := forIn.Source.MustIdent(); id.Name != "obj" {
 		t.Errorf("source = %q; want obj", id.Name)
 	}
 }
@@ -1778,7 +1782,7 @@ func TestForOfStatementAST(t *testing.T) {
 	if forOf.Source == nil {
 		t.Fatal("source is nil")
 	}
-	if id := forOf.Source.Expr.(*ast.Identifier); id.Name != "arr" {
+	if id := forOf.Source.MustIdent(); id.Name != "arr" {
 		t.Errorf("source = %q; want arr", id.Name)
 	}
 }
@@ -1877,7 +1881,7 @@ func TestDoWhileAST(t *testing.T) {
 	if dw.Test == nil {
 		t.Fatal("test is nil")
 	}
-	bin := dw.Test.Expr.(*ast.BinaryExpression)
+	bin := dw.Test.MustBinary()
 	if bin.Operator != token.Less {
 		t.Errorf("test op = %v; want <", bin.Operator)
 	}
@@ -1886,7 +1890,7 @@ func TestDoWhileAST(t *testing.T) {
 func TestWhileAST(t *testing.T) {
 	p := mustParse(t, "while (x > 0) { x-- }")
 	w := firstStmt(p, 0).(*ast.WhileStatement)
-	bin := w.Test.Expr.(*ast.BinaryExpression)
+	bin := w.Test.MustBinary()
 	if bin.Operator != token.Greater {
 		t.Errorf("test op = %v; want >", bin.Operator)
 	}
@@ -1898,9 +1902,9 @@ func TestLabelledBreakContinue(t *testing.T) {
 	if labelled.Label.Name != "loop" {
 		t.Errorf("label = %q; want loop", labelled.Label.Name)
 	}
-	forStmt := labelled.Statement.Stmt.(*ast.ForStatement)
-	body := forStmt.Body.Stmt.(*ast.BlockStatement)
-	brk := body.List[0].Stmt.(*ast.BreakStatement)
+	forStmt := labelled.Statement.MustFor()
+	body := forStmt.Body.MustBlock()
+	brk := body.List[0].MustBreak()
 	if brk.Label == nil || brk.Label.Name != "loop" {
 		t.Errorf("break label = %v; want loop", brk.Label)
 	}
@@ -1973,11 +1977,11 @@ func TestComputedPropertyKey(t *testing.T) {
 	if got := len(obj.Value); got != 1 {
 		t.Fatalf("property count = %d; want 1", got)
 	}
-	pk := obj.Value[0].Prop.(*ast.PropertyKeyed)
+	pk := obj.Value[0].MustKeyed()
 	if !pk.Computed {
 		t.Error("computed = false; want true")
 	}
-	bin := pk.Key.Expr.(*ast.BinaryExpression)
+	bin := pk.Key.MustBinary()
 	if bin.Operator != token.Plus {
 		t.Errorf("key op = %v; want +", bin.Operator)
 	}
@@ -1986,7 +1990,7 @@ func TestComputedPropertyKey(t *testing.T) {
 func TestNewExpressionAST(t *testing.T) {
 	p := mustParse(t, "new Foo(1, 2)")
 	newExpr := exprOf(firstStmt(p, 0)).(*ast.NewExpression)
-	if id := newExpr.Callee.Expr.(*ast.Identifier); id.Name != "Foo" {
+	if id := newExpr.Callee.MustIdent(); id.Name != "Foo" {
 		t.Errorf("callee = %q; want Foo", id.Name)
 	}
 	if got := len(newExpr.ArgumentList); got != 2 {
@@ -2000,8 +2004,8 @@ func TestThrowStatementAST(t *testing.T) {
 	if thr.Argument == nil {
 		t.Fatal("argument is nil")
 	}
-	if _, ok := thr.Argument.Expr.(*ast.NewExpression); !ok {
-		t.Errorf("argument = %T; want *NewExpression", thr.Argument.Expr)
+	if !thr.Argument.IsNew() {
+		t.Errorf("argument = %v; want New", thr.Argument.Kind())
 	}
 }
 
@@ -2011,8 +2015,8 @@ func TestEmptyStatementAST(t *testing.T) {
 		t.Fatalf("body = %d; want 3", got)
 	}
 	for i := range p.Body {
-		if _, ok := p.Body[i].Stmt.(*ast.EmptyStatement); !ok {
-			t.Errorf("body[%d] = %T; want *EmptyStatement", i, p.Body[i].Stmt)
+		if !p.Body[i].IsEmpty() {
+			t.Errorf("body[%d] = %v; want Empty", i, p.Body[i].Kind())
 		}
 	}
 }
@@ -2024,8 +2028,8 @@ func TestYieldExpressionAST(t *testing.T) {
 		t.Fatalf("body = %d; want 2", got)
 	}
 
-	es1 := body.List[0].Stmt.(*ast.ExpressionStatement)
-	y1 := es1.Expression.Expr.(*ast.YieldExpression)
+	es1 := body.List[0].MustExpression()
+	y1 := es1.Expression.MustYield()
 	if y1.Delegate {
 		t.Error("yield 1 should not be delegate")
 	}
@@ -2033,8 +2037,8 @@ func TestYieldExpressionAST(t *testing.T) {
 		t.Error("yield 1 should have argument")
 	}
 
-	es2 := body.List[1].Stmt.(*ast.ExpressionStatement)
-	y2 := es2.Expression.Expr.(*ast.YieldExpression)
+	es2 := body.List[1].MustExpression()
+	y2 := es2.Expression.MustYield()
 	if !y2.Delegate {
 		t.Error("yield* should be delegate")
 	}

@@ -388,12 +388,6 @@ func (n *BinaryExpression) VisitChildrenWith(v Visitor) {
 	n.Left.VisitWith(v)
 	n.Right.VisitWith(v)
 }
-func (n *BindingTarget) VisitWith(v Visitor) {
-	v.VisitBindingTarget(n)
-}
-func (n *BindingTarget) VisitChildrenWith(v Visitor) {
-	n.Target.VisitWith(v)
-}
 func (n *BlockStatement) VisitWith(v Visitor) {
 	v.VisitBlockStatement(n)
 }
@@ -452,12 +446,6 @@ func (n *ClassDeclaration) VisitWith(v Visitor) {
 func (n *ClassDeclaration) VisitChildrenWith(v Visitor) {
 	n.Class.VisitWith(v)
 }
-func (n *ClassElement) VisitWith(v Visitor) {
-	v.VisitClassElement(n)
-}
-func (n *ClassElement) VisitChildrenWith(v Visitor) {
-	n.Element.VisitWith(v)
-}
 func (n *ClassElements) VisitWith(v Visitor) {
 	v.VisitClassElements(n)
 }
@@ -489,12 +477,6 @@ func (n *ComputedProperty) VisitWith(v Visitor) {
 }
 func (n *ComputedProperty) VisitChildrenWith(v Visitor) {
 	n.Expr.VisitWith(v)
-}
-func (n *ConciseBody) VisitWith(v Visitor) {
-	v.VisitConciseBody(n)
-}
-func (n *ConciseBody) VisitChildrenWith(v Visitor) {
-	n.Body.VisitWith(v)
 }
 func (n *ConditionalExpression) VisitWith(v Visitor) {
 	v.VisitConditionalExpression(n)
@@ -529,14 +511,6 @@ func (n *EmptyStatement) VisitWith(v Visitor) {
 }
 func (n *EmptyStatement) VisitChildrenWith(v Visitor) {
 }
-func (n *Expression) VisitWith(v Visitor) {
-	v.VisitExpression(n)
-}
-func (n *Expression) VisitChildrenWith(v Visitor) {
-	if n.Expr != nil {
-		n.Expr.VisitWith(v)
-	}
-}
 func (n *ExpressionStatement) VisitWith(v Visitor) {
 	v.VisitExpressionStatement(n)
 }
@@ -567,18 +541,6 @@ func (n *ForInStatement) VisitChildrenWith(v Visitor) {
 	n.Into.VisitWith(v)
 	n.Source.VisitWith(v)
 	n.Body.VisitWith(v)
-}
-func (n *ForInto) VisitWith(v Visitor) {
-	v.VisitForInto(n)
-}
-func (n *ForInto) VisitChildrenWith(v Visitor) {
-	n.Into.VisitWith(v)
-}
-func (n *ForLoopInitializer) VisitWith(v Visitor) {
-	v.VisitForLoopInitializer(n)
-}
-func (n *ForLoopInitializer) VisitChildrenWith(v Visitor) {
-	n.Initializer.VisitWith(v)
 }
 func (n *ForOfStatement) VisitWith(v Visitor) {
 	v.VisitForOfStatement(n)
@@ -648,12 +610,6 @@ func (n *MemberExpression) VisitWith(v Visitor) {
 func (n *MemberExpression) VisitChildrenWith(v Visitor) {
 	n.Object.VisitWith(v)
 	n.Property.VisitWith(v)
-}
-func (n *MemberProperty) VisitWith(v Visitor) {
-	v.VisitMemberProperty(n)
-}
-func (n *MemberProperty) VisitChildrenWith(v Visitor) {
-	n.Prop.VisitWith(v)
 }
 func (n *MetaProperty) VisitWith(v Visitor) {
 	v.VisitMetaProperty(n)
@@ -748,12 +704,6 @@ func (n *Properties) VisitChildrenWith(v Visitor) {
 		(*n)[i].VisitWith(v)
 	}
 }
-func (n *Property) VisitWith(v Visitor) {
-	v.VisitProperty(n)
-}
-func (n *Property) VisitChildrenWith(v Visitor) {
-	n.Prop.VisitWith(v)
-}
 func (n *PropertyKeyed) VisitWith(v Visitor) {
 	v.VisitPropertyKeyed(n)
 }
@@ -793,14 +743,6 @@ func (n *SpreadElement) VisitWith(v Visitor) {
 func (n *SpreadElement) VisitChildrenWith(v Visitor) {
 	n.Expression.VisitWith(v)
 }
-func (n *Statement) VisitWith(v Visitor) {
-	v.VisitStatement(n)
-}
-func (n *Statement) VisitChildrenWith(v Visitor) {
-	if n.Stmt != nil {
-		n.Stmt.VisitWith(v)
-	}
-}
 func (n *Statements) VisitWith(v Visitor) {
 	v.VisitStatements(n)
 }
@@ -823,8 +765,8 @@ func (n *SwitchStatement) VisitWith(v Visitor) {
 	v.VisitSwitchStatement(n)
 }
 func (n *SwitchStatement) VisitChildrenWith(v Visitor) {
-	n.Discriminant.VisitWith(v)
 	n.Body.VisitWith(v)
+	n.Discriminant.VisitWith(v)
 }
 func (n *TemplateElement) VisitWith(v Visitor) {
 	v.VisitTemplateElement(n)
@@ -926,4 +868,299 @@ func (n *YieldExpression) VisitWith(v Visitor) {
 }
 func (n *YieldExpression) VisitChildrenWith(v Visitor) {
 	n.Argument.VisitWith(v)
+}
+
+func (n *BindingTarget) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitBindingTarget(n)
+}
+
+func (n *BindingTarget) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case BindingTargetArrPat:
+		(*ArrayPattern)(n.ptr).VisitWith(v)
+	case BindingTargetIdent:
+		(*Identifier)(n.ptr).VisitWith(v)
+	case BindingTargetInvalid:
+		(*InvalidExpression)(n.ptr).VisitWith(v)
+	case BindingTargetMember:
+		(*MemberExpression)(n.ptr).VisitWith(v)
+	case BindingTargetObjPat:
+		(*ObjectPattern)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *ClassElement) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitClassElement(n)
+}
+
+func (n *ClassElement) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case ClassElemField:
+		(*FieldDefinition)(n.ptr).VisitWith(v)
+	case ClassElemMethod:
+		(*MethodDefinition)(n.ptr).VisitWith(v)
+	case ClassElemStaticBlock:
+		(*ClassStaticBlock)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *ConciseBody) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitConciseBody(n)
+}
+
+func (n *ConciseBody) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case ConciseBodyBlock:
+		(*BlockStatement)(n.ptr).VisitWith(v)
+	case ConciseBodyExpr:
+		(*Expression)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *Expression) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitExpression(n)
+}
+
+func (n *Expression) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case ExprArrLit:
+		(*ArrayLiteral)(n.ptr).VisitWith(v)
+	case ExprArrPat:
+		(*ArrayPattern)(n.ptr).VisitWith(v)
+	case ExprArrowFuncLit:
+		(*ArrowFunctionLiteral)(n.ptr).VisitWith(v)
+	case ExprAssign:
+		(*AssignExpression)(n.ptr).VisitWith(v)
+	case ExprAwait:
+		(*AwaitExpression)(n.ptr).VisitWith(v)
+	case ExprBinary:
+		(*BinaryExpression)(n.ptr).VisitWith(v)
+	case ExprBoolLit:
+		(*BooleanLiteral)(n.ptr).VisitWith(v)
+	case ExprCall:
+		(*CallExpression)(n.ptr).VisitWith(v)
+	case ExprClassLit:
+		(*ClassLiteral)(n.ptr).VisitWith(v)
+	case ExprConditional:
+		(*ConditionalExpression)(n.ptr).VisitWith(v)
+	case ExprFuncLit:
+		(*FunctionLiteral)(n.ptr).VisitWith(v)
+	case ExprIdent:
+		(*Identifier)(n.ptr).VisitWith(v)
+	case ExprInvalid:
+		(*InvalidExpression)(n.ptr).VisitWith(v)
+	case ExprKeyed:
+		(*PropertyKeyed)(n.ptr).VisitWith(v)
+	case ExprMember:
+		(*MemberExpression)(n.ptr).VisitWith(v)
+	case ExprMetaProp:
+		(*MetaProperty)(n.ptr).VisitWith(v)
+	case ExprNew:
+		(*NewExpression)(n.ptr).VisitWith(v)
+	case ExprNullLit:
+		(*NullLiteral)(n.ptr).VisitWith(v)
+	case ExprNumLit:
+		(*NumberLiteral)(n.ptr).VisitWith(v)
+	case ExprObjLit:
+		(*ObjectLiteral)(n.ptr).VisitWith(v)
+	case ExprObjPat:
+		(*ObjectPattern)(n.ptr).VisitWith(v)
+	case ExprOptChain:
+		(*OptionalChain)(n.ptr).VisitWith(v)
+	case ExprOptional:
+		(*Optional)(n.ptr).VisitWith(v)
+	case ExprPrivDot:
+		(*PrivateDotExpression)(n.ptr).VisitWith(v)
+	case ExprPrivIdent:
+		(*PrivateIdentifier)(n.ptr).VisitWith(v)
+	case ExprRegExpLit:
+		(*RegExpLiteral)(n.ptr).VisitWith(v)
+	case ExprSequence:
+		(*SequenceExpression)(n.ptr).VisitWith(v)
+	case ExprShort:
+		(*PropertyShort)(n.ptr).VisitWith(v)
+	case ExprSpread:
+		(*SpreadElement)(n.ptr).VisitWith(v)
+	case ExprStrLit:
+		(*StringLiteral)(n.ptr).VisitWith(v)
+	case ExprSuper:
+		(*SuperExpression)(n.ptr).VisitWith(v)
+	case ExprThis:
+		(*ThisExpression)(n.ptr).VisitWith(v)
+	case ExprTmplLit:
+		(*TemplateLiteral)(n.ptr).VisitWith(v)
+	case ExprUnary:
+		(*UnaryExpression)(n.ptr).VisitWith(v)
+	case ExprUpdate:
+		(*UpdateExpression)(n.ptr).VisitWith(v)
+	case ExprVarDeclarator:
+		(*VariableDeclarator)(n.ptr).VisitWith(v)
+	case ExprYield:
+		(*YieldExpression)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *ForInto) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitForInto(n)
+}
+
+func (n *ForInto) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case ForIntoExpr:
+		(*Expression)(n.ptr).VisitWith(v)
+	case ForIntoVarDecl:
+		(*VariableDeclaration)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *ForLoopInitializer) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitForLoopInitializer(n)
+}
+
+func (n *ForLoopInitializer) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case ForInitExpr:
+		(*Expression)(n.ptr).VisitWith(v)
+	case ForInitVarDecl:
+		(*VariableDeclaration)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *MemberProperty) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitMemberProperty(n)
+}
+
+func (n *MemberProperty) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case MemPropComputed:
+		(*ComputedProperty)(n.ptr).VisitWith(v)
+	case MemPropIdent:
+		(*Identifier)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *Property) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitProperty(n)
+}
+
+func (n *Property) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case PropKeyed:
+		(*PropertyKeyed)(n.ptr).VisitWith(v)
+	case PropShort:
+		(*PropertyShort)(n.ptr).VisitWith(v)
+	case PropSpread:
+		(*SpreadElement)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *Statement) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitStatement(n)
+}
+
+func (n *Statement) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case StmtBad:
+		(*BadStatement)(n.ptr).VisitWith(v)
+	case StmtBlock:
+		(*BlockStatement)(n.ptr).VisitWith(v)
+	case StmtBreak:
+		(*BreakStatement)(n.ptr).VisitWith(v)
+	case StmtCase:
+		(*CaseStatement)(n.ptr).VisitWith(v)
+	case StmtCatch:
+		(*CatchStatement)(n.ptr).VisitWith(v)
+	case StmtClassDecl:
+		(*ClassDeclaration)(n.ptr).VisitWith(v)
+	case StmtContinue:
+		(*ContinueStatement)(n.ptr).VisitWith(v)
+	case StmtDebugger:
+		(*DebuggerStatement)(n.ptr).VisitWith(v)
+	case StmtDoWhile:
+		(*DoWhileStatement)(n.ptr).VisitWith(v)
+	case StmtEmpty:
+		(*EmptyStatement)(n.ptr).VisitWith(v)
+	case StmtExpression:
+		(*ExpressionStatement)(n.ptr).VisitWith(v)
+	case StmtFor:
+		(*ForStatement)(n.ptr).VisitWith(v)
+	case StmtForIn:
+		(*ForInStatement)(n.ptr).VisitWith(v)
+	case StmtForOf:
+		(*ForOfStatement)(n.ptr).VisitWith(v)
+	case StmtFuncDecl:
+		(*FunctionDeclaration)(n.ptr).VisitWith(v)
+	case StmtIf:
+		(*IfStatement)(n.ptr).VisitWith(v)
+	case StmtLabelled:
+		(*LabelledStatement)(n.ptr).VisitWith(v)
+	case StmtReturn:
+		(*ReturnStatement)(n.ptr).VisitWith(v)
+	case StmtSwitch:
+		(*SwitchStatement)(n.ptr).VisitWith(v)
+	case StmtThrow:
+		(*ThrowStatement)(n.ptr).VisitWith(v)
+	case StmtTry:
+		(*TryStatement)(n.ptr).VisitWith(v)
+	case StmtVarDecl:
+		(*VariableDeclaration)(n.ptr).VisitWith(v)
+	case StmtWhile:
+		(*WhileStatement)(n.ptr).VisitWith(v)
+	case StmtWith:
+		(*WithStatement)(n.ptr).VisitWith(v)
+	}
 }

@@ -1,52 +1,48 @@
 package ast
 
+import "unsafe"
+
 type (
 	ClassLiteral struct {
-		Class      Idx
-		RightBrace Idx
 		Name       *Identifier `optional:"true"`
 		SuperClass *Expression `optional:"true"`
 		Body       ClassElements
+
+		Class      Idx
+		RightBrace Idx
 	}
 
 	ClassElements []ClassElement
 
+	//union:ClassStaticBlock,FieldDefinition,MethodDefinition
 	ClassElement struct {
-		Element Element
-	}
-
-	Element interface {
-		VisitableNode
-		_classElement()
+		ptr  unsafe.Pointer
+		kind ClassElemKind
 	}
 
 	FieldDefinition struct {
-		Idx         Idx
 		Key         *Expression
 		Initializer *Expression `optional:"true"`
-		Computed    bool
-		Static      bool
+
+		Idx Idx
+
+		Computed bool
+		Static   bool
 	}
 
 	MethodDefinition struct {
+		Key  *Expression
+		Kind PropertyKind // "method", "get" or "set"
+		Body *FunctionLiteral
+
 		Idx      Idx
-		Key      *Expression
-		Kind     PropertyKind // "method", "get" or "set"
-		Body     *FunctionLiteral
 		Computed bool
 		Static   bool
 	}
 
 	ClassStaticBlock struct {
+		Block *BlockStatement
+
 		Static Idx
-		Block  *BlockStatement
 	}
 )
-
-func (*ClassLiteral) _expr()  {}
-func (*PropertyShort) _expr() {}
-func (*PropertyKeyed) _expr() {}
-
-func (*FieldDefinition) _classElement()  {}
-func (*MethodDefinition) _classElement() {}
-func (*ClassStaticBlock) _classElement() {}

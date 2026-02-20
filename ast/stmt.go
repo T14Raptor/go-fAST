@@ -1,17 +1,17 @@
 package ast
 
+import (
+	"unsafe"
+)
+
 type (
 	Statements []Statement
 
+	//union:BadStatement,BlockStatement,BreakStatement,CaseStatement,CatchStatement,ClassDeclaration,ContinueStatement,DebuggerStatement,DoWhileStatement,EmptyStatement,ExpressionStatement,ForStatement,ForInStatement,ForOfStatement,FunctionDeclaration,IfStatement,LabelledStatement,ReturnStatement,SwitchStatement,ThrowStatement,TryStatement,VariableDeclaration,WhileStatement,WithStatement
 	Statement struct {
-		Stmt Stmt `optional:"true"`
-	}
+		ptr unsafe.Pointer
 
-	// All statement nodes implement the Stmt interface.
-	Stmt interface {
-		Node
-		VisitableNode
-		_stmt()
+		kind StmtKind
 	}
 
 	BadStatement struct {
@@ -20,11 +20,12 @@ type (
 	}
 
 	BlockStatement struct {
-		LeftBrace  Idx
-		List       Statements
-		RightBrace Idx
+		List Statements
 
 		ScopeContext ScopeContext
+
+		LeftBrace  Idx
+		RightBrace Idx
 	}
 
 	BreakStatement struct {
@@ -89,101 +90,77 @@ type (
 	}
 
 	SwitchStatement struct {
-		Switch       Idx
+		Body CaseStatements
+
 		Discriminant *Expression
-		Default      int
-		Body         CaseStatements
+
+		Default int
+
+		Switch Idx
 	}
 
 	ThrowStatement struct {
-		Throw    Idx
 		Argument *Expression
+
+		Throw Idx
 	}
 
 	TryStatement struct {
-		Try     Idx
 		Body    *BlockStatement
 		Catch   *CatchStatement `optional:"true"`
 		Finally *BlockStatement `optional:"true"`
+
+		Try Idx
 	}
 
 	WhileStatement struct {
+		Test *Expression
+		Body *Statement
+
 		While Idx
-		Test  *Expression
-		Body  *Statement
 	}
 
 	WithStatement struct {
-		With   Idx
 		Object *Expression
 		Body   *Statement
+
+		With Idx
 	}
 
 	ForStatement struct {
-		For         Idx
 		Initializer *ForLoopInitializer `optional:"true"`
 		Update      *Expression
 		Test        *Expression
 		Body        *Statement
+
+		For Idx
 	}
 
+	//union:Expression,VariableDeclaration
 	ForLoopInitializer struct {
-		Initializer ForLoopInit
-	}
-
-	ForLoopInit interface {
-		VisitableNode
-		_forLoopInitializer()
+		ptr  unsafe.Pointer
+		kind ForInitKind
 	}
 
 	ForInStatement struct {
-		For    Idx
 		Into   *ForInto
 		Source *Expression
 		Body   *Statement
+
+		For Idx
 	}
 
 	ForOfStatement struct {
-		For    Idx
 		Into   *ForInto
 		Source *Expression
 		Body   *Statement
+
+		For Idx
 	}
 
+	//union:Expression,VariableDeclaration
 	ForInto struct {
-		Into
-	}
-
-	Into interface {
-		VisitableNode
-		_forInto()
+		ptr  unsafe.Pointer
+		kind ForIntoKind
 	}
 )
-
-func (*VariableDeclaration) _forLoopInitializer() {}
-func (*Expression) _forLoopInitializer()          {}
-
-func (*VariableDeclaration) _forInto() {}
-func (*Expression) _forInto()          {}
-
-func (*BadStatement) _stmt()        {}
-func (*BlockStatement) _stmt()      {}
-func (*BreakStatement) _stmt()      {}
-func (*CaseStatement) _stmt()       {}
-func (*ContinueStatement) _stmt()   {}
-func (*CatchStatement) _stmt()      {}
-func (*DebuggerStatement) _stmt()   {}
-func (*DoWhileStatement) _stmt()    {}
-func (*EmptyStatement) _stmt()      {}
-func (*ExpressionStatement) _stmt() {}
-func (*ForInStatement) _stmt()      {}
-func (*ForOfStatement) _stmt()      {}
-func (*ForStatement) _stmt()        {}
-func (*IfStatement) _stmt()         {}
-func (*LabelledStatement) _stmt()   {}
-func (*ReturnStatement) _stmt()     {}
-func (*SwitchStatement) _stmt()     {}
-func (*ThrowStatement) _stmt()      {}
-func (*TryStatement) _stmt()        {}
-func (*WhileStatement) _stmt()      {}
-func (*WithStatement) _stmt()       {}

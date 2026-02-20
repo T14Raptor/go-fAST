@@ -1,11 +1,10 @@
 package scanner
 
 import (
-	"github.com/t14raptor/go-fast/token"
 	"unsafe"
 )
 
-func (s *Scanner) handleLineBreak() token.Token {
+func (s *Scanner) handleLineBreak() {
 	s.Token.OnNewLine = true
 
 	pos := s.src.pos
@@ -19,5 +18,4 @@ func (s *Scanner) handleLineBreak() token.Token {
 		pos++
 	}
 	s.src.pos = pos
-	return token.Skip
 }

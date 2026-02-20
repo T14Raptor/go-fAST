@@ -3,8 +3,6 @@ package token
 const (
 	Undetermined Token = iota
 
-	Skip
-
 	Illegal
 	Eof
 	Comment

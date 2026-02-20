@@ -87,13 +87,14 @@ func (r *Resolver) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 	n.ParameterList.VisitWith(r)
 
 	r.identType = IdentTypeRef
-	switch body := n.Body.Body.(type) {
-	case *ast.BlockStatement:
+	switch n.Body.Kind() {
+	case ast.ConciseBodyBlock:
+		body := n.Body.MustBlock()
 		body.ScopeContext = r.current.ctx
 		// Prevent creating a new scope.
 		body.VisitChildrenWith(r)
-	case *ast.Expression:
-		body.VisitWith(r)
+	case ast.ConciseBodyExpr:
+		n.Body.MustExpr().VisitWith(r)
 	}
 	r.identType = oldIdentType
 
@@ -116,8 +117,8 @@ func (r *Resolver) VisitForOfStatement(n *ast.ForOfStatement) {
 	n.Into.VisitWith(r)
 	n.Source.VisitWith(r)
 
-	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
-		blockStmt.ScopeContext = r.current.ctx
+	if block, ok := n.Body.Block(); ok {
+		block.ScopeContext = r.current.ctx
 	}
 	n.Body.VisitWith(r)
 
@@ -134,8 +135,8 @@ func (r *Resolver) VisitForInStatement(n *ast.ForInStatement) {
 	n.Into.VisitWith(r)
 	n.Source.VisitWith(r)
 
-	if blockStmt, ok := n.Body.Stmt.(*ast.BlockStatement); ok {
-		blockStmt.ScopeContext = r.current.ctx
+	if block, ok := n.Body.Block(); ok {
+		block.ScopeContext = r.current.ctx
 	}
 	n.Body.VisitWith(r)
 
@@ -181,10 +182,12 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	r.identType = IdentTypeBinding
 	n.ParameterList.VisitWith(r)
 
-	if rest, ok := n.ParameterList.Rest.(*ast.Identifier); ok {
-		rest.VisitWith(r)
-	} else if n.ParameterList.Rest != nil {
-		panic(fmt.Sprintf("Unexpected rest type: %T\n", n.ParameterList.Rest))
+	if n.ParameterList.Rest != nil {
+		if ident, ok := n.ParameterList.Rest.Ident(); ok {
+			ident.VisitWith(r)
+		} else {
+			panic(fmt.Sprintf("Unexpected rest kind: %s\n", n.ParameterList.Rest.Kind()))
+		}
 	}
 
 	r.identType = IdentTypeRef
@@ -232,7 +235,7 @@ func (r *Resolver) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 }
 
 func (r *Resolver) VisitExpression(expr *ast.Expression) {
-	if expr == nil || expr.Expr == nil {
+	if expr == nil || expr.IsNone() {
 		return
 	}
 
@@ -260,7 +263,7 @@ func (r *Resolver) VisitIdentifier(n *ast.Identifier) {
 }
 
 func (r *Resolver) VisitMemberProperty(n *ast.MemberProperty) {
-	if computed, ok := n.Prop.(*ast.ComputedProperty); ok {
+	if computed, ok := n.Computed(); ok {
 		computed.VisitWith(r)
 	}
 }
