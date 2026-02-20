@@ -44,7 +44,7 @@ func (p *parser) parsePrimaryExpression() *ast.Expression {
 				p.errorf("%s", err.Error())
 				value = new(big.Int)
 			}
-			return p.alloc.BigIntLiteral(idx, value, raw)
+			return p.alloc.Expression(p.alloc.BigIntLiteral(idx, value, raw))
 		}
 		value, err := parseNumberLiteral(parsedLiteral)
 		if err != nil {
