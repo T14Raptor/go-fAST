@@ -17,8 +17,8 @@ type Scanner struct {
 	errors *error
 }
 
-func NewScanner(src string, errors *error) *Scanner {
-	return &Scanner{
+func NewScanner(src string, errors *error) Scanner {
+	return Scanner{
 		src: NewSource(src),
 
 		errors: errors,

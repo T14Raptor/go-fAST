@@ -8,7 +8,7 @@ import (
 
 // parser ...
 type parser struct {
-	scanner *scanner.Scanner
+	scanner scanner.Scanner
 
 	str string
 
