@@ -7,7 +7,7 @@ import (
 type (
 	Statements []Statement
 
-	//union:BadStatement[inline],BlockStatement,BreakStatement,CaseStatement,CatchStatement,ClassDeclaration,ContinueStatement,DebuggerStatement[inline],DoWhileStatement,EmptyStatement[inline],ExpressionStatement,ForStatement,ForInStatement,ForOfStatement,FunctionDeclaration,IfStatement,LabelledStatement,ReturnStatement,SwitchStatement,ThrowStatement,TryStatement,VariableDeclaration,WhileStatement,WithStatement
+	//union:BadStatement,BlockStatement,BreakStatement,CaseStatement,CatchStatement,ClassDeclaration,ContinueStatement,DebuggerStatement,DoWhileStatement,EmptyStatement,ExpressionStatement,ForStatement,ForInStatement,ForOfStatement,FunctionDeclaration,IfStatement,LabelledStatement,ReturnStatement,SwitchStatement,ThrowStatement,TryStatement,VariableDeclaration,WhileStatement,WithStatement
 	Statement struct {
 		kind StmtKind
 

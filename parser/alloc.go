@@ -55,10 +55,13 @@ type nodeAllocator struct {
 	arrPat    miniArena[ast.ArrayPattern]
 	objPat    miniArena[ast.ObjectPattern]
 	tmplLit   miniArena[ast.TemplateLiteral]
+	thisExpr  miniArena[ast.ThisExpression]
+	superExpr miniArena[ast.SuperExpression]
 	awaitExpr miniArena[ast.AwaitExpression]
 	yieldExpr miniArena[ast.YieldExpression]
 	arrowFn   miniArena[ast.ArrowFunctionLiteral]
 	funcLit   miniArena[ast.FunctionLiteral]
+	invalidEx miniArena[ast.InvalidExpression]
 
 	// Property nodes.
 	propKeyed miniArena[ast.PropertyKeyed]
@@ -79,6 +82,9 @@ type nodeAllocator struct {
 	forOfStmt miniArena[ast.ForOfStatement]
 	whileStmt miniArena[ast.WhileStatement]
 	doWhile   miniArena[ast.DoWhileStatement]
+	debugStmt miniArena[ast.DebuggerStatement]
+	emptyStmt miniArena[ast.EmptyStatement]
+	badStmt   miniArena[ast.BadStatement]
 	labelStmt miniArena[ast.LabelledStatement]
 	breakStmt miniArena[ast.BreakStatement]
 	contStmt  miniArena[ast.ContinueStatement]
@@ -336,6 +342,36 @@ func (a *nodeAllocator) RegExpLiteral(idx ast.Idx, literal, pattern, flags strin
 	return n
 }
 
+func (a *nodeAllocator) BooleanLiteral(idx ast.Idx, value bool) *ast.BooleanLiteral {
+	n := a.boolLit.make()
+	*n = ast.BooleanLiteral{Idx: idx, Value: value}
+	return n
+}
+
+func (a *nodeAllocator) NullLiteral(idx ast.Idx) *ast.NullLiteral {
+	n := a.nullLit.make()
+	*n = ast.NullLiteral{Idx: idx}
+	return n
+}
+
+func (a *nodeAllocator) ThisExpression(idx ast.Idx) *ast.ThisExpression {
+	n := a.thisExpr.make()
+	*n = ast.ThisExpression{Idx: idx}
+	return n
+}
+
+func (a *nodeAllocator) SuperExpression(idx ast.Idx) *ast.SuperExpression {
+	n := a.superExpr.make()
+	*n = ast.SuperExpression{Idx: idx}
+	return n
+}
+
+func (a *nodeAllocator) InvalidExpression(from, to ast.Idx) *ast.InvalidExpression {
+	n := a.invalidEx.make()
+	*n = ast.InvalidExpression{From: from, To: to}
+	return n
+}
+
 func (a *nodeAllocator) BinaryExpression(op ast.BinaryOperator, left, right *ast.Expression) *ast.BinaryExpression {
 	n := a.binExpr.make()
 	*n = ast.BinaryExpression{Operator: op, Left: left, Right: right}
@@ -524,6 +560,24 @@ func (a *nodeAllocator) ExpressionStatement(expr *ast.Expression) *ast.Expressio
 
 func (a *nodeAllocator) BlockStatement() *ast.BlockStatement {
 	return a.blockStmt.make()
+}
+
+func (a *nodeAllocator) EmptyStatement(idx ast.Idx) *ast.EmptyStatement {
+	n := a.emptyStmt.make()
+	*n = ast.EmptyStatement{Semicolon: idx}
+	return n
+}
+
+func (a *nodeAllocator) DebuggerStatement(idx ast.Idx) *ast.DebuggerStatement {
+	n := a.debugStmt.make()
+	*n = ast.DebuggerStatement{Debugger: idx}
+	return n
+}
+
+func (a *nodeAllocator) BadStatement(from, to ast.Idx) *ast.BadStatement {
+	n := a.badStmt.make()
+	*n = ast.BadStatement{From: from, To: to}
+	return n
 }
 
 func (a *nodeAllocator) ReturnStatement(idx ast.Idx) *ast.ReturnStatement {

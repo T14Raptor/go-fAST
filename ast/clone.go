@@ -334,7 +334,8 @@ func (n *BindingTarget) Clone() *BindingTarget {
 		r := NewIdentBindingTarget(c)
 		return &r
 	case BindingTargetInvalid:
-		r := *n
+		c := (*InvalidExpression)(n.ptr).Clone()
+		r := NewInvalidBindingTarget(c)
 		return &r
 	case BindingTargetMember:
 		c := (*MemberExpression)(n.ptr).Clone()
@@ -410,7 +411,8 @@ func (n *Expression) Clone() *Expression {
 		r := NewBinaryExpr(c)
 		return &r
 	case ExprBoolLit:
-		r := *n
+		c := (*BooleanLiteral)(n.ptr).Clone()
+		r := NewBoolLitExpr(c)
 		return &r
 	case ExprCall:
 		c := (*CallExpression)(n.ptr).Clone()
@@ -433,7 +435,8 @@ func (n *Expression) Clone() *Expression {
 		r := NewIdentExpr(c)
 		return &r
 	case ExprInvalid:
-		r := *n
+		c := (*InvalidExpression)(n.ptr).Clone()
+		r := NewInvalidExpr(c)
 		return &r
 	case ExprKeyed:
 		c := (*PropertyKeyed)(n.ptr).Clone()
@@ -452,7 +455,8 @@ func (n *Expression) Clone() *Expression {
 		r := NewNewExpr(c)
 		return &r
 	case ExprNullLit:
-		r := *n
+		c := (*NullLiteral)(n.ptr).Clone()
+		r := NewNullLitExpr(c)
 		return &r
 	case ExprNumLit:
 		c := (*NumberLiteral)(n.ptr).Clone()
@@ -503,10 +507,12 @@ func (n *Expression) Clone() *Expression {
 		r := NewStrLitExpr(c)
 		return &r
 	case ExprSuper:
-		r := *n
+		c := (*SuperExpression)(n.ptr).Clone()
+		r := NewSuperExpr(c)
 		return &r
 	case ExprThis:
-		r := *n
+		c := (*ThisExpression)(n.ptr).Clone()
+		r := NewThisExpr(c)
 		return &r
 	case ExprTmplLit:
 		c := (*TemplateLiteral)(n.ptr).Clone()
@@ -600,7 +606,8 @@ func (n *Property) Clone() *Property {
 func (n *Statement) Clone() *Statement {
 	switch n.kind {
 	case StmtBad:
-		r := *n
+		c := (*BadStatement)(n.ptr).Clone()
+		r := NewBadStmt(c)
 		return &r
 	case StmtBlock:
 		c := (*BlockStatement)(n.ptr).Clone()
@@ -627,14 +634,16 @@ func (n *Statement) Clone() *Statement {
 		r := NewContinueStmt(c)
 		return &r
 	case StmtDebugger:
-		r := *n
+		c := (*DebuggerStatement)(n.ptr).Clone()
+		r := NewDebuggerStmt(c)
 		return &r
 	case StmtDoWhile:
 		c := (*DoWhileStatement)(n.ptr).Clone()
 		r := NewDoWhileStmt(c)
 		return &r
 	case StmtEmpty:
-		r := *n
+		c := (*EmptyStatement)(n.ptr).Clone()
+		r := NewEmptyStmt(c)
 		return &r
 	case StmtExpression:
 		c := (*ExpressionStatement)(n.ptr).Clone()
