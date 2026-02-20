@@ -25,17 +25,17 @@ func (p *parser) parsePrimaryExpression() *ast.Expression {
 		p.next()
 		return p.alloc.Expression(ast.NewNullLitExpr(ast.NullLiteral{Idx: idx}))
 	case token.Boolean:
-		value := p.token.Idx1-p.token.Idx0 == 4
+		value := p.scanner.Token.Idx1-p.scanner.Token.Idx0 == 4
 		p.next()
 		return p.alloc.Expression(ast.NewBoolLitExpr(ast.BooleanLiteral{Idx: idx, Value: value}))
 	case token.String:
 		parsedLiteral := p.currentString()
-		raw := p.token.Raw(p.scanner)
+		raw := p.scanner.Token.Raw(p.scanner)
 		p.next()
 		return p.alloc.Expression(ast.NewStrLitExpr(p.alloc.StringLiteral(idx, parsedLiteral, raw)))
 	case token.Number:
 		parsedLiteral := p.currentString()
-		raw := p.token.Raw(p.scanner)
+		raw := p.scanner.Token.Raw(p.scanner)
 		p.next()
 		value, err := parseNumberLiteral(parsedLiteral)
 		if err != nil {
@@ -196,7 +196,7 @@ func (p *parser) isBindingId(tok token.Token) bool {
 
 func (p *parser) tokenToBindingId() {
 	if p.isBindingId(p.currentKind()) {
-		p.token.Kind = token.Identifier
+		p.scanner.Token.Kind = token.Identifier
 	}
 }
 
@@ -253,7 +253,7 @@ func (p *parser) parseObjectPropertyKey() (string, string, *ast.Expression, toke
 		p.expect(token.RightBracket)
 		return "", "", expr, token.Illegal
 	}
-	idx, tkn, literal, parsedLiteral := p.currentOffset(), p.currentKind(), p.token.Raw(p.scanner), p.currentString()
+	idx, tkn, literal, parsedLiteral := p.currentOffset(), p.currentKind(), p.scanner.Token.Raw(p.scanner), p.currentString()
 	var value *ast.Expression
 	p.next()
 	switch tkn {
@@ -439,8 +439,8 @@ func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 
 	for {
 		start := p.currentOffset()
-		literal := p.token.TemplateLiteral(p.scanner)
-		parsed := p.token.TemplateParsed(p.scanner)
+		literal := p.scanner.Token.TemplateLiteral(p.scanner)
+		parsed := p.scanner.Token.TemplateParsed(p.scanner)
 		kind := p.currentKind()
 
 		res.Elements = append(res.Elements, ast.TemplateElement{
@@ -451,7 +451,7 @@ func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 		})
 
 		if kind == token.NoSubstitutionTemplate || kind == token.TemplateTail {
-			res.CloseQuote = p.token.Idx1 - 1
+			res.CloseQuote = p.scanner.Token.Idx1 - 1
 			p.next()
 			break
 		}
@@ -464,7 +464,7 @@ func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 			p.errorUnexpectedToken(p.currentKind())
 			break
 		}
-		p.token = p.scanner.NextTemplatePart()
+		p.scanner.NextTemplatePart()
 	}
 	res.Expressions = p.finishExprBuf(mark)
 	return res
@@ -662,7 +662,7 @@ func (p *parser) parseUpdateExpression() *ast.Expression {
 	default:
 		operand := p.parseLeftHandSideExpressionAllowCall()
 		if p.currentKind() == token.Increment || p.currentKind() == token.Decrement {
-			if p.token.OnNewLine {
+			if p.scanner.Token.OnNewLine {
 				return operand
 			}
 			tkn := p.currentKind()
@@ -947,7 +947,7 @@ func (p *parser) parseYieldExpression() *ast.YieldExpression {
 
 	node := p.alloc.YieldExpression(idx)
 
-	if !p.token.OnNewLine && p.currentKind() == token.Multiply {
+	if !p.scanner.Token.OnNewLine && p.currentKind() == token.Multiply {
 		node.Delegate = true
 		p.next()
 	}

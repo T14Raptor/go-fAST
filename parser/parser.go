@@ -62,7 +62,6 @@ func putParser(p *parser) {
 	p.scanner = nil
 	p.scope = nil
 	p.errors = nil
-	p.token = scanner.Token{}
 	p.recover.idx = 0
 	p.recover.count = 0
 	p.exprBuf = p.exprBuf[:0]
