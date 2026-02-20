@@ -99,10 +99,11 @@ type nodeAllocator struct {
 	paramList miniArena[ast.ParameterList]
 
 	// Wrapper/helper types.
-	bindTgt  miniArena[ast.BindingTarget]
-	concBody miniArena[ast.ConciseBody]
-	forInit  miniArena[ast.ForLoopInitializer]
-	forInto  miniArena[ast.ForInto]
+	bindTgt   miniArena[ast.BindingTarget]
+	concBody  miniArena[ast.ConciseBody]
+	forInit   miniArena[ast.ForLoopInitializer]
+	forInto   miniArena[ast.ForInto]
+	paramList miniArena[ast.ParameterList]
 
 	// String pointers (for Raw fields on StringLiteral/NumberLiteral).
 	str miniArena[string]
@@ -207,10 +208,11 @@ func newNodeAllocator() nodeAllocator {
 		paramList: newArena[ast.ParameterList](64),
 
 		// Wrappers.
-		bindTgt:  newArena[ast.BindingTarget](128),
-		concBody: newArena[ast.ConciseBody](64),
-		forInit:  newArena[ast.ForLoopInitializer](32),
-		forInto:  newArena[ast.ForInto](16),
+		bindTgt:   newArena[ast.BindingTarget](128),
+		concBody:  newArena[ast.ConciseBody](64),
+		forInit:   newArena[ast.ForLoopInitializer](32),
+		forInto:   newArena[ast.ForInto](16),
+		paramList: newArena[ast.ParameterList](64),
 
 		// String pointers.
 		str: newArena[string](256),
@@ -224,15 +226,15 @@ func newNodeAllocator() nodeAllocator {
 // Wrapper constructors
 // ---------------------------------------------------------------------------
 
-func (a *nodeAllocator) Expression(expr ast.Expr) *ast.Expression {
+func (a *nodeAllocator) Expression(e ast.Expression) *ast.Expression {
 	n := a.expr.make()
-	n.Expr = expr
+	*n = e
 	return n
 }
 
-func (a *nodeAllocator) Statement(stmt ast.Stmt) *ast.Statement {
+func (a *nodeAllocator) Statement(s ast.Statement) *ast.Statement {
 	n := a.stmt.make()
-	n.Stmt = stmt
+	*n = s
 	return n
 }
 
@@ -359,9 +361,9 @@ func (a *nodeAllocator) MemberExpression(object *ast.Expression, property *ast.M
 	return n
 }
 
-func (a *nodeAllocator) MemberProperty(prop ast.MemberProp) *ast.MemberProperty {
+func (a *nodeAllocator) MemberProperty(mp ast.MemberProperty) *ast.MemberProperty {
 	n := a.memberPrp.make()
-	*n = ast.MemberProperty{Prop: prop}
+	*n = mp
 	return n
 }
 
@@ -437,7 +439,7 @@ func (a *nodeAllocator) ArrayPattern(lb, rb ast.Idx, elems ast.Expressions, rest
 	return n
 }
 
-func (a *nodeAllocator) ObjectPattern(lb, rb ast.Idx, props ast.Properties, rest ast.Expr) *ast.ObjectPattern {
+func (a *nodeAllocator) ObjectPattern(lb, rb ast.Idx, props ast.Properties, rest *ast.Expression) *ast.ObjectPattern {
 	n := a.objPat.make()
 	*n = ast.ObjectPattern{LeftBrace: lb, RightBrace: rb, Properties: props, Rest: rest}
 	return n
@@ -476,6 +478,12 @@ func (a *nodeAllocator) YieldExpression(idx ast.Idx) *ast.YieldExpression {
 func (a *nodeAllocator) ArrowFunctionLiteral(start ast.Idx, params *ast.ParameterList, async bool) *ast.ArrowFunctionLiteral {
 	n := a.arrowFn.make()
 	*n = ast.ArrowFunctionLiteral{Start: start, ParameterList: params, Async: async}
+	return n
+}
+
+func (a *nodeAllocator) ParameterList(pl ast.ParameterList) *ast.ParameterList {
+	n := a.paramList.make()
+	*n = pl
 	return n
 }
 
@@ -667,27 +675,27 @@ func (a *nodeAllocator) ClassStaticBlock(idx ast.Idx) *ast.ClassStaticBlock {
 	return n
 }
 
-func (a *nodeAllocator) BindingTarget(target ast.Target) *ast.BindingTarget {
+func (a *nodeAllocator) BindingTarget(bt ast.BindingTarget) *ast.BindingTarget {
 	n := a.bindTgt.make()
-	*n = ast.BindingTarget{Target: target}
+	*n = bt
 	return n
 }
 
-func (a *nodeAllocator) ConciseBody(body ast.Body) *ast.ConciseBody {
+func (a *nodeAllocator) ConciseBody(cb ast.ConciseBody) *ast.ConciseBody {
 	n := a.concBody.make()
-	*n = ast.ConciseBody{Body: body}
+	*n = cb
 	return n
 }
 
-func (a *nodeAllocator) ForLoopInitializer(init ast.ForLoopInit) *ast.ForLoopInitializer {
+func (a *nodeAllocator) ForLoopInitializer(fli ast.ForLoopInitializer) *ast.ForLoopInitializer {
 	n := a.forInit.make()
-	*n = ast.ForLoopInitializer{Initializer: init}
+	*n = fli
 	return n
 }
 
-func (a *nodeAllocator) ForIntoPtr(into ast.Into) *ast.ForInto {
+func (a *nodeAllocator) ForIntoPtr(fi ast.ForInto) *ast.ForInto {
 	n := a.forInto.make()
-	*n = ast.ForInto{Into: into}
+	*n = fi
 	return n
 }
 

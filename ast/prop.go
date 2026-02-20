@@ -1,5 +1,7 @@
 package ast
 
+import "unsafe"
+
 type PropertyKind string
 
 const (
@@ -12,13 +14,10 @@ const (
 type (
 	Properties []Property
 
+	//union:PropertyKeyed,PropertyShort,SpreadElement
 	Property struct {
-		Prop Prop
-	}
-
-	Prop interface {
-		Expr
-		_property()
+		ptr  unsafe.Pointer
+		kind PropKind
 	}
 
 	PropertyShort struct {
@@ -38,8 +37,3 @@ type (
 	}
 )
 
-func (*PropertyShort) _property() {}
-func (*PropertyKeyed) _property() {}
-func (*SpreadElement) _property() {}
-
-func (*ComputedProperty) _memberProperty() {}
