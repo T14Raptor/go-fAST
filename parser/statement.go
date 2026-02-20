@@ -427,7 +427,7 @@ func (p *parser) parseReturnStatement() ast.Stmt {
 func (p *parser) parseThrowStatement() ast.Stmt {
 	idx := p.expect(token.Throw)
 
-	if p.token.OnNewLine {
+	if p.scanner.Token.OnNewLine {
 		p.errorf("Illegal newline after throw")
 		p.nextStatement()
 		return p.alloc.BadStatement(idx, p.currentOffset())
