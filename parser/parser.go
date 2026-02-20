@@ -10,15 +10,13 @@ import (
 
 // parser ...
 type parser struct {
-	token scanner.Token
-	str   string
-
 	scanner *scanner.Scanner
+
+	str string
 
 	scope *scope
 
-	errors error
-
+	errors  error
 	recover struct {
 		// Scratch when trying to seek to the next statement, etc.
 		idx   ast.Idx
@@ -96,13 +94,10 @@ func (p *parser) parse() (*ast.Program, error) {
 // next ...
 func (p *parser) next() {
 	p.scanner.Next()
-	p.token = p.scanner.Token
 }
 
 type parserState struct {
 	c scanner.Checkpoint
-
-	tok scanner.Token
 
 	errors error
 }
@@ -110,14 +105,12 @@ type parserState struct {
 func (p *parser) mark() parserState {
 	return parserState{
 		c:      p.scanner.Checkpoint(),
-		tok:    p.token,
 		errors: p.errors,
 	}
 }
 
 func (p *parser) restore(state parserState) {
 	p.scanner.Rewind(state.c)
-	p.token = state.tok
 	// Truncate parser errors back to checkpoint state
 	p.errors = state.errors
 }
@@ -131,20 +124,20 @@ func (p *parser) peek() scanner.Token {
 }
 
 func (p *parser) currentString() string {
-	return p.token.String(p.scanner)
+	return p.scanner.Token.String(p.scanner)
 }
 
 func (p *parser) currentKind() token.Token {
-	return p.token.Kind
+	return p.scanner.Token.Kind
 }
 
 func (p *parser) currentOffset() ast.Idx {
-	return p.token.Idx0
+	return p.scanner.Token.Idx0
 }
 
 func (p *parser) canInsertSemicolon() bool {
 	kind := p.currentKind()
-	return kind == token.Semicolon || kind == token.RightBrace || kind == token.Eof || p.token.OnNewLine
+	return kind == token.Semicolon || kind == token.RightBrace || kind == token.Eof || p.scanner.Token.OnNewLine
 }
 
 func (p *parser) semicolon() bool {
@@ -198,8 +191,8 @@ func (p *parser) finishElemBuf(mark int) ast.ClassElements {
 
 func (p *parser) expect(value token.Token) ast.Idx {
 	idx := p.scanner.Offset()
-	if p.token.Kind != value {
-		p.errorUnexpectedToken(p.token.Kind)
+	if p.scanner.Token.Kind != value {
+		p.errorUnexpectedToken(p.scanner.Token.Kind)
 	}
 	p.next()
 	return idx
