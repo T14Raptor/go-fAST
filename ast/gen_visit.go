@@ -37,7 +37,6 @@ type VisitableNodeType struct {
 type UnionVariant struct {
 	TypeName  string
 	ShortName string
-	Inline    bool
 }
 
 type Child struct {
@@ -183,12 +182,6 @@ func main() {
 		Name: ast.NewIdent("ast"),
 		Decls: []ast.Decl{
 			&ast.GenDecl{
-				Tok: token.IMPORT,
-				Specs: []ast.Spec{
-					&ast.ImportSpec{Path: &ast.BasicLit{Kind: token.STRING, Value: `"unsafe"`}},
-				},
-			},
-			&ast.GenDecl{
 				Tok: token.TYPE,
 				Specs: []ast.Spec{
 					&ast.TypeSpec{
@@ -248,11 +241,7 @@ func generateUnionVisit(buf *bytes.Buffer, node VisitableNodeType) {
 	fmt.Fprintf(buf, "\tswitch n.kind {\n")
 	for _, v := range node.Variants {
 		fmt.Fprintf(buf, "\tcase %s%s:\n", node.KindPrefix, v.ShortName)
-		if v.Inline {
-			fmt.Fprintf(buf, "\t\t(*%s)(unsafe.Pointer(&n.ptr)).VisitWith(v)\n", v.TypeName)
-		} else {
-			fmt.Fprintf(buf, "\t\t(*%s)(n.ptr).VisitWith(v)\n", v.TypeName)
-		}
+		fmt.Fprintf(buf, "\t\t(*%s)(n.ptr).VisitWith(v)\n", v.TypeName)
 	}
 	fmt.Fprintf(buf, "\t}\n")
 	fmt.Fprintf(buf, "}\n\n")
@@ -285,11 +274,10 @@ func findVisitableNodes(f *ast.File) (types []VisitableNodeType) {
 				if variantList := parseUnionComment(typeSpec.Doc); variantList != nil {
 					kindPrefix, _, _ := deriveUnionNames(typeSpec.Name.Name)
 					var variants []UnionVariant
-					for _, vi := range variantList {
+					for _, typeName := range variantList {
 						variants = append(variants, UnionVariant{
-							TypeName:  vi.TypeName,
-							ShortName: deriveShortName(vi.TypeName),
-							Inline:    vi.Inline,
+							TypeName:  typeName,
+							ShortName: deriveShortName(typeName),
 						})
 					}
 					slices.SortFunc(variants, func(a, b UnionVariant) int {
@@ -355,12 +343,7 @@ func newSelectorExpr(x ast.Expr, sel string) *ast.SelectorExpr {
 	return &ast.SelectorExpr{X: x, Sel: ast.NewIdent(sel)}
 }
 
-type variantInfo struct {
-	TypeName string
-	Inline   bool
-}
-
-func parseUnionComment(doc *ast.CommentGroup) []variantInfo {
+func parseUnionComment(doc *ast.CommentGroup) []string {
 	if doc == nil {
 		return nil
 	}
@@ -368,20 +351,14 @@ func parseUnionComment(doc *ast.CommentGroup) []variantInfo {
 		text := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
 		if strings.HasPrefix(text, "union:") {
 			raw := strings.TrimPrefix(text, "union:")
-			var variants []variantInfo
+			var names []string
 			for _, name := range strings.Split(raw, ",") {
 				name = strings.TrimSpace(name)
-				if name == "" {
-					continue
+				if name != "" {
+					names = append(names, name)
 				}
-				inline := false
-				if strings.HasSuffix(name, "[inline]") {
-					inline = true
-					name = strings.TrimSuffix(name, "[inline]")
-				}
-				variants = append(variants, variantInfo{TypeName: name, Inline: inline})
 			}
-			return variants
+			return names
 		}
 	}
 	return nil

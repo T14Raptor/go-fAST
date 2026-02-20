@@ -26,6 +26,8 @@ type nodeAllocator struct {
 	ident     miniArena[ast.Identifier]
 	strLit    miniArena[ast.StringLiteral]
 	numLit    miniArena[ast.NumberLiteral]
+	boolLit   miniArena[ast.BooleanLiteral]
+	nullLit   miniArena[ast.NullLiteral]
 	regexpLit miniArena[ast.RegExpLiteral]
 	binExpr   miniArena[ast.BinaryExpression]
 	unaryExpr miniArena[ast.UnaryExpression]
@@ -49,10 +51,13 @@ type nodeAllocator struct {
 	arrPat    miniArena[ast.ArrayPattern]
 	objPat    miniArena[ast.ObjectPattern]
 	tmplLit   miniArena[ast.TemplateLiteral]
+	thisExpr  miniArena[ast.ThisExpression]
+	superExpr miniArena[ast.SuperExpression]
 	awaitExpr miniArena[ast.AwaitExpression]
 	yieldExpr miniArena[ast.YieldExpression]
 	arrowFn   miniArena[ast.ArrowFunctionLiteral]
 	funcLit   miniArena[ast.FunctionLiteral]
+	invalidEx miniArena[ast.InvalidExpression]
 
 	// Property nodes.
 	propKeyed miniArena[ast.PropertyKeyed]
@@ -73,6 +78,9 @@ type nodeAllocator struct {
 	forOfStmt miniArena[ast.ForOfStatement]
 	whileStmt miniArena[ast.WhileStatement]
 	doWhile   miniArena[ast.DoWhileStatement]
+	debugStmt miniArena[ast.DebuggerStatement]
+	emptyStmt miniArena[ast.EmptyStatement]
+	badStmt   miniArena[ast.BadStatement]
 	labelStmt miniArena[ast.LabelledStatement]
 	breakStmt miniArena[ast.BreakStatement]
 	contStmt  miniArena[ast.ContinueStatement]
@@ -120,6 +128,8 @@ func newNodeAllocator() nodeAllocator {
 		// Literals.
 		strLit:    newArena[ast.StringLiteral](256),
 		numLit:    newArena[ast.NumberLiteral](256),
+		boolLit:   newArena[ast.BooleanLiteral](64),
+		nullLit:   newArena[ast.NullLiteral](32),
 		regexpLit: newArena[ast.RegExpLiteral](32),
 
 		// Expressions.
@@ -145,10 +155,13 @@ func newNodeAllocator() nodeAllocator {
 		arrPat:    newArena[ast.ArrayPattern](32),
 		objPat:    newArena[ast.ObjectPattern](32),
 		tmplLit:   newArena[ast.TemplateLiteral](32),
+		thisExpr:  newArena[ast.ThisExpression](32),
+		superExpr: newArena[ast.SuperExpression](16),
 		awaitExpr: newArena[ast.AwaitExpression](32),
 		yieldExpr: newArena[ast.YieldExpression](32),
 		arrowFn:   newArena[ast.ArrowFunctionLiteral](64),
 		funcLit:   newArena[ast.FunctionLiteral](64),
+		invalidEx: newArena[ast.InvalidExpression](16),
 
 		// Properties.
 		propKeyed: newArena[ast.PropertyKeyed](128),
@@ -169,6 +182,9 @@ func newNodeAllocator() nodeAllocator {
 		forOfStmt: newArena[ast.ForOfStatement](16),
 		whileStmt: newArena[ast.WhileStatement](32),
 		doWhile:   newArena[ast.DoWhileStatement](16),
+		debugStmt: newArena[ast.DebuggerStatement](8),
+		emptyStmt: newArena[ast.EmptyStatement](32),
+		badStmt:   newArena[ast.BadStatement](8),
 		labelStmt: newArena[ast.LabelledStatement](16),
 		breakStmt: newArena[ast.BreakStatement](16),
 		contStmt:  newArena[ast.ContinueStatement](16),
@@ -295,6 +311,36 @@ func (a *nodeAllocator) NumberLiteral(idx ast.Idx, value float64, raw string) *a
 func (a *nodeAllocator) RegExpLiteral(idx ast.Idx, literal, pattern, flags string) *ast.RegExpLiteral {
 	n := a.regexpLit.make()
 	*n = ast.RegExpLiteral{Idx: idx, Literal: literal, Pattern: pattern, Flags: flags}
+	return n
+}
+
+func (a *nodeAllocator) BooleanLiteral(idx ast.Idx, value bool) *ast.BooleanLiteral {
+	n := a.boolLit.make()
+	*n = ast.BooleanLiteral{Idx: idx, Value: value}
+	return n
+}
+
+func (a *nodeAllocator) NullLiteral(idx ast.Idx) *ast.NullLiteral {
+	n := a.nullLit.make()
+	*n = ast.NullLiteral{Idx: idx}
+	return n
+}
+
+func (a *nodeAllocator) ThisExpression(idx ast.Idx) *ast.ThisExpression {
+	n := a.thisExpr.make()
+	*n = ast.ThisExpression{Idx: idx}
+	return n
+}
+
+func (a *nodeAllocator) SuperExpression(idx ast.Idx) *ast.SuperExpression {
+	n := a.superExpr.make()
+	*n = ast.SuperExpression{Idx: idx}
+	return n
+}
+
+func (a *nodeAllocator) InvalidExpression(from, to ast.Idx) *ast.InvalidExpression {
+	n := a.invalidEx.make()
+	*n = ast.InvalidExpression{From: from, To: to}
 	return n
 }
 
@@ -480,6 +526,24 @@ func (a *nodeAllocator) ExpressionStatement(expr *ast.Expression) *ast.Expressio
 
 func (a *nodeAllocator) BlockStatement() *ast.BlockStatement {
 	return a.blockStmt.make()
+}
+
+func (a *nodeAllocator) EmptyStatement(idx ast.Idx) *ast.EmptyStatement {
+	n := a.emptyStmt.make()
+	*n = ast.EmptyStatement{Semicolon: idx}
+	return n
+}
+
+func (a *nodeAllocator) DebuggerStatement(idx ast.Idx) *ast.DebuggerStatement {
+	n := a.debugStmt.make()
+	*n = ast.DebuggerStatement{Debugger: idx}
+	return n
+}
+
+func (a *nodeAllocator) BadStatement(from, to ast.Idx) *ast.BadStatement {
+	n := a.badStmt.make()
+	*n = ast.BadStatement{From: from, To: to}
+	return n
 }
 
 func (a *nodeAllocator) ReturnStatement(idx ast.Idx) *ast.ReturnStatement {

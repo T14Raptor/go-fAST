@@ -38,7 +38,6 @@ type CloneableNodeType struct {
 type UnionVariant struct {
 	TypeName  string
 	ShortName string
-	Inline    bool
 }
 
 type CloneableInterface struct {
@@ -281,14 +280,9 @@ func generateUnionClone(buf *bytes.Buffer, node CloneableNodeType) {
 	fmt.Fprintf(buf, "\tswitch n.kind {\n")
 	for _, v := range node.Variants {
 		fmt.Fprintf(buf, "\tcase %s%s:\n", node.KindPrefix, v.ShortName)
-		if v.Inline {
-			fmt.Fprintf(buf, "\t\tr := *n\n")
-			fmt.Fprintf(buf, "\t\treturn &r\n")
-		} else {
-			fmt.Fprintf(buf, "\t\tc := (*%s)(n.ptr).Clone()\n", v.TypeName)
-			fmt.Fprintf(buf, "\t\tr := New%s%s(c)\n", v.ShortName, node.ConstructorSfx)
-			fmt.Fprintf(buf, "\t\treturn &r\n")
-		}
+		fmt.Fprintf(buf, "\t\tc := (*%s)(n.ptr).Clone()\n", v.TypeName)
+		fmt.Fprintf(buf, "\t\tr := New%s%s(c)\n", v.ShortName, node.ConstructorSfx)
+		fmt.Fprintf(buf, "\t\treturn &r\n")
 	}
 	fmt.Fprintf(buf, "\t}\n")
 	fmt.Fprintf(buf, "\tr := %s{}\n", node.Name)
@@ -389,11 +383,10 @@ func findCloneableNodes(f *ast.File) (types []CloneableNodeType) {
 				if variantList := parseUnionComment(typeSpec.Doc); variantList != nil {
 					kindPrefix, _, ctorSuffix := deriveUnionNames(typeSpec.Name.Name)
 					var variants []UnionVariant
-					for _, vi := range variantList {
+					for _, typeName := range variantList {
 						variants = append(variants, UnionVariant{
-							TypeName:  vi.TypeName,
-							ShortName: deriveShortName(vi.TypeName),
-							Inline:    vi.Inline,
+							TypeName:  typeName,
+							ShortName: deriveShortName(typeName),
 						})
 					}
 					slices.SortFunc(variants, func(a, b UnionVariant) int {
@@ -528,12 +521,7 @@ func newCloner(expr ast.Expr, intf *CloneableInterface) (*ast.DeclStmt, *ast.Typ
 	return clonedExprDecl, switchStmt
 }
 
-type variantInfo struct {
-	TypeName string
-	Inline   bool
-}
-
-func parseUnionComment(doc *ast.CommentGroup) []variantInfo {
+func parseUnionComment(doc *ast.CommentGroup) []string {
 	if doc == nil {
 		return nil
 	}
@@ -541,20 +529,14 @@ func parseUnionComment(doc *ast.CommentGroup) []variantInfo {
 		text := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
 		if strings.HasPrefix(text, "union:") {
 			raw := strings.TrimPrefix(text, "union:")
-			var variants []variantInfo
+			var names []string
 			for _, name := range strings.Split(raw, ",") {
 				name = strings.TrimSpace(name)
-				if name == "" {
-					continue
+				if name != "" {
+					names = append(names, name)
 				}
-				inline := false
-				if strings.HasSuffix(name, "[inline]") {
-					inline = true
-					name = strings.TrimSuffix(name, "[inline]")
-				}
-				variants = append(variants, variantInfo{TypeName: name, Inline: inline})
 			}
-			return variants
+			return names
 		}
 	}
 	return nil
