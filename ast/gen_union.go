@@ -28,6 +28,7 @@ type UnionConfig struct {
 type Variant struct {
 	TypeName  string
 	ShortName string
+	Inline    bool
 }
 
 var shortNameOverrides = map[string]string{
@@ -105,10 +106,11 @@ func findUnions(pkg *ast.Package) []UnionConfig {
 				kindPrefix, kindType, ctorSuffix := deriveUnionNames(name)
 
 				var variants []Variant
-				for _, typeName := range variantList {
+				for _, vi := range variantList {
 					variants = append(variants, Variant{
-						TypeName:  typeName,
-						ShortName: deriveShortName(typeName),
+						TypeName:  vi.TypeName,
+						ShortName: deriveShortName(vi.TypeName),
+						Inline:    vi.Inline,
 					})
 				}
 				slices.SortFunc(variants, func(a, b Variant) int {
@@ -128,9 +130,14 @@ func findUnions(pkg *ast.Package) []UnionConfig {
 	return unions
 }
 
-// parseUnionComment looks for a //union:Type1,Type2,... comment and returns
-// the type name list, or nil if no such comment exists.
-func parseUnionComment(doc *ast.CommentGroup) []string {
+type variantInfo struct {
+	TypeName string
+	Inline   bool
+}
+
+// parseUnionComment looks for a //union:Type1,Type2[inline],... comment and returns
+// the variant info list, or nil if no such comment exists.
+func parseUnionComment(doc *ast.CommentGroup) []variantInfo {
 	if doc == nil {
 		return nil
 	}
@@ -138,14 +145,20 @@ func parseUnionComment(doc *ast.CommentGroup) []string {
 		text := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
 		if strings.HasPrefix(text, "union:") {
 			raw := strings.TrimPrefix(text, "union:")
-			var names []string
+			var variants []variantInfo
 			for _, name := range strings.Split(raw, ",") {
 				name = strings.TrimSpace(name)
-				if name != "" {
-					names = append(names, name)
+				if name == "" {
+					continue
 				}
+				inline := false
+				if strings.HasSuffix(name, "[inline]") {
+					inline = true
+					name = strings.TrimSuffix(name, "[inline]")
+				}
+				variants = append(variants, variantInfo{TypeName: name, Inline: inline})
 			}
-			return names
+			return variants
 		}
 	}
 	return nil
@@ -240,20 +253,43 @@ func generateUnion(buf *bytes.Buffer, u UnionConfig) {
 	fmt.Fprintf(buf, "func (n *%s) IsNone() bool { return n.kind == %sNone }\n\n", u.WrapperType, u.KindPrefix)
 
 	for _, v := range u.Variants {
-		fmt.Fprintf(buf, "func New%s%s(n *%s) %s {\n", v.ShortName, u.ConstructorSfx, v.TypeName, u.WrapperType)
-		fmt.Fprintf(buf, "\treturn %s{kind: %s%s, ptr: unsafe.Pointer(n)}\n", u.WrapperType, u.KindPrefix, v.ShortName)
-		fmt.Fprintf(buf, "}\n\n")
+		if v.Inline {
+			fmt.Fprintf(buf, "func New%s%s(n %s) %s {\n", v.ShortName, u.ConstructorSfx, v.TypeName, u.WrapperType)
+			fmt.Fprintf(buf, "\treturn %s{kind: %s%s, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}\n", u.WrapperType, u.KindPrefix, v.ShortName)
+			fmt.Fprintf(buf, "}\n\n")
 
-		fmt.Fprintf(buf, "func (n *%s) %s() (*%s, bool) {\n", u.WrapperType, v.ShortName, v.TypeName)
-		fmt.Fprintf(buf, "\tif n.kind == %s%s {\n", u.KindPrefix, v.ShortName)
-		fmt.Fprintf(buf, "\t\treturn (*%s)(n.ptr), true\n", v.TypeName)
-		fmt.Fprintf(buf, "\t}\n")
-		fmt.Fprintf(buf, "\treturn nil, false\n")
-		fmt.Fprintf(buf, "}\n\n")
+			fmt.Fprintf(buf, "func (n *%s) %s() (*%s, bool) {\n", u.WrapperType, v.ShortName, v.TypeName)
+			fmt.Fprintf(buf, "\tif n.kind == %s%s {\n", u.KindPrefix, v.ShortName)
+			fmt.Fprintf(buf, "\t\treturn (*%s)(unsafe.Pointer(&n.ptr)), true\n", v.TypeName)
+			fmt.Fprintf(buf, "\t}\n")
+			fmt.Fprintf(buf, "\treturn nil, false\n")
+			fmt.Fprintf(buf, "}\n\n")
 
-		fmt.Fprintf(buf, "func (n *%s) Must%s() *%s {\n", u.WrapperType, v.ShortName, v.TypeName)
-		fmt.Fprintf(buf, "\treturn (*%s)(n.ptr)\n", v.TypeName)
-		fmt.Fprintf(buf, "}\n\n")
+			fmt.Fprintf(buf, "func (n *%s) Must%s() *%s {\n", u.WrapperType, v.ShortName, v.TypeName)
+			fmt.Fprintf(buf, "\tif n.kind != %s%s {\n", u.KindPrefix, v.ShortName)
+			fmt.Fprintf(buf, "\t\tpanic(\"unexpected kind: \" + n.kind.String())\n")
+			fmt.Fprintf(buf, "\t}\n")
+			fmt.Fprintf(buf, "\treturn (*%s)(unsafe.Pointer(&n.ptr))\n", v.TypeName)
+			fmt.Fprintf(buf, "}\n\n")
+		} else {
+			fmt.Fprintf(buf, "func New%s%s(n *%s) %s {\n", v.ShortName, u.ConstructorSfx, v.TypeName, u.WrapperType)
+			fmt.Fprintf(buf, "\treturn %s{kind: %s%s, ptr: unsafe.Pointer(n)}\n", u.WrapperType, u.KindPrefix, v.ShortName)
+			fmt.Fprintf(buf, "}\n\n")
+
+			fmt.Fprintf(buf, "func (n *%s) %s() (*%s, bool) {\n", u.WrapperType, v.ShortName, v.TypeName)
+			fmt.Fprintf(buf, "\tif n.kind == %s%s {\n", u.KindPrefix, v.ShortName)
+			fmt.Fprintf(buf, "\t\treturn (*%s)(n.ptr), true\n", v.TypeName)
+			fmt.Fprintf(buf, "\t}\n")
+			fmt.Fprintf(buf, "\treturn nil, false\n")
+			fmt.Fprintf(buf, "}\n\n")
+
+			fmt.Fprintf(buf, "func (n *%s) Must%s() *%s {\n", u.WrapperType, v.ShortName, v.TypeName)
+			fmt.Fprintf(buf, "\tif n.kind != %s%s {\n", u.KindPrefix, v.ShortName)
+			fmt.Fprintf(buf, "\t\tpanic(\"unexpected kind: \" + n.kind.String())\n")
+			fmt.Fprintf(buf, "\t}\n")
+			fmt.Fprintf(buf, "\treturn (*%s)(n.ptr)\n", v.TypeName)
+			fmt.Fprintf(buf, "}\n\n")
+		}
 
 		fmt.Fprintf(buf, "func (n *%s) Is%s() bool {\n", u.WrapperType, v.ShortName)
 		fmt.Fprintf(buf, "\treturn n.kind == %s%s\n", u.KindPrefix, v.ShortName)
@@ -264,7 +300,11 @@ func generateUnion(buf *bytes.Buffer, u UnionConfig) {
 	fmt.Fprintf(buf, "\tswitch n.kind {\n")
 	for _, v := range u.Variants {
 		fmt.Fprintf(buf, "\tcase %s%s:\n", u.KindPrefix, v.ShortName)
-		fmt.Fprintf(buf, "\t\treturn (*%s)(n.ptr).Idx0()\n", v.TypeName)
+		if v.Inline {
+			fmt.Fprintf(buf, "\t\treturn (*%s)(unsafe.Pointer(&n.ptr)).Idx0()\n", v.TypeName)
+		} else {
+			fmt.Fprintf(buf, "\t\treturn (*%s)(n.ptr).Idx0()\n", v.TypeName)
+		}
 	}
 	fmt.Fprintf(buf, "\t}\n")
 	fmt.Fprintf(buf, "\treturn 0\n")
@@ -274,7 +314,11 @@ func generateUnion(buf *bytes.Buffer, u UnionConfig) {
 	fmt.Fprintf(buf, "\tswitch n.kind {\n")
 	for _, v := range u.Variants {
 		fmt.Fprintf(buf, "\tcase %s%s:\n", u.KindPrefix, v.ShortName)
-		fmt.Fprintf(buf, "\t\treturn (*%s)(n.ptr).Idx1()\n", v.TypeName)
+		if v.Inline {
+			fmt.Fprintf(buf, "\t\treturn (*%s)(unsafe.Pointer(&n.ptr)).Idx1()\n", v.TypeName)
+		} else {
+			fmt.Fprintf(buf, "\t\treturn (*%s)(n.ptr).Idx1()\n", v.TypeName)
+		}
 	}
 	fmt.Fprintf(buf, "\t}\n")
 	fmt.Fprintf(buf, "\treturn 0\n")
@@ -285,7 +329,11 @@ func generateUnion(buf *bytes.Buffer, u UnionConfig) {
 	fmt.Fprintf(buf, "\tswitch n.kind {\n")
 	for _, v := range u.Variants {
 		fmt.Fprintf(buf, "\tcase %s%s:\n", u.KindPrefix, v.ShortName)
-		fmt.Fprintf(buf, "\t\treturn (*%s)(n.ptr)\n", v.TypeName)
+		if v.Inline {
+			fmt.Fprintf(buf, "\t\treturn (*%s)(unsafe.Pointer(&n.ptr))\n", v.TypeName)
+		} else {
+			fmt.Fprintf(buf, "\t\treturn (*%s)(n.ptr)\n", v.TypeName)
+		}
 	}
 	fmt.Fprintf(buf, "\t}\n")
 	fmt.Fprintf(buf, "\treturn nil\n")

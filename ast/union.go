@@ -4,6 +4,1260 @@ package ast
 
 import "unsafe"
 
+// ---- ClassElement tagged union ----
+
+type ClassElemKind uint8
+
+const (
+	ClassElemNone ClassElemKind = iota
+	ClassElemField
+	ClassElemMethod
+	ClassElemStaticBlock
+)
+
+func (k ClassElemKind) String() string {
+	switch k {
+	case ClassElemNone:
+		return "ClassElemNone"
+	case ClassElemField:
+		return "ClassElemField"
+	case ClassElemMethod:
+		return "ClassElemMethod"
+	case ClassElemStaticBlock:
+		return "ClassElemStaticBlock"
+	}
+	return "ClassElemKind(?)"
+}
+
+func (n *ClassElement) Kind() ClassElemKind { return n.kind }
+func (n *ClassElement) IsNone() bool        { return n.kind == ClassElemNone }
+
+func NewFieldClassElem(n *FieldDefinition) ClassElement {
+	return ClassElement{kind: ClassElemField, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ClassElement) Field() (*FieldDefinition, bool) {
+	if n.kind == ClassElemField {
+		return (*FieldDefinition)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ClassElement) MustField() *FieldDefinition {
+	if n.kind != ClassElemField {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*FieldDefinition)(n.ptr)
+}
+
+func (n *ClassElement) IsField() bool {
+	return n.kind == ClassElemField
+}
+
+func NewMethodClassElem(n *MethodDefinition) ClassElement {
+	return ClassElement{kind: ClassElemMethod, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ClassElement) Method() (*MethodDefinition, bool) {
+	if n.kind == ClassElemMethod {
+		return (*MethodDefinition)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ClassElement) MustMethod() *MethodDefinition {
+	if n.kind != ClassElemMethod {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*MethodDefinition)(n.ptr)
+}
+
+func (n *ClassElement) IsMethod() bool {
+	return n.kind == ClassElemMethod
+}
+
+func NewStaticBlockClassElem(n *ClassStaticBlock) ClassElement {
+	return ClassElement{kind: ClassElemStaticBlock, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ClassElement) StaticBlock() (*ClassStaticBlock, bool) {
+	if n.kind == ClassElemStaticBlock {
+		return (*ClassStaticBlock)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ClassElement) MustStaticBlock() *ClassStaticBlock {
+	if n.kind != ClassElemStaticBlock {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ClassStaticBlock)(n.ptr)
+}
+
+func (n *ClassElement) IsStaticBlock() bool {
+	return n.kind == ClassElemStaticBlock
+}
+
+func (n *ClassElement) Idx0() Idx {
+	switch n.kind {
+	case ClassElemField:
+		return (*FieldDefinition)(n.ptr).Idx0()
+	case ClassElemMethod:
+		return (*MethodDefinition)(n.ptr).Idx0()
+	case ClassElemStaticBlock:
+		return (*ClassStaticBlock)(n.ptr).Idx0()
+	}
+	return 0
+}
+
+func (n *ClassElement) Idx1() Idx {
+	switch n.kind {
+	case ClassElemField:
+		return (*FieldDefinition)(n.ptr).Idx1()
+	case ClassElemMethod:
+		return (*MethodDefinition)(n.ptr).Idx1()
+	case ClassElemStaticBlock:
+		return (*ClassStaticBlock)(n.ptr).Idx1()
+	}
+	return 0
+}
+
+func (n *ClassElement) Unwrap() VisitableNode {
+	if n == nil {
+		return nil
+	}
+	switch n.kind {
+	case ClassElemField:
+		return (*FieldDefinition)(n.ptr)
+	case ClassElemMethod:
+		return (*MethodDefinition)(n.ptr)
+	case ClassElemStaticBlock:
+		return (*ClassStaticBlock)(n.ptr)
+	}
+	return nil
+}
+
+// ---- Property tagged union ----
+
+type PropKind uint8
+
+const (
+	PropNone PropKind = iota
+	PropKeyed
+	PropShort
+	PropSpread
+)
+
+func (k PropKind) String() string {
+	switch k {
+	case PropNone:
+		return "PropNone"
+	case PropKeyed:
+		return "PropKeyed"
+	case PropShort:
+		return "PropShort"
+	case PropSpread:
+		return "PropSpread"
+	}
+	return "PropKind(?)"
+}
+
+func (n *Property) Kind() PropKind { return n.kind }
+func (n *Property) IsNone() bool   { return n.kind == PropNone }
+
+func NewKeyedProp(n *PropertyKeyed) Property {
+	return Property{kind: PropKeyed, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Property) Keyed() (*PropertyKeyed, bool) {
+	if n.kind == PropKeyed {
+		return (*PropertyKeyed)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Property) MustKeyed() *PropertyKeyed {
+	if n.kind != PropKeyed {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*PropertyKeyed)(n.ptr)
+}
+
+func (n *Property) IsKeyed() bool {
+	return n.kind == PropKeyed
+}
+
+func NewShortProp(n *PropertyShort) Property {
+	return Property{kind: PropShort, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Property) Short() (*PropertyShort, bool) {
+	if n.kind == PropShort {
+		return (*PropertyShort)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Property) MustShort() *PropertyShort {
+	if n.kind != PropShort {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*PropertyShort)(n.ptr)
+}
+
+func (n *Property) IsShort() bool {
+	return n.kind == PropShort
+}
+
+func NewSpreadProp(n *SpreadElement) Property {
+	return Property{kind: PropSpread, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Property) Spread() (*SpreadElement, bool) {
+	if n.kind == PropSpread {
+		return (*SpreadElement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Property) MustSpread() *SpreadElement {
+	if n.kind != PropSpread {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*SpreadElement)(n.ptr)
+}
+
+func (n *Property) IsSpread() bool {
+	return n.kind == PropSpread
+}
+
+func (n *Property) Idx0() Idx {
+	switch n.kind {
+	case PropKeyed:
+		return (*PropertyKeyed)(n.ptr).Idx0()
+	case PropShort:
+		return (*PropertyShort)(n.ptr).Idx0()
+	case PropSpread:
+		return (*SpreadElement)(n.ptr).Idx0()
+	}
+	return 0
+}
+
+func (n *Property) Idx1() Idx {
+	switch n.kind {
+	case PropKeyed:
+		return (*PropertyKeyed)(n.ptr).Idx1()
+	case PropShort:
+		return (*PropertyShort)(n.ptr).Idx1()
+	case PropSpread:
+		return (*SpreadElement)(n.ptr).Idx1()
+	}
+	return 0
+}
+
+func (n *Property) Unwrap() VisitableNode {
+	if n == nil {
+		return nil
+	}
+	switch n.kind {
+	case PropKeyed:
+		return (*PropertyKeyed)(n.ptr)
+	case PropShort:
+		return (*PropertyShort)(n.ptr)
+	case PropSpread:
+		return (*SpreadElement)(n.ptr)
+	}
+	return nil
+}
+
+// ---- Statement tagged union ----
+
+type StmtKind uint8
+
+const (
+	StmtNone StmtKind = iota
+	StmtBad
+	StmtBlock
+	StmtBreak
+	StmtCase
+	StmtCatch
+	StmtClassDecl
+	StmtContinue
+	StmtDebugger
+	StmtDoWhile
+	StmtEmpty
+	StmtExpression
+	StmtFor
+	StmtForIn
+	StmtForOf
+	StmtFuncDecl
+	StmtIf
+	StmtLabelled
+	StmtReturn
+	StmtSwitch
+	StmtThrow
+	StmtTry
+	StmtVarDecl
+	StmtWhile
+	StmtWith
+)
+
+func (k StmtKind) String() string {
+	switch k {
+	case StmtNone:
+		return "StmtNone"
+	case StmtBad:
+		return "StmtBad"
+	case StmtBlock:
+		return "StmtBlock"
+	case StmtBreak:
+		return "StmtBreak"
+	case StmtCase:
+		return "StmtCase"
+	case StmtCatch:
+		return "StmtCatch"
+	case StmtClassDecl:
+		return "StmtClassDecl"
+	case StmtContinue:
+		return "StmtContinue"
+	case StmtDebugger:
+		return "StmtDebugger"
+	case StmtDoWhile:
+		return "StmtDoWhile"
+	case StmtEmpty:
+		return "StmtEmpty"
+	case StmtExpression:
+		return "StmtExpression"
+	case StmtFor:
+		return "StmtFor"
+	case StmtForIn:
+		return "StmtForIn"
+	case StmtForOf:
+		return "StmtForOf"
+	case StmtFuncDecl:
+		return "StmtFuncDecl"
+	case StmtIf:
+		return "StmtIf"
+	case StmtLabelled:
+		return "StmtLabelled"
+	case StmtReturn:
+		return "StmtReturn"
+	case StmtSwitch:
+		return "StmtSwitch"
+	case StmtThrow:
+		return "StmtThrow"
+	case StmtTry:
+		return "StmtTry"
+	case StmtVarDecl:
+		return "StmtVarDecl"
+	case StmtWhile:
+		return "StmtWhile"
+	case StmtWith:
+		return "StmtWith"
+	}
+	return "StmtKind(?)"
+}
+
+func (n *Statement) Kind() StmtKind { return n.kind }
+func (n *Statement) IsNone() bool   { return n.kind == StmtNone }
+
+func NewBadStmt(n BadStatement) Statement {
+	return Statement{kind: StmtBad, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
+}
+
+func (n *Statement) Bad() (*BadStatement, bool) {
+	if n.kind == StmtBad {
+		return (*BadStatement)(unsafe.Pointer(&n.ptr)), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustBad() *BadStatement {
+	if n.kind != StmtBad {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*BadStatement)(unsafe.Pointer(&n.ptr))
+}
+
+func (n *Statement) IsBad() bool {
+	return n.kind == StmtBad
+}
+
+func NewBlockStmt(n *BlockStatement) Statement {
+	return Statement{kind: StmtBlock, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Block() (*BlockStatement, bool) {
+	if n.kind == StmtBlock {
+		return (*BlockStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustBlock() *BlockStatement {
+	if n.kind != StmtBlock {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*BlockStatement)(n.ptr)
+}
+
+func (n *Statement) IsBlock() bool {
+	return n.kind == StmtBlock
+}
+
+func NewBreakStmt(n *BreakStatement) Statement {
+	return Statement{kind: StmtBreak, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Break() (*BreakStatement, bool) {
+	if n.kind == StmtBreak {
+		return (*BreakStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustBreak() *BreakStatement {
+	if n.kind != StmtBreak {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*BreakStatement)(n.ptr)
+}
+
+func (n *Statement) IsBreak() bool {
+	return n.kind == StmtBreak
+}
+
+func NewCaseStmt(n *CaseStatement) Statement {
+	return Statement{kind: StmtCase, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Case() (*CaseStatement, bool) {
+	if n.kind == StmtCase {
+		return (*CaseStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustCase() *CaseStatement {
+	if n.kind != StmtCase {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*CaseStatement)(n.ptr)
+}
+
+func (n *Statement) IsCase() bool {
+	return n.kind == StmtCase
+}
+
+func NewCatchStmt(n *CatchStatement) Statement {
+	return Statement{kind: StmtCatch, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Catch() (*CatchStatement, bool) {
+	if n.kind == StmtCatch {
+		return (*CatchStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustCatch() *CatchStatement {
+	if n.kind != StmtCatch {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*CatchStatement)(n.ptr)
+}
+
+func (n *Statement) IsCatch() bool {
+	return n.kind == StmtCatch
+}
+
+func NewClassDeclStmt(n *ClassDeclaration) Statement {
+	return Statement{kind: StmtClassDecl, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) ClassDecl() (*ClassDeclaration, bool) {
+	if n.kind == StmtClassDecl {
+		return (*ClassDeclaration)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustClassDecl() *ClassDeclaration {
+	if n.kind != StmtClassDecl {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ClassDeclaration)(n.ptr)
+}
+
+func (n *Statement) IsClassDecl() bool {
+	return n.kind == StmtClassDecl
+}
+
+func NewContinueStmt(n *ContinueStatement) Statement {
+	return Statement{kind: StmtContinue, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Continue() (*ContinueStatement, bool) {
+	if n.kind == StmtContinue {
+		return (*ContinueStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustContinue() *ContinueStatement {
+	if n.kind != StmtContinue {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ContinueStatement)(n.ptr)
+}
+
+func (n *Statement) IsContinue() bool {
+	return n.kind == StmtContinue
+}
+
+func NewDebuggerStmt(n DebuggerStatement) Statement {
+	return Statement{kind: StmtDebugger, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
+}
+
+func (n *Statement) Debugger() (*DebuggerStatement, bool) {
+	if n.kind == StmtDebugger {
+		return (*DebuggerStatement)(unsafe.Pointer(&n.ptr)), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustDebugger() *DebuggerStatement {
+	if n.kind != StmtDebugger {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*DebuggerStatement)(unsafe.Pointer(&n.ptr))
+}
+
+func (n *Statement) IsDebugger() bool {
+	return n.kind == StmtDebugger
+}
+
+func NewDoWhileStmt(n *DoWhileStatement) Statement {
+	return Statement{kind: StmtDoWhile, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) DoWhile() (*DoWhileStatement, bool) {
+	if n.kind == StmtDoWhile {
+		return (*DoWhileStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustDoWhile() *DoWhileStatement {
+	if n.kind != StmtDoWhile {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*DoWhileStatement)(n.ptr)
+}
+
+func (n *Statement) IsDoWhile() bool {
+	return n.kind == StmtDoWhile
+}
+
+func NewEmptyStmt(n EmptyStatement) Statement {
+	return Statement{kind: StmtEmpty, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
+}
+
+func (n *Statement) Empty() (*EmptyStatement, bool) {
+	if n.kind == StmtEmpty {
+		return (*EmptyStatement)(unsafe.Pointer(&n.ptr)), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustEmpty() *EmptyStatement {
+	if n.kind != StmtEmpty {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*EmptyStatement)(unsafe.Pointer(&n.ptr))
+}
+
+func (n *Statement) IsEmpty() bool {
+	return n.kind == StmtEmpty
+}
+
+func NewExpressionStmt(n *ExpressionStatement) Statement {
+	return Statement{kind: StmtExpression, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Expression() (*ExpressionStatement, bool) {
+	if n.kind == StmtExpression {
+		return (*ExpressionStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustExpression() *ExpressionStatement {
+	if n.kind != StmtExpression {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ExpressionStatement)(n.ptr)
+}
+
+func (n *Statement) IsExpression() bool {
+	return n.kind == StmtExpression
+}
+
+func NewForStmt(n *ForStatement) Statement {
+	return Statement{kind: StmtFor, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) For() (*ForStatement, bool) {
+	if n.kind == StmtFor {
+		return (*ForStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustFor() *ForStatement {
+	if n.kind != StmtFor {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ForStatement)(n.ptr)
+}
+
+func (n *Statement) IsFor() bool {
+	return n.kind == StmtFor
+}
+
+func NewForInStmt(n *ForInStatement) Statement {
+	return Statement{kind: StmtForIn, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) ForIn() (*ForInStatement, bool) {
+	if n.kind == StmtForIn {
+		return (*ForInStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustForIn() *ForInStatement {
+	if n.kind != StmtForIn {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ForInStatement)(n.ptr)
+}
+
+func (n *Statement) IsForIn() bool {
+	return n.kind == StmtForIn
+}
+
+func NewForOfStmt(n *ForOfStatement) Statement {
+	return Statement{kind: StmtForOf, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) ForOf() (*ForOfStatement, bool) {
+	if n.kind == StmtForOf {
+		return (*ForOfStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustForOf() *ForOfStatement {
+	if n.kind != StmtForOf {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ForOfStatement)(n.ptr)
+}
+
+func (n *Statement) IsForOf() bool {
+	return n.kind == StmtForOf
+}
+
+func NewFuncDeclStmt(n *FunctionDeclaration) Statement {
+	return Statement{kind: StmtFuncDecl, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) FuncDecl() (*FunctionDeclaration, bool) {
+	if n.kind == StmtFuncDecl {
+		return (*FunctionDeclaration)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustFuncDecl() *FunctionDeclaration {
+	if n.kind != StmtFuncDecl {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*FunctionDeclaration)(n.ptr)
+}
+
+func (n *Statement) IsFuncDecl() bool {
+	return n.kind == StmtFuncDecl
+}
+
+func NewIfStmt(n *IfStatement) Statement {
+	return Statement{kind: StmtIf, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) If() (*IfStatement, bool) {
+	if n.kind == StmtIf {
+		return (*IfStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustIf() *IfStatement {
+	if n.kind != StmtIf {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*IfStatement)(n.ptr)
+}
+
+func (n *Statement) IsIf() bool {
+	return n.kind == StmtIf
+}
+
+func NewLabelledStmt(n *LabelledStatement) Statement {
+	return Statement{kind: StmtLabelled, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Labelled() (*LabelledStatement, bool) {
+	if n.kind == StmtLabelled {
+		return (*LabelledStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustLabelled() *LabelledStatement {
+	if n.kind != StmtLabelled {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*LabelledStatement)(n.ptr)
+}
+
+func (n *Statement) IsLabelled() bool {
+	return n.kind == StmtLabelled
+}
+
+func NewReturnStmt(n *ReturnStatement) Statement {
+	return Statement{kind: StmtReturn, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Return() (*ReturnStatement, bool) {
+	if n.kind == StmtReturn {
+		return (*ReturnStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustReturn() *ReturnStatement {
+	if n.kind != StmtReturn {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ReturnStatement)(n.ptr)
+}
+
+func (n *Statement) IsReturn() bool {
+	return n.kind == StmtReturn
+}
+
+func NewSwitchStmt(n *SwitchStatement) Statement {
+	return Statement{kind: StmtSwitch, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Switch() (*SwitchStatement, bool) {
+	if n.kind == StmtSwitch {
+		return (*SwitchStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustSwitch() *SwitchStatement {
+	if n.kind != StmtSwitch {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*SwitchStatement)(n.ptr)
+}
+
+func (n *Statement) IsSwitch() bool {
+	return n.kind == StmtSwitch
+}
+
+func NewThrowStmt(n *ThrowStatement) Statement {
+	return Statement{kind: StmtThrow, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Throw() (*ThrowStatement, bool) {
+	if n.kind == StmtThrow {
+		return (*ThrowStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustThrow() *ThrowStatement {
+	if n.kind != StmtThrow {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ThrowStatement)(n.ptr)
+}
+
+func (n *Statement) IsThrow() bool {
+	return n.kind == StmtThrow
+}
+
+func NewTryStmt(n *TryStatement) Statement {
+	return Statement{kind: StmtTry, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) Try() (*TryStatement, bool) {
+	if n.kind == StmtTry {
+		return (*TryStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustTry() *TryStatement {
+	if n.kind != StmtTry {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*TryStatement)(n.ptr)
+}
+
+func (n *Statement) IsTry() bool {
+	return n.kind == StmtTry
+}
+
+func NewVarDeclStmt(n *VariableDeclaration) Statement {
+	return Statement{kind: StmtVarDecl, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) VarDecl() (*VariableDeclaration, bool) {
+	if n.kind == StmtVarDecl {
+		return (*VariableDeclaration)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustVarDecl() *VariableDeclaration {
+	if n.kind != StmtVarDecl {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*VariableDeclaration)(n.ptr)
+}
+
+func (n *Statement) IsVarDecl() bool {
+	return n.kind == StmtVarDecl
+}
+
+func NewWhileStmt(n *WhileStatement) Statement {
+	return Statement{kind: StmtWhile, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) While() (*WhileStatement, bool) {
+	if n.kind == StmtWhile {
+		return (*WhileStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustWhile() *WhileStatement {
+	if n.kind != StmtWhile {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*WhileStatement)(n.ptr)
+}
+
+func (n *Statement) IsWhile() bool {
+	return n.kind == StmtWhile
+}
+
+func NewWithStmt(n *WithStatement) Statement {
+	return Statement{kind: StmtWith, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Statement) With() (*WithStatement, bool) {
+	if n.kind == StmtWith {
+		return (*WithStatement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Statement) MustWith() *WithStatement {
+	if n.kind != StmtWith {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*WithStatement)(n.ptr)
+}
+
+func (n *Statement) IsWith() bool {
+	return n.kind == StmtWith
+}
+
+func (n *Statement) Idx0() Idx {
+	switch n.kind {
+	case StmtBad:
+		return (*BadStatement)(unsafe.Pointer(&n.ptr)).Idx0()
+	case StmtBlock:
+		return (*BlockStatement)(n.ptr).Idx0()
+	case StmtBreak:
+		return (*BreakStatement)(n.ptr).Idx0()
+	case StmtCase:
+		return (*CaseStatement)(n.ptr).Idx0()
+	case StmtCatch:
+		return (*CatchStatement)(n.ptr).Idx0()
+	case StmtClassDecl:
+		return (*ClassDeclaration)(n.ptr).Idx0()
+	case StmtContinue:
+		return (*ContinueStatement)(n.ptr).Idx0()
+	case StmtDebugger:
+		return (*DebuggerStatement)(unsafe.Pointer(&n.ptr)).Idx0()
+	case StmtDoWhile:
+		return (*DoWhileStatement)(n.ptr).Idx0()
+	case StmtEmpty:
+		return (*EmptyStatement)(unsafe.Pointer(&n.ptr)).Idx0()
+	case StmtExpression:
+		return (*ExpressionStatement)(n.ptr).Idx0()
+	case StmtFor:
+		return (*ForStatement)(n.ptr).Idx0()
+	case StmtForIn:
+		return (*ForInStatement)(n.ptr).Idx0()
+	case StmtForOf:
+		return (*ForOfStatement)(n.ptr).Idx0()
+	case StmtFuncDecl:
+		return (*FunctionDeclaration)(n.ptr).Idx0()
+	case StmtIf:
+		return (*IfStatement)(n.ptr).Idx0()
+	case StmtLabelled:
+		return (*LabelledStatement)(n.ptr).Idx0()
+	case StmtReturn:
+		return (*ReturnStatement)(n.ptr).Idx0()
+	case StmtSwitch:
+		return (*SwitchStatement)(n.ptr).Idx0()
+	case StmtThrow:
+		return (*ThrowStatement)(n.ptr).Idx0()
+	case StmtTry:
+		return (*TryStatement)(n.ptr).Idx0()
+	case StmtVarDecl:
+		return (*VariableDeclaration)(n.ptr).Idx0()
+	case StmtWhile:
+		return (*WhileStatement)(n.ptr).Idx0()
+	case StmtWith:
+		return (*WithStatement)(n.ptr).Idx0()
+	}
+	return 0
+}
+
+func (n *Statement) Idx1() Idx {
+	switch n.kind {
+	case StmtBad:
+		return (*BadStatement)(unsafe.Pointer(&n.ptr)).Idx1()
+	case StmtBlock:
+		return (*BlockStatement)(n.ptr).Idx1()
+	case StmtBreak:
+		return (*BreakStatement)(n.ptr).Idx1()
+	case StmtCase:
+		return (*CaseStatement)(n.ptr).Idx1()
+	case StmtCatch:
+		return (*CatchStatement)(n.ptr).Idx1()
+	case StmtClassDecl:
+		return (*ClassDeclaration)(n.ptr).Idx1()
+	case StmtContinue:
+		return (*ContinueStatement)(n.ptr).Idx1()
+	case StmtDebugger:
+		return (*DebuggerStatement)(unsafe.Pointer(&n.ptr)).Idx1()
+	case StmtDoWhile:
+		return (*DoWhileStatement)(n.ptr).Idx1()
+	case StmtEmpty:
+		return (*EmptyStatement)(unsafe.Pointer(&n.ptr)).Idx1()
+	case StmtExpression:
+		return (*ExpressionStatement)(n.ptr).Idx1()
+	case StmtFor:
+		return (*ForStatement)(n.ptr).Idx1()
+	case StmtForIn:
+		return (*ForInStatement)(n.ptr).Idx1()
+	case StmtForOf:
+		return (*ForOfStatement)(n.ptr).Idx1()
+	case StmtFuncDecl:
+		return (*FunctionDeclaration)(n.ptr).Idx1()
+	case StmtIf:
+		return (*IfStatement)(n.ptr).Idx1()
+	case StmtLabelled:
+		return (*LabelledStatement)(n.ptr).Idx1()
+	case StmtReturn:
+		return (*ReturnStatement)(n.ptr).Idx1()
+	case StmtSwitch:
+		return (*SwitchStatement)(n.ptr).Idx1()
+	case StmtThrow:
+		return (*ThrowStatement)(n.ptr).Idx1()
+	case StmtTry:
+		return (*TryStatement)(n.ptr).Idx1()
+	case StmtVarDecl:
+		return (*VariableDeclaration)(n.ptr).Idx1()
+	case StmtWhile:
+		return (*WhileStatement)(n.ptr).Idx1()
+	case StmtWith:
+		return (*WithStatement)(n.ptr).Idx1()
+	}
+	return 0
+}
+
+func (n *Statement) Unwrap() VisitableNode {
+	if n == nil {
+		return nil
+	}
+	switch n.kind {
+	case StmtBad:
+		return (*BadStatement)(unsafe.Pointer(&n.ptr))
+	case StmtBlock:
+		return (*BlockStatement)(n.ptr)
+	case StmtBreak:
+		return (*BreakStatement)(n.ptr)
+	case StmtCase:
+		return (*CaseStatement)(n.ptr)
+	case StmtCatch:
+		return (*CatchStatement)(n.ptr)
+	case StmtClassDecl:
+		return (*ClassDeclaration)(n.ptr)
+	case StmtContinue:
+		return (*ContinueStatement)(n.ptr)
+	case StmtDebugger:
+		return (*DebuggerStatement)(unsafe.Pointer(&n.ptr))
+	case StmtDoWhile:
+		return (*DoWhileStatement)(n.ptr)
+	case StmtEmpty:
+		return (*EmptyStatement)(unsafe.Pointer(&n.ptr))
+	case StmtExpression:
+		return (*ExpressionStatement)(n.ptr)
+	case StmtFor:
+		return (*ForStatement)(n.ptr)
+	case StmtForIn:
+		return (*ForInStatement)(n.ptr)
+	case StmtForOf:
+		return (*ForOfStatement)(n.ptr)
+	case StmtFuncDecl:
+		return (*FunctionDeclaration)(n.ptr)
+	case StmtIf:
+		return (*IfStatement)(n.ptr)
+	case StmtLabelled:
+		return (*LabelledStatement)(n.ptr)
+	case StmtReturn:
+		return (*ReturnStatement)(n.ptr)
+	case StmtSwitch:
+		return (*SwitchStatement)(n.ptr)
+	case StmtThrow:
+		return (*ThrowStatement)(n.ptr)
+	case StmtTry:
+		return (*TryStatement)(n.ptr)
+	case StmtVarDecl:
+		return (*VariableDeclaration)(n.ptr)
+	case StmtWhile:
+		return (*WhileStatement)(n.ptr)
+	case StmtWith:
+		return (*WithStatement)(n.ptr)
+	}
+	return nil
+}
+
+// ---- ForLoopInitializer tagged union ----
+
+type ForInitKind uint8
+
+const (
+	ForInitNone ForInitKind = iota
+	ForInitExpr
+	ForInitVarDecl
+)
+
+func (k ForInitKind) String() string {
+	switch k {
+	case ForInitNone:
+		return "ForInitNone"
+	case ForInitExpr:
+		return "ForInitExpr"
+	case ForInitVarDecl:
+		return "ForInitVarDecl"
+	}
+	return "ForInitKind(?)"
+}
+
+func (n *ForLoopInitializer) Kind() ForInitKind { return n.kind }
+func (n *ForLoopInitializer) IsNone() bool      { return n.kind == ForInitNone }
+
+func NewExprForInit(n *Expression) ForLoopInitializer {
+	return ForLoopInitializer{kind: ForInitExpr, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ForLoopInitializer) Expr() (*Expression, bool) {
+	if n.kind == ForInitExpr {
+		return (*Expression)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ForLoopInitializer) MustExpr() *Expression {
+	if n.kind != ForInitExpr {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*Expression)(n.ptr)
+}
+
+func (n *ForLoopInitializer) IsExpr() bool {
+	return n.kind == ForInitExpr
+}
+
+func NewVarDeclForInit(n *VariableDeclaration) ForLoopInitializer {
+	return ForLoopInitializer{kind: ForInitVarDecl, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ForLoopInitializer) VarDecl() (*VariableDeclaration, bool) {
+	if n.kind == ForInitVarDecl {
+		return (*VariableDeclaration)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ForLoopInitializer) MustVarDecl() *VariableDeclaration {
+	if n.kind != ForInitVarDecl {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*VariableDeclaration)(n.ptr)
+}
+
+func (n *ForLoopInitializer) IsVarDecl() bool {
+	return n.kind == ForInitVarDecl
+}
+
+func (n *ForLoopInitializer) Idx0() Idx {
+	switch n.kind {
+	case ForInitExpr:
+		return (*Expression)(n.ptr).Idx0()
+	case ForInitVarDecl:
+		return (*VariableDeclaration)(n.ptr).Idx0()
+	}
+	return 0
+}
+
+func (n *ForLoopInitializer) Idx1() Idx {
+	switch n.kind {
+	case ForInitExpr:
+		return (*Expression)(n.ptr).Idx1()
+	case ForInitVarDecl:
+		return (*VariableDeclaration)(n.ptr).Idx1()
+	}
+	return 0
+}
+
+func (n *ForLoopInitializer) Unwrap() VisitableNode {
+	if n == nil {
+		return nil
+	}
+	switch n.kind {
+	case ForInitExpr:
+		return (*Expression)(n.ptr)
+	case ForInitVarDecl:
+		return (*VariableDeclaration)(n.ptr)
+	}
+	return nil
+}
+
+// ---- ForInto tagged union ----
+
+type ForIntoKind uint8
+
+const (
+	ForIntoNone ForIntoKind = iota
+	ForIntoExpr
+	ForIntoVarDecl
+)
+
+func (k ForIntoKind) String() string {
+	switch k {
+	case ForIntoNone:
+		return "ForIntoNone"
+	case ForIntoExpr:
+		return "ForIntoExpr"
+	case ForIntoVarDecl:
+		return "ForIntoVarDecl"
+	}
+	return "ForIntoKind(?)"
+}
+
+func (n *ForInto) Kind() ForIntoKind { return n.kind }
+func (n *ForInto) IsNone() bool      { return n.kind == ForIntoNone }
+
+func NewExprForInto(n *Expression) ForInto {
+	return ForInto{kind: ForIntoExpr, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ForInto) Expr() (*Expression, bool) {
+	if n.kind == ForIntoExpr {
+		return (*Expression)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ForInto) MustExpr() *Expression {
+	if n.kind != ForIntoExpr {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*Expression)(n.ptr)
+}
+
+func (n *ForInto) IsExpr() bool {
+	return n.kind == ForIntoExpr
+}
+
+func NewVarDeclForInto(n *VariableDeclaration) ForInto {
+	return ForInto{kind: ForIntoVarDecl, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ForInto) VarDecl() (*VariableDeclaration, bool) {
+	if n.kind == ForIntoVarDecl {
+		return (*VariableDeclaration)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ForInto) MustVarDecl() *VariableDeclaration {
+	if n.kind != ForIntoVarDecl {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*VariableDeclaration)(n.ptr)
+}
+
+func (n *ForInto) IsVarDecl() bool {
+	return n.kind == ForIntoVarDecl
+}
+
+func (n *ForInto) Idx0() Idx {
+	switch n.kind {
+	case ForIntoExpr:
+		return (*Expression)(n.ptr).Idx0()
+	case ForIntoVarDecl:
+		return (*VariableDeclaration)(n.ptr).Idx0()
+	}
+	return 0
+}
+
+func (n *ForInto) Idx1() Idx {
+	switch n.kind {
+	case ForIntoExpr:
+		return (*Expression)(n.ptr).Idx1()
+	case ForIntoVarDecl:
+		return (*VariableDeclaration)(n.ptr).Idx1()
+	}
+	return 0
+}
+
+func (n *ForInto) Unwrap() VisitableNode {
+	if n == nil {
+		return nil
+	}
+	switch n.kind {
+	case ForIntoExpr:
+		return (*Expression)(n.ptr)
+	case ForIntoVarDecl:
+		return (*VariableDeclaration)(n.ptr)
+	}
+	return nil
+}
+
 // ---- Expression tagged union ----
 
 type ExprKind uint8
@@ -146,6 +1400,9 @@ func (n *Expression) ArrLit() (*ArrayLiteral, bool) {
 }
 
 func (n *Expression) MustArrLit() *ArrayLiteral {
+	if n.kind != ExprArrLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ArrayLiteral)(n.ptr)
 }
 
@@ -165,6 +1422,9 @@ func (n *Expression) ArrPat() (*ArrayPattern, bool) {
 }
 
 func (n *Expression) MustArrPat() *ArrayPattern {
+	if n.kind != ExprArrPat {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ArrayPattern)(n.ptr)
 }
 
@@ -184,6 +1444,9 @@ func (n *Expression) ArrowFuncLit() (*ArrowFunctionLiteral, bool) {
 }
 
 func (n *Expression) MustArrowFuncLit() *ArrowFunctionLiteral {
+	if n.kind != ExprArrowFuncLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ArrowFunctionLiteral)(n.ptr)
 }
 
@@ -203,6 +1466,9 @@ func (n *Expression) Assign() (*AssignExpression, bool) {
 }
 
 func (n *Expression) MustAssign() *AssignExpression {
+	if n.kind != ExprAssign {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*AssignExpression)(n.ptr)
 }
 
@@ -222,6 +1488,9 @@ func (n *Expression) Await() (*AwaitExpression, bool) {
 }
 
 func (n *Expression) MustAwait() *AwaitExpression {
+	if n.kind != ExprAwait {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*AwaitExpression)(n.ptr)
 }
 
@@ -241,6 +1510,9 @@ func (n *Expression) Binary() (*BinaryExpression, bool) {
 }
 
 func (n *Expression) MustBinary() *BinaryExpression {
+	if n.kind != ExprBinary {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*BinaryExpression)(n.ptr)
 }
 
@@ -248,19 +1520,22 @@ func (n *Expression) IsBinary() bool {
 	return n.kind == ExprBinary
 }
 
-func NewBoolLitExpr(n *BooleanLiteral) Expression {
-	return Expression{kind: ExprBoolLit, ptr: unsafe.Pointer(n)}
+func NewBoolLitExpr(n BooleanLiteral) Expression {
+	return Expression{kind: ExprBoolLit, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
 }
 
 func (n *Expression) BoolLit() (*BooleanLiteral, bool) {
 	if n.kind == ExprBoolLit {
-		return (*BooleanLiteral)(n.ptr), true
+		return (*BooleanLiteral)(unsafe.Pointer(&n.ptr)), true
 	}
 	return nil, false
 }
 
 func (n *Expression) MustBoolLit() *BooleanLiteral {
-	return (*BooleanLiteral)(n.ptr)
+	if n.kind != ExprBoolLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*BooleanLiteral)(unsafe.Pointer(&n.ptr))
 }
 
 func (n *Expression) IsBoolLit() bool {
@@ -279,6 +1554,9 @@ func (n *Expression) Call() (*CallExpression, bool) {
 }
 
 func (n *Expression) MustCall() *CallExpression {
+	if n.kind != ExprCall {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*CallExpression)(n.ptr)
 }
 
@@ -298,6 +1576,9 @@ func (n *Expression) ClassLit() (*ClassLiteral, bool) {
 }
 
 func (n *Expression) MustClassLit() *ClassLiteral {
+	if n.kind != ExprClassLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ClassLiteral)(n.ptr)
 }
 
@@ -317,6 +1598,9 @@ func (n *Expression) Conditional() (*ConditionalExpression, bool) {
 }
 
 func (n *Expression) MustConditional() *ConditionalExpression {
+	if n.kind != ExprConditional {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ConditionalExpression)(n.ptr)
 }
 
@@ -336,6 +1620,9 @@ func (n *Expression) FuncLit() (*FunctionLiteral, bool) {
 }
 
 func (n *Expression) MustFuncLit() *FunctionLiteral {
+	if n.kind != ExprFuncLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*FunctionLiteral)(n.ptr)
 }
 
@@ -355,6 +1642,9 @@ func (n *Expression) Ident() (*Identifier, bool) {
 }
 
 func (n *Expression) MustIdent() *Identifier {
+	if n.kind != ExprIdent {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*Identifier)(n.ptr)
 }
 
@@ -362,19 +1652,22 @@ func (n *Expression) IsIdent() bool {
 	return n.kind == ExprIdent
 }
 
-func NewInvalidExpr(n *InvalidExpression) Expression {
-	return Expression{kind: ExprInvalid, ptr: unsafe.Pointer(n)}
+func NewInvalidExpr(n InvalidExpression) Expression {
+	return Expression{kind: ExprInvalid, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
 }
 
 func (n *Expression) Invalid() (*InvalidExpression, bool) {
 	if n.kind == ExprInvalid {
-		return (*InvalidExpression)(n.ptr), true
+		return (*InvalidExpression)(unsafe.Pointer(&n.ptr)), true
 	}
 	return nil, false
 }
 
 func (n *Expression) MustInvalid() *InvalidExpression {
-	return (*InvalidExpression)(n.ptr)
+	if n.kind != ExprInvalid {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*InvalidExpression)(unsafe.Pointer(&n.ptr))
 }
 
 func (n *Expression) IsInvalid() bool {
@@ -393,6 +1686,9 @@ func (n *Expression) Keyed() (*PropertyKeyed, bool) {
 }
 
 func (n *Expression) MustKeyed() *PropertyKeyed {
+	if n.kind != ExprKeyed {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*PropertyKeyed)(n.ptr)
 }
 
@@ -412,6 +1708,9 @@ func (n *Expression) Member() (*MemberExpression, bool) {
 }
 
 func (n *Expression) MustMember() *MemberExpression {
+	if n.kind != ExprMember {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*MemberExpression)(n.ptr)
 }
 
@@ -431,6 +1730,9 @@ func (n *Expression) MetaProp() (*MetaProperty, bool) {
 }
 
 func (n *Expression) MustMetaProp() *MetaProperty {
+	if n.kind != ExprMetaProp {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*MetaProperty)(n.ptr)
 }
 
@@ -450,6 +1752,9 @@ func (n *Expression) New() (*NewExpression, bool) {
 }
 
 func (n *Expression) MustNew() *NewExpression {
+	if n.kind != ExprNew {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*NewExpression)(n.ptr)
 }
 
@@ -457,19 +1762,22 @@ func (n *Expression) IsNew() bool {
 	return n.kind == ExprNew
 }
 
-func NewNullLitExpr(n *NullLiteral) Expression {
-	return Expression{kind: ExprNullLit, ptr: unsafe.Pointer(n)}
+func NewNullLitExpr(n NullLiteral) Expression {
+	return Expression{kind: ExprNullLit, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
 }
 
 func (n *Expression) NullLit() (*NullLiteral, bool) {
 	if n.kind == ExprNullLit {
-		return (*NullLiteral)(n.ptr), true
+		return (*NullLiteral)(unsafe.Pointer(&n.ptr)), true
 	}
 	return nil, false
 }
 
 func (n *Expression) MustNullLit() *NullLiteral {
-	return (*NullLiteral)(n.ptr)
+	if n.kind != ExprNullLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*NullLiteral)(unsafe.Pointer(&n.ptr))
 }
 
 func (n *Expression) IsNullLit() bool {
@@ -488,6 +1796,9 @@ func (n *Expression) NumLit() (*NumberLiteral, bool) {
 }
 
 func (n *Expression) MustNumLit() *NumberLiteral {
+	if n.kind != ExprNumLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*NumberLiteral)(n.ptr)
 }
 
@@ -507,6 +1818,9 @@ func (n *Expression) ObjLit() (*ObjectLiteral, bool) {
 }
 
 func (n *Expression) MustObjLit() *ObjectLiteral {
+	if n.kind != ExprObjLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ObjectLiteral)(n.ptr)
 }
 
@@ -526,6 +1840,9 @@ func (n *Expression) ObjPat() (*ObjectPattern, bool) {
 }
 
 func (n *Expression) MustObjPat() *ObjectPattern {
+	if n.kind != ExprObjPat {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ObjectPattern)(n.ptr)
 }
 
@@ -545,6 +1862,9 @@ func (n *Expression) OptChain() (*OptionalChain, bool) {
 }
 
 func (n *Expression) MustOptChain() *OptionalChain {
+	if n.kind != ExprOptChain {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*OptionalChain)(n.ptr)
 }
 
@@ -564,6 +1884,9 @@ func (n *Expression) Optional() (*Optional, bool) {
 }
 
 func (n *Expression) MustOptional() *Optional {
+	if n.kind != ExprOptional {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*Optional)(n.ptr)
 }
 
@@ -583,6 +1906,9 @@ func (n *Expression) PrivDot() (*PrivateDotExpression, bool) {
 }
 
 func (n *Expression) MustPrivDot() *PrivateDotExpression {
+	if n.kind != ExprPrivDot {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*PrivateDotExpression)(n.ptr)
 }
 
@@ -602,6 +1928,9 @@ func (n *Expression) PrivIdent() (*PrivateIdentifier, bool) {
 }
 
 func (n *Expression) MustPrivIdent() *PrivateIdentifier {
+	if n.kind != ExprPrivIdent {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*PrivateIdentifier)(n.ptr)
 }
 
@@ -621,6 +1950,9 @@ func (n *Expression) RegExpLit() (*RegExpLiteral, bool) {
 }
 
 func (n *Expression) MustRegExpLit() *RegExpLiteral {
+	if n.kind != ExprRegExpLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*RegExpLiteral)(n.ptr)
 }
 
@@ -640,6 +1972,9 @@ func (n *Expression) Sequence() (*SequenceExpression, bool) {
 }
 
 func (n *Expression) MustSequence() *SequenceExpression {
+	if n.kind != ExprSequence {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*SequenceExpression)(n.ptr)
 }
 
@@ -659,6 +1994,9 @@ func (n *Expression) Short() (*PropertyShort, bool) {
 }
 
 func (n *Expression) MustShort() *PropertyShort {
+	if n.kind != ExprShort {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*PropertyShort)(n.ptr)
 }
 
@@ -678,6 +2016,9 @@ func (n *Expression) Spread() (*SpreadElement, bool) {
 }
 
 func (n *Expression) MustSpread() *SpreadElement {
+	if n.kind != ExprSpread {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*SpreadElement)(n.ptr)
 }
 
@@ -697,6 +2038,9 @@ func (n *Expression) StrLit() (*StringLiteral, bool) {
 }
 
 func (n *Expression) MustStrLit() *StringLiteral {
+	if n.kind != ExprStrLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*StringLiteral)(n.ptr)
 }
 
@@ -704,38 +2048,44 @@ func (n *Expression) IsStrLit() bool {
 	return n.kind == ExprStrLit
 }
 
-func NewSuperExpr(n *SuperExpression) Expression {
-	return Expression{kind: ExprSuper, ptr: unsafe.Pointer(n)}
+func NewSuperExpr(n SuperExpression) Expression {
+	return Expression{kind: ExprSuper, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
 }
 
 func (n *Expression) Super() (*SuperExpression, bool) {
 	if n.kind == ExprSuper {
-		return (*SuperExpression)(n.ptr), true
+		return (*SuperExpression)(unsafe.Pointer(&n.ptr)), true
 	}
 	return nil, false
 }
 
 func (n *Expression) MustSuper() *SuperExpression {
-	return (*SuperExpression)(n.ptr)
+	if n.kind != ExprSuper {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*SuperExpression)(unsafe.Pointer(&n.ptr))
 }
 
 func (n *Expression) IsSuper() bool {
 	return n.kind == ExprSuper
 }
 
-func NewThisExpr(n *ThisExpression) Expression {
-	return Expression{kind: ExprThis, ptr: unsafe.Pointer(n)}
+func NewThisExpr(n ThisExpression) Expression {
+	return Expression{kind: ExprThis, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
 }
 
 func (n *Expression) This() (*ThisExpression, bool) {
 	if n.kind == ExprThis {
-		return (*ThisExpression)(n.ptr), true
+		return (*ThisExpression)(unsafe.Pointer(&n.ptr)), true
 	}
 	return nil, false
 }
 
 func (n *Expression) MustThis() *ThisExpression {
-	return (*ThisExpression)(n.ptr)
+	if n.kind != ExprThis {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ThisExpression)(unsafe.Pointer(&n.ptr))
 }
 
 func (n *Expression) IsThis() bool {
@@ -754,6 +2104,9 @@ func (n *Expression) TmplLit() (*TemplateLiteral, bool) {
 }
 
 func (n *Expression) MustTmplLit() *TemplateLiteral {
+	if n.kind != ExprTmplLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*TemplateLiteral)(n.ptr)
 }
 
@@ -773,6 +2126,9 @@ func (n *Expression) Unary() (*UnaryExpression, bool) {
 }
 
 func (n *Expression) MustUnary() *UnaryExpression {
+	if n.kind != ExprUnary {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*UnaryExpression)(n.ptr)
 }
 
@@ -792,6 +2148,9 @@ func (n *Expression) Update() (*UpdateExpression, bool) {
 }
 
 func (n *Expression) MustUpdate() *UpdateExpression {
+	if n.kind != ExprUpdate {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*UpdateExpression)(n.ptr)
 }
 
@@ -811,6 +2170,9 @@ func (n *Expression) VarDeclarator() (*VariableDeclarator, bool) {
 }
 
 func (n *Expression) MustVarDeclarator() *VariableDeclarator {
+	if n.kind != ExprVarDeclarator {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*VariableDeclarator)(n.ptr)
 }
 
@@ -830,6 +2192,9 @@ func (n *Expression) Yield() (*YieldExpression, bool) {
 }
 
 func (n *Expression) MustYield() *YieldExpression {
+	if n.kind != ExprYield {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*YieldExpression)(n.ptr)
 }
 
@@ -852,7 +2217,7 @@ func (n *Expression) Idx0() Idx {
 	case ExprBinary:
 		return (*BinaryExpression)(n.ptr).Idx0()
 	case ExprBoolLit:
-		return (*BooleanLiteral)(n.ptr).Idx0()
+		return (*BooleanLiteral)(unsafe.Pointer(&n.ptr)).Idx0()
 	case ExprCall:
 		return (*CallExpression)(n.ptr).Idx0()
 	case ExprClassLit:
@@ -864,7 +2229,7 @@ func (n *Expression) Idx0() Idx {
 	case ExprIdent:
 		return (*Identifier)(n.ptr).Idx0()
 	case ExprInvalid:
-		return (*InvalidExpression)(n.ptr).Idx0()
+		return (*InvalidExpression)(unsafe.Pointer(&n.ptr)).Idx0()
 	case ExprKeyed:
 		return (*PropertyKeyed)(n.ptr).Idx0()
 	case ExprMember:
@@ -874,7 +2239,7 @@ func (n *Expression) Idx0() Idx {
 	case ExprNew:
 		return (*NewExpression)(n.ptr).Idx0()
 	case ExprNullLit:
-		return (*NullLiteral)(n.ptr).Idx0()
+		return (*NullLiteral)(unsafe.Pointer(&n.ptr)).Idx0()
 	case ExprNumLit:
 		return (*NumberLiteral)(n.ptr).Idx0()
 	case ExprObjLit:
@@ -900,9 +2265,9 @@ func (n *Expression) Idx0() Idx {
 	case ExprStrLit:
 		return (*StringLiteral)(n.ptr).Idx0()
 	case ExprSuper:
-		return (*SuperExpression)(n.ptr).Idx0()
+		return (*SuperExpression)(unsafe.Pointer(&n.ptr)).Idx0()
 	case ExprThis:
-		return (*ThisExpression)(n.ptr).Idx0()
+		return (*ThisExpression)(unsafe.Pointer(&n.ptr)).Idx0()
 	case ExprTmplLit:
 		return (*TemplateLiteral)(n.ptr).Idx0()
 	case ExprUnary:
@@ -932,7 +2297,7 @@ func (n *Expression) Idx1() Idx {
 	case ExprBinary:
 		return (*BinaryExpression)(n.ptr).Idx1()
 	case ExprBoolLit:
-		return (*BooleanLiteral)(n.ptr).Idx1()
+		return (*BooleanLiteral)(unsafe.Pointer(&n.ptr)).Idx1()
 	case ExprCall:
 		return (*CallExpression)(n.ptr).Idx1()
 	case ExprClassLit:
@@ -944,7 +2309,7 @@ func (n *Expression) Idx1() Idx {
 	case ExprIdent:
 		return (*Identifier)(n.ptr).Idx1()
 	case ExprInvalid:
-		return (*InvalidExpression)(n.ptr).Idx1()
+		return (*InvalidExpression)(unsafe.Pointer(&n.ptr)).Idx1()
 	case ExprKeyed:
 		return (*PropertyKeyed)(n.ptr).Idx1()
 	case ExprMember:
@@ -954,7 +2319,7 @@ func (n *Expression) Idx1() Idx {
 	case ExprNew:
 		return (*NewExpression)(n.ptr).Idx1()
 	case ExprNullLit:
-		return (*NullLiteral)(n.ptr).Idx1()
+		return (*NullLiteral)(unsafe.Pointer(&n.ptr)).Idx1()
 	case ExprNumLit:
 		return (*NumberLiteral)(n.ptr).Idx1()
 	case ExprObjLit:
@@ -980,9 +2345,9 @@ func (n *Expression) Idx1() Idx {
 	case ExprStrLit:
 		return (*StringLiteral)(n.ptr).Idx1()
 	case ExprSuper:
-		return (*SuperExpression)(n.ptr).Idx1()
+		return (*SuperExpression)(unsafe.Pointer(&n.ptr)).Idx1()
 	case ExprThis:
-		return (*ThisExpression)(n.ptr).Idx1()
+		return (*ThisExpression)(unsafe.Pointer(&n.ptr)).Idx1()
 	case ExprTmplLit:
 		return (*TemplateLiteral)(n.ptr).Idx1()
 	case ExprUnary:
@@ -1015,7 +2380,7 @@ func (n *Expression) Unwrap() VisitableNode {
 	case ExprBinary:
 		return (*BinaryExpression)(n.ptr)
 	case ExprBoolLit:
-		return (*BooleanLiteral)(n.ptr)
+		return (*BooleanLiteral)(unsafe.Pointer(&n.ptr))
 	case ExprCall:
 		return (*CallExpression)(n.ptr)
 	case ExprClassLit:
@@ -1027,7 +2392,7 @@ func (n *Expression) Unwrap() VisitableNode {
 	case ExprIdent:
 		return (*Identifier)(n.ptr)
 	case ExprInvalid:
-		return (*InvalidExpression)(n.ptr)
+		return (*InvalidExpression)(unsafe.Pointer(&n.ptr))
 	case ExprKeyed:
 		return (*PropertyKeyed)(n.ptr)
 	case ExprMember:
@@ -1037,7 +2402,7 @@ func (n *Expression) Unwrap() VisitableNode {
 	case ExprNew:
 		return (*NewExpression)(n.ptr)
 	case ExprNullLit:
-		return (*NullLiteral)(n.ptr)
+		return (*NullLiteral)(unsafe.Pointer(&n.ptr))
 	case ExprNumLit:
 		return (*NumberLiteral)(n.ptr)
 	case ExprObjLit:
@@ -1063,9 +2428,9 @@ func (n *Expression) Unwrap() VisitableNode {
 	case ExprStrLit:
 		return (*StringLiteral)(n.ptr)
 	case ExprSuper:
-		return (*SuperExpression)(n.ptr)
+		return (*SuperExpression)(unsafe.Pointer(&n.ptr))
 	case ExprThis:
-		return (*ThisExpression)(n.ptr)
+		return (*ThisExpression)(unsafe.Pointer(&n.ptr))
 	case ExprTmplLit:
 		return (*TemplateLiteral)(n.ptr)
 	case ExprUnary:
@@ -1126,6 +2491,9 @@ func (n *BindingTarget) ArrPat() (*ArrayPattern, bool) {
 }
 
 func (n *BindingTarget) MustArrPat() *ArrayPattern {
+	if n.kind != BindingTargetArrPat {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ArrayPattern)(n.ptr)
 }
 
@@ -1145,6 +2513,9 @@ func (n *BindingTarget) Ident() (*Identifier, bool) {
 }
 
 func (n *BindingTarget) MustIdent() *Identifier {
+	if n.kind != BindingTargetIdent {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*Identifier)(n.ptr)
 }
 
@@ -1152,19 +2523,22 @@ func (n *BindingTarget) IsIdent() bool {
 	return n.kind == BindingTargetIdent
 }
 
-func NewInvalidBindingTarget(n *InvalidExpression) BindingTarget {
-	return BindingTarget{kind: BindingTargetInvalid, ptr: unsafe.Pointer(n)}
+func NewInvalidBindingTarget(n InvalidExpression) BindingTarget {
+	return BindingTarget{kind: BindingTargetInvalid, ptr: *(*unsafe.Pointer)(unsafe.Pointer(&n))}
 }
 
 func (n *BindingTarget) Invalid() (*InvalidExpression, bool) {
 	if n.kind == BindingTargetInvalid {
-		return (*InvalidExpression)(n.ptr), true
+		return (*InvalidExpression)(unsafe.Pointer(&n.ptr)), true
 	}
 	return nil, false
 }
 
 func (n *BindingTarget) MustInvalid() *InvalidExpression {
-	return (*InvalidExpression)(n.ptr)
+	if n.kind != BindingTargetInvalid {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*InvalidExpression)(unsafe.Pointer(&n.ptr))
 }
 
 func (n *BindingTarget) IsInvalid() bool {
@@ -1183,6 +2557,9 @@ func (n *BindingTarget) Member() (*MemberExpression, bool) {
 }
 
 func (n *BindingTarget) MustMember() *MemberExpression {
+	if n.kind != BindingTargetMember {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*MemberExpression)(n.ptr)
 }
 
@@ -1202,6 +2579,9 @@ func (n *BindingTarget) ObjPat() (*ObjectPattern, bool) {
 }
 
 func (n *BindingTarget) MustObjPat() *ObjectPattern {
+	if n.kind != BindingTargetObjPat {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ObjectPattern)(n.ptr)
 }
 
@@ -1216,7 +2596,7 @@ func (n *BindingTarget) Idx0() Idx {
 	case BindingTargetIdent:
 		return (*Identifier)(n.ptr).Idx0()
 	case BindingTargetInvalid:
-		return (*InvalidExpression)(n.ptr).Idx0()
+		return (*InvalidExpression)(unsafe.Pointer(&n.ptr)).Idx0()
 	case BindingTargetMember:
 		return (*MemberExpression)(n.ptr).Idx0()
 	case BindingTargetObjPat:
@@ -1232,7 +2612,7 @@ func (n *BindingTarget) Idx1() Idx {
 	case BindingTargetIdent:
 		return (*Identifier)(n.ptr).Idx1()
 	case BindingTargetInvalid:
-		return (*InvalidExpression)(n.ptr).Idx1()
+		return (*InvalidExpression)(unsafe.Pointer(&n.ptr)).Idx1()
 	case BindingTargetMember:
 		return (*MemberExpression)(n.ptr).Idx1()
 	case BindingTargetObjPat:
@@ -1251,7 +2631,7 @@ func (n *BindingTarget) Unwrap() VisitableNode {
 	case BindingTargetIdent:
 		return (*Identifier)(n.ptr)
 	case BindingTargetInvalid:
-		return (*InvalidExpression)(n.ptr)
+		return (*InvalidExpression)(unsafe.Pointer(&n.ptr))
 	case BindingTargetMember:
 		return (*MemberExpression)(n.ptr)
 	case BindingTargetObjPat:
@@ -1297,6 +2677,9 @@ func (n *MemberProperty) Computed() (*ComputedProperty, bool) {
 }
 
 func (n *MemberProperty) MustComputed() *ComputedProperty {
+	if n.kind != MemPropComputed {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*ComputedProperty)(n.ptr)
 }
 
@@ -1316,6 +2699,9 @@ func (n *MemberProperty) Ident() (*Identifier, bool) {
 }
 
 func (n *MemberProperty) MustIdent() *Identifier {
+	if n.kind != MemPropIdent {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*Identifier)(n.ptr)
 }
 
@@ -1393,6 +2779,9 @@ func (n *ConciseBody) Block() (*BlockStatement, bool) {
 }
 
 func (n *ConciseBody) MustBlock() *BlockStatement {
+	if n.kind != ConciseBodyBlock {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*BlockStatement)(n.ptr)
 }
 
@@ -1412,6 +2801,9 @@ func (n *ConciseBody) Expr() (*Expression, bool) {
 }
 
 func (n *ConciseBody) MustExpr() *Expression {
+	if n.kind != ConciseBodyExpr {
+		panic("unexpected kind: " + n.kind.String())
+	}
 	return (*Expression)(n.ptr)
 }
 
@@ -1448,1158 +2840,6 @@ func (n *ConciseBody) Unwrap() VisitableNode {
 		return (*BlockStatement)(n.ptr)
 	case ConciseBodyExpr:
 		return (*Expression)(n.ptr)
-	}
-	return nil
-}
-
-// ---- Property tagged union ----
-
-type PropKind uint8
-
-const (
-	PropNone PropKind = iota
-	PropKeyed
-	PropShort
-	PropSpread
-)
-
-func (k PropKind) String() string {
-	switch k {
-	case PropNone:
-		return "PropNone"
-	case PropKeyed:
-		return "PropKeyed"
-	case PropShort:
-		return "PropShort"
-	case PropSpread:
-		return "PropSpread"
-	}
-	return "PropKind(?)"
-}
-
-func (n *Property) Kind() PropKind { return n.kind }
-func (n *Property) IsNone() bool   { return n.kind == PropNone }
-
-func NewKeyedProp(n *PropertyKeyed) Property {
-	return Property{kind: PropKeyed, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Property) Keyed() (*PropertyKeyed, bool) {
-	if n.kind == PropKeyed {
-		return (*PropertyKeyed)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Property) MustKeyed() *PropertyKeyed {
-	return (*PropertyKeyed)(n.ptr)
-}
-
-func (n *Property) IsKeyed() bool {
-	return n.kind == PropKeyed
-}
-
-func NewShortProp(n *PropertyShort) Property {
-	return Property{kind: PropShort, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Property) Short() (*PropertyShort, bool) {
-	if n.kind == PropShort {
-		return (*PropertyShort)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Property) MustShort() *PropertyShort {
-	return (*PropertyShort)(n.ptr)
-}
-
-func (n *Property) IsShort() bool {
-	return n.kind == PropShort
-}
-
-func NewSpreadProp(n *SpreadElement) Property {
-	return Property{kind: PropSpread, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Property) Spread() (*SpreadElement, bool) {
-	if n.kind == PropSpread {
-		return (*SpreadElement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Property) MustSpread() *SpreadElement {
-	return (*SpreadElement)(n.ptr)
-}
-
-func (n *Property) IsSpread() bool {
-	return n.kind == PropSpread
-}
-
-func (n *Property) Idx0() Idx {
-	switch n.kind {
-	case PropKeyed:
-		return (*PropertyKeyed)(n.ptr).Idx0()
-	case PropShort:
-		return (*PropertyShort)(n.ptr).Idx0()
-	case PropSpread:
-		return (*SpreadElement)(n.ptr).Idx0()
-	}
-	return 0
-}
-
-func (n *Property) Idx1() Idx {
-	switch n.kind {
-	case PropKeyed:
-		return (*PropertyKeyed)(n.ptr).Idx1()
-	case PropShort:
-		return (*PropertyShort)(n.ptr).Idx1()
-	case PropSpread:
-		return (*SpreadElement)(n.ptr).Idx1()
-	}
-	return 0
-}
-
-func (n *Property) Unwrap() VisitableNode {
-	if n == nil {
-		return nil
-	}
-	switch n.kind {
-	case PropKeyed:
-		return (*PropertyKeyed)(n.ptr)
-	case PropShort:
-		return (*PropertyShort)(n.ptr)
-	case PropSpread:
-		return (*SpreadElement)(n.ptr)
-	}
-	return nil
-}
-
-// ---- ClassElement tagged union ----
-
-type ClassElemKind uint8
-
-const (
-	ClassElemNone ClassElemKind = iota
-	ClassElemField
-	ClassElemMethod
-	ClassElemStaticBlock
-)
-
-func (k ClassElemKind) String() string {
-	switch k {
-	case ClassElemNone:
-		return "ClassElemNone"
-	case ClassElemField:
-		return "ClassElemField"
-	case ClassElemMethod:
-		return "ClassElemMethod"
-	case ClassElemStaticBlock:
-		return "ClassElemStaticBlock"
-	}
-	return "ClassElemKind(?)"
-}
-
-func (n *ClassElement) Kind() ClassElemKind { return n.kind }
-func (n *ClassElement) IsNone() bool        { return n.kind == ClassElemNone }
-
-func NewFieldClassElem(n *FieldDefinition) ClassElement {
-	return ClassElement{kind: ClassElemField, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ClassElement) Field() (*FieldDefinition, bool) {
-	if n.kind == ClassElemField {
-		return (*FieldDefinition)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ClassElement) MustField() *FieldDefinition {
-	return (*FieldDefinition)(n.ptr)
-}
-
-func (n *ClassElement) IsField() bool {
-	return n.kind == ClassElemField
-}
-
-func NewMethodClassElem(n *MethodDefinition) ClassElement {
-	return ClassElement{kind: ClassElemMethod, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ClassElement) Method() (*MethodDefinition, bool) {
-	if n.kind == ClassElemMethod {
-		return (*MethodDefinition)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ClassElement) MustMethod() *MethodDefinition {
-	return (*MethodDefinition)(n.ptr)
-}
-
-func (n *ClassElement) IsMethod() bool {
-	return n.kind == ClassElemMethod
-}
-
-func NewStaticBlockClassElem(n *ClassStaticBlock) ClassElement {
-	return ClassElement{kind: ClassElemStaticBlock, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ClassElement) StaticBlock() (*ClassStaticBlock, bool) {
-	if n.kind == ClassElemStaticBlock {
-		return (*ClassStaticBlock)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ClassElement) MustStaticBlock() *ClassStaticBlock {
-	return (*ClassStaticBlock)(n.ptr)
-}
-
-func (n *ClassElement) IsStaticBlock() bool {
-	return n.kind == ClassElemStaticBlock
-}
-
-func (n *ClassElement) Idx0() Idx {
-	switch n.kind {
-	case ClassElemField:
-		return (*FieldDefinition)(n.ptr).Idx0()
-	case ClassElemMethod:
-		return (*MethodDefinition)(n.ptr).Idx0()
-	case ClassElemStaticBlock:
-		return (*ClassStaticBlock)(n.ptr).Idx0()
-	}
-	return 0
-}
-
-func (n *ClassElement) Idx1() Idx {
-	switch n.kind {
-	case ClassElemField:
-		return (*FieldDefinition)(n.ptr).Idx1()
-	case ClassElemMethod:
-		return (*MethodDefinition)(n.ptr).Idx1()
-	case ClassElemStaticBlock:
-		return (*ClassStaticBlock)(n.ptr).Idx1()
-	}
-	return 0
-}
-
-func (n *ClassElement) Unwrap() VisitableNode {
-	if n == nil {
-		return nil
-	}
-	switch n.kind {
-	case ClassElemField:
-		return (*FieldDefinition)(n.ptr)
-	case ClassElemMethod:
-		return (*MethodDefinition)(n.ptr)
-	case ClassElemStaticBlock:
-		return (*ClassStaticBlock)(n.ptr)
-	}
-	return nil
-}
-
-// ---- Statement tagged union ----
-
-type StmtKind uint8
-
-const (
-	StmtNone StmtKind = iota
-	StmtBad
-	StmtBlock
-	StmtBreak
-	StmtCase
-	StmtCatch
-	StmtClassDecl
-	StmtContinue
-	StmtDebugger
-	StmtDoWhile
-	StmtEmpty
-	StmtExpression
-	StmtFor
-	StmtForIn
-	StmtForOf
-	StmtFuncDecl
-	StmtIf
-	StmtLabelled
-	StmtReturn
-	StmtSwitch
-	StmtThrow
-	StmtTry
-	StmtVarDecl
-	StmtWhile
-	StmtWith
-)
-
-func (k StmtKind) String() string {
-	switch k {
-	case StmtNone:
-		return "StmtNone"
-	case StmtBad:
-		return "StmtBad"
-	case StmtBlock:
-		return "StmtBlock"
-	case StmtBreak:
-		return "StmtBreak"
-	case StmtCase:
-		return "StmtCase"
-	case StmtCatch:
-		return "StmtCatch"
-	case StmtClassDecl:
-		return "StmtClassDecl"
-	case StmtContinue:
-		return "StmtContinue"
-	case StmtDebugger:
-		return "StmtDebugger"
-	case StmtDoWhile:
-		return "StmtDoWhile"
-	case StmtEmpty:
-		return "StmtEmpty"
-	case StmtExpression:
-		return "StmtExpression"
-	case StmtFor:
-		return "StmtFor"
-	case StmtForIn:
-		return "StmtForIn"
-	case StmtForOf:
-		return "StmtForOf"
-	case StmtFuncDecl:
-		return "StmtFuncDecl"
-	case StmtIf:
-		return "StmtIf"
-	case StmtLabelled:
-		return "StmtLabelled"
-	case StmtReturn:
-		return "StmtReturn"
-	case StmtSwitch:
-		return "StmtSwitch"
-	case StmtThrow:
-		return "StmtThrow"
-	case StmtTry:
-		return "StmtTry"
-	case StmtVarDecl:
-		return "StmtVarDecl"
-	case StmtWhile:
-		return "StmtWhile"
-	case StmtWith:
-		return "StmtWith"
-	}
-	return "StmtKind(?)"
-}
-
-func (n *Statement) Kind() StmtKind { return n.kind }
-func (n *Statement) IsNone() bool   { return n.kind == StmtNone }
-
-func NewBadStmt(n *BadStatement) Statement {
-	return Statement{kind: StmtBad, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Bad() (*BadStatement, bool) {
-	if n.kind == StmtBad {
-		return (*BadStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustBad() *BadStatement {
-	return (*BadStatement)(n.ptr)
-}
-
-func (n *Statement) IsBad() bool {
-	return n.kind == StmtBad
-}
-
-func NewBlockStmt(n *BlockStatement) Statement {
-	return Statement{kind: StmtBlock, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Block() (*BlockStatement, bool) {
-	if n.kind == StmtBlock {
-		return (*BlockStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustBlock() *BlockStatement {
-	return (*BlockStatement)(n.ptr)
-}
-
-func (n *Statement) IsBlock() bool {
-	return n.kind == StmtBlock
-}
-
-func NewBreakStmt(n *BreakStatement) Statement {
-	return Statement{kind: StmtBreak, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Break() (*BreakStatement, bool) {
-	if n.kind == StmtBreak {
-		return (*BreakStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustBreak() *BreakStatement {
-	return (*BreakStatement)(n.ptr)
-}
-
-func (n *Statement) IsBreak() bool {
-	return n.kind == StmtBreak
-}
-
-func NewCaseStmt(n *CaseStatement) Statement {
-	return Statement{kind: StmtCase, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Case() (*CaseStatement, bool) {
-	if n.kind == StmtCase {
-		return (*CaseStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustCase() *CaseStatement {
-	return (*CaseStatement)(n.ptr)
-}
-
-func (n *Statement) IsCase() bool {
-	return n.kind == StmtCase
-}
-
-func NewCatchStmt(n *CatchStatement) Statement {
-	return Statement{kind: StmtCatch, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Catch() (*CatchStatement, bool) {
-	if n.kind == StmtCatch {
-		return (*CatchStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustCatch() *CatchStatement {
-	return (*CatchStatement)(n.ptr)
-}
-
-func (n *Statement) IsCatch() bool {
-	return n.kind == StmtCatch
-}
-
-func NewClassDeclStmt(n *ClassDeclaration) Statement {
-	return Statement{kind: StmtClassDecl, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) ClassDecl() (*ClassDeclaration, bool) {
-	if n.kind == StmtClassDecl {
-		return (*ClassDeclaration)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustClassDecl() *ClassDeclaration {
-	return (*ClassDeclaration)(n.ptr)
-}
-
-func (n *Statement) IsClassDecl() bool {
-	return n.kind == StmtClassDecl
-}
-
-func NewContinueStmt(n *ContinueStatement) Statement {
-	return Statement{kind: StmtContinue, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Continue() (*ContinueStatement, bool) {
-	if n.kind == StmtContinue {
-		return (*ContinueStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustContinue() *ContinueStatement {
-	return (*ContinueStatement)(n.ptr)
-}
-
-func (n *Statement) IsContinue() bool {
-	return n.kind == StmtContinue
-}
-
-func NewDebuggerStmt(n *DebuggerStatement) Statement {
-	return Statement{kind: StmtDebugger, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Debugger() (*DebuggerStatement, bool) {
-	if n.kind == StmtDebugger {
-		return (*DebuggerStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustDebugger() *DebuggerStatement {
-	return (*DebuggerStatement)(n.ptr)
-}
-
-func (n *Statement) IsDebugger() bool {
-	return n.kind == StmtDebugger
-}
-
-func NewDoWhileStmt(n *DoWhileStatement) Statement {
-	return Statement{kind: StmtDoWhile, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) DoWhile() (*DoWhileStatement, bool) {
-	if n.kind == StmtDoWhile {
-		return (*DoWhileStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustDoWhile() *DoWhileStatement {
-	return (*DoWhileStatement)(n.ptr)
-}
-
-func (n *Statement) IsDoWhile() bool {
-	return n.kind == StmtDoWhile
-}
-
-func NewEmptyStmt(n *EmptyStatement) Statement {
-	return Statement{kind: StmtEmpty, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Empty() (*EmptyStatement, bool) {
-	if n.kind == StmtEmpty {
-		return (*EmptyStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustEmpty() *EmptyStatement {
-	return (*EmptyStatement)(n.ptr)
-}
-
-func (n *Statement) IsEmpty() bool {
-	return n.kind == StmtEmpty
-}
-
-func NewExpressionStmt(n *ExpressionStatement) Statement {
-	return Statement{kind: StmtExpression, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Expression() (*ExpressionStatement, bool) {
-	if n.kind == StmtExpression {
-		return (*ExpressionStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustExpression() *ExpressionStatement {
-	return (*ExpressionStatement)(n.ptr)
-}
-
-func (n *Statement) IsExpression() bool {
-	return n.kind == StmtExpression
-}
-
-func NewForStmt(n *ForStatement) Statement {
-	return Statement{kind: StmtFor, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) For() (*ForStatement, bool) {
-	if n.kind == StmtFor {
-		return (*ForStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustFor() *ForStatement {
-	return (*ForStatement)(n.ptr)
-}
-
-func (n *Statement) IsFor() bool {
-	return n.kind == StmtFor
-}
-
-func NewForInStmt(n *ForInStatement) Statement {
-	return Statement{kind: StmtForIn, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) ForIn() (*ForInStatement, bool) {
-	if n.kind == StmtForIn {
-		return (*ForInStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustForIn() *ForInStatement {
-	return (*ForInStatement)(n.ptr)
-}
-
-func (n *Statement) IsForIn() bool {
-	return n.kind == StmtForIn
-}
-
-func NewForOfStmt(n *ForOfStatement) Statement {
-	return Statement{kind: StmtForOf, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) ForOf() (*ForOfStatement, bool) {
-	if n.kind == StmtForOf {
-		return (*ForOfStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustForOf() *ForOfStatement {
-	return (*ForOfStatement)(n.ptr)
-}
-
-func (n *Statement) IsForOf() bool {
-	return n.kind == StmtForOf
-}
-
-func NewFuncDeclStmt(n *FunctionDeclaration) Statement {
-	return Statement{kind: StmtFuncDecl, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) FuncDecl() (*FunctionDeclaration, bool) {
-	if n.kind == StmtFuncDecl {
-		return (*FunctionDeclaration)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustFuncDecl() *FunctionDeclaration {
-	return (*FunctionDeclaration)(n.ptr)
-}
-
-func (n *Statement) IsFuncDecl() bool {
-	return n.kind == StmtFuncDecl
-}
-
-func NewIfStmt(n *IfStatement) Statement {
-	return Statement{kind: StmtIf, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) If() (*IfStatement, bool) {
-	if n.kind == StmtIf {
-		return (*IfStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustIf() *IfStatement {
-	return (*IfStatement)(n.ptr)
-}
-
-func (n *Statement) IsIf() bool {
-	return n.kind == StmtIf
-}
-
-func NewLabelledStmt(n *LabelledStatement) Statement {
-	return Statement{kind: StmtLabelled, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Labelled() (*LabelledStatement, bool) {
-	if n.kind == StmtLabelled {
-		return (*LabelledStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustLabelled() *LabelledStatement {
-	return (*LabelledStatement)(n.ptr)
-}
-
-func (n *Statement) IsLabelled() bool {
-	return n.kind == StmtLabelled
-}
-
-func NewReturnStmt(n *ReturnStatement) Statement {
-	return Statement{kind: StmtReturn, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Return() (*ReturnStatement, bool) {
-	if n.kind == StmtReturn {
-		return (*ReturnStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustReturn() *ReturnStatement {
-	return (*ReturnStatement)(n.ptr)
-}
-
-func (n *Statement) IsReturn() bool {
-	return n.kind == StmtReturn
-}
-
-func NewSwitchStmt(n *SwitchStatement) Statement {
-	return Statement{kind: StmtSwitch, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Switch() (*SwitchStatement, bool) {
-	if n.kind == StmtSwitch {
-		return (*SwitchStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustSwitch() *SwitchStatement {
-	return (*SwitchStatement)(n.ptr)
-}
-
-func (n *Statement) IsSwitch() bool {
-	return n.kind == StmtSwitch
-}
-
-func NewThrowStmt(n *ThrowStatement) Statement {
-	return Statement{kind: StmtThrow, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Throw() (*ThrowStatement, bool) {
-	if n.kind == StmtThrow {
-		return (*ThrowStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustThrow() *ThrowStatement {
-	return (*ThrowStatement)(n.ptr)
-}
-
-func (n *Statement) IsThrow() bool {
-	return n.kind == StmtThrow
-}
-
-func NewTryStmt(n *TryStatement) Statement {
-	return Statement{kind: StmtTry, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Try() (*TryStatement, bool) {
-	if n.kind == StmtTry {
-		return (*TryStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustTry() *TryStatement {
-	return (*TryStatement)(n.ptr)
-}
-
-func (n *Statement) IsTry() bool {
-	return n.kind == StmtTry
-}
-
-func NewVarDeclStmt(n *VariableDeclaration) Statement {
-	return Statement{kind: StmtVarDecl, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) VarDecl() (*VariableDeclaration, bool) {
-	if n.kind == StmtVarDecl {
-		return (*VariableDeclaration)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustVarDecl() *VariableDeclaration {
-	return (*VariableDeclaration)(n.ptr)
-}
-
-func (n *Statement) IsVarDecl() bool {
-	return n.kind == StmtVarDecl
-}
-
-func NewWhileStmt(n *WhileStatement) Statement {
-	return Statement{kind: StmtWhile, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) While() (*WhileStatement, bool) {
-	if n.kind == StmtWhile {
-		return (*WhileStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustWhile() *WhileStatement {
-	return (*WhileStatement)(n.ptr)
-}
-
-func (n *Statement) IsWhile() bool {
-	return n.kind == StmtWhile
-}
-
-func NewWithStmt(n *WithStatement) Statement {
-	return Statement{kind: StmtWith, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) With() (*WithStatement, bool) {
-	if n.kind == StmtWith {
-		return (*WithStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustWith() *WithStatement {
-	return (*WithStatement)(n.ptr)
-}
-
-func (n *Statement) IsWith() bool {
-	return n.kind == StmtWith
-}
-
-func (n *Statement) Idx0() Idx {
-	switch n.kind {
-	case StmtBad:
-		return (*BadStatement)(n.ptr).Idx0()
-	case StmtBlock:
-		return (*BlockStatement)(n.ptr).Idx0()
-	case StmtBreak:
-		return (*BreakStatement)(n.ptr).Idx0()
-	case StmtCase:
-		return (*CaseStatement)(n.ptr).Idx0()
-	case StmtCatch:
-		return (*CatchStatement)(n.ptr).Idx0()
-	case StmtClassDecl:
-		return (*ClassDeclaration)(n.ptr).Idx0()
-	case StmtContinue:
-		return (*ContinueStatement)(n.ptr).Idx0()
-	case StmtDebugger:
-		return (*DebuggerStatement)(n.ptr).Idx0()
-	case StmtDoWhile:
-		return (*DoWhileStatement)(n.ptr).Idx0()
-	case StmtEmpty:
-		return (*EmptyStatement)(n.ptr).Idx0()
-	case StmtExpression:
-		return (*ExpressionStatement)(n.ptr).Idx0()
-	case StmtFor:
-		return (*ForStatement)(n.ptr).Idx0()
-	case StmtForIn:
-		return (*ForInStatement)(n.ptr).Idx0()
-	case StmtForOf:
-		return (*ForOfStatement)(n.ptr).Idx0()
-	case StmtFuncDecl:
-		return (*FunctionDeclaration)(n.ptr).Idx0()
-	case StmtIf:
-		return (*IfStatement)(n.ptr).Idx0()
-	case StmtLabelled:
-		return (*LabelledStatement)(n.ptr).Idx0()
-	case StmtReturn:
-		return (*ReturnStatement)(n.ptr).Idx0()
-	case StmtSwitch:
-		return (*SwitchStatement)(n.ptr).Idx0()
-	case StmtThrow:
-		return (*ThrowStatement)(n.ptr).Idx0()
-	case StmtTry:
-		return (*TryStatement)(n.ptr).Idx0()
-	case StmtVarDecl:
-		return (*VariableDeclaration)(n.ptr).Idx0()
-	case StmtWhile:
-		return (*WhileStatement)(n.ptr).Idx0()
-	case StmtWith:
-		return (*WithStatement)(n.ptr).Idx0()
-	}
-	return 0
-}
-
-func (n *Statement) Idx1() Idx {
-	switch n.kind {
-	case StmtBad:
-		return (*BadStatement)(n.ptr).Idx1()
-	case StmtBlock:
-		return (*BlockStatement)(n.ptr).Idx1()
-	case StmtBreak:
-		return (*BreakStatement)(n.ptr).Idx1()
-	case StmtCase:
-		return (*CaseStatement)(n.ptr).Idx1()
-	case StmtCatch:
-		return (*CatchStatement)(n.ptr).Idx1()
-	case StmtClassDecl:
-		return (*ClassDeclaration)(n.ptr).Idx1()
-	case StmtContinue:
-		return (*ContinueStatement)(n.ptr).Idx1()
-	case StmtDebugger:
-		return (*DebuggerStatement)(n.ptr).Idx1()
-	case StmtDoWhile:
-		return (*DoWhileStatement)(n.ptr).Idx1()
-	case StmtEmpty:
-		return (*EmptyStatement)(n.ptr).Idx1()
-	case StmtExpression:
-		return (*ExpressionStatement)(n.ptr).Idx1()
-	case StmtFor:
-		return (*ForStatement)(n.ptr).Idx1()
-	case StmtForIn:
-		return (*ForInStatement)(n.ptr).Idx1()
-	case StmtForOf:
-		return (*ForOfStatement)(n.ptr).Idx1()
-	case StmtFuncDecl:
-		return (*FunctionDeclaration)(n.ptr).Idx1()
-	case StmtIf:
-		return (*IfStatement)(n.ptr).Idx1()
-	case StmtLabelled:
-		return (*LabelledStatement)(n.ptr).Idx1()
-	case StmtReturn:
-		return (*ReturnStatement)(n.ptr).Idx1()
-	case StmtSwitch:
-		return (*SwitchStatement)(n.ptr).Idx1()
-	case StmtThrow:
-		return (*ThrowStatement)(n.ptr).Idx1()
-	case StmtTry:
-		return (*TryStatement)(n.ptr).Idx1()
-	case StmtVarDecl:
-		return (*VariableDeclaration)(n.ptr).Idx1()
-	case StmtWhile:
-		return (*WhileStatement)(n.ptr).Idx1()
-	case StmtWith:
-		return (*WithStatement)(n.ptr).Idx1()
-	}
-	return 0
-}
-
-func (n *Statement) Unwrap() VisitableNode {
-	if n == nil {
-		return nil
-	}
-	switch n.kind {
-	case StmtBad:
-		return (*BadStatement)(n.ptr)
-	case StmtBlock:
-		return (*BlockStatement)(n.ptr)
-	case StmtBreak:
-		return (*BreakStatement)(n.ptr)
-	case StmtCase:
-		return (*CaseStatement)(n.ptr)
-	case StmtCatch:
-		return (*CatchStatement)(n.ptr)
-	case StmtClassDecl:
-		return (*ClassDeclaration)(n.ptr)
-	case StmtContinue:
-		return (*ContinueStatement)(n.ptr)
-	case StmtDebugger:
-		return (*DebuggerStatement)(n.ptr)
-	case StmtDoWhile:
-		return (*DoWhileStatement)(n.ptr)
-	case StmtEmpty:
-		return (*EmptyStatement)(n.ptr)
-	case StmtExpression:
-		return (*ExpressionStatement)(n.ptr)
-	case StmtFor:
-		return (*ForStatement)(n.ptr)
-	case StmtForIn:
-		return (*ForInStatement)(n.ptr)
-	case StmtForOf:
-		return (*ForOfStatement)(n.ptr)
-	case StmtFuncDecl:
-		return (*FunctionDeclaration)(n.ptr)
-	case StmtIf:
-		return (*IfStatement)(n.ptr)
-	case StmtLabelled:
-		return (*LabelledStatement)(n.ptr)
-	case StmtReturn:
-		return (*ReturnStatement)(n.ptr)
-	case StmtSwitch:
-		return (*SwitchStatement)(n.ptr)
-	case StmtThrow:
-		return (*ThrowStatement)(n.ptr)
-	case StmtTry:
-		return (*TryStatement)(n.ptr)
-	case StmtVarDecl:
-		return (*VariableDeclaration)(n.ptr)
-	case StmtWhile:
-		return (*WhileStatement)(n.ptr)
-	case StmtWith:
-		return (*WithStatement)(n.ptr)
-	}
-	return nil
-}
-
-// ---- ForLoopInitializer tagged union ----
-
-type ForInitKind uint8
-
-const (
-	ForInitNone ForInitKind = iota
-	ForInitExpr
-	ForInitVarDecl
-)
-
-func (k ForInitKind) String() string {
-	switch k {
-	case ForInitNone:
-		return "ForInitNone"
-	case ForInitExpr:
-		return "ForInitExpr"
-	case ForInitVarDecl:
-		return "ForInitVarDecl"
-	}
-	return "ForInitKind(?)"
-}
-
-func (n *ForLoopInitializer) Kind() ForInitKind { return n.kind }
-func (n *ForLoopInitializer) IsNone() bool      { return n.kind == ForInitNone }
-
-func NewExprForInit(n *Expression) ForLoopInitializer {
-	return ForLoopInitializer{kind: ForInitExpr, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ForLoopInitializer) Expr() (*Expression, bool) {
-	if n.kind == ForInitExpr {
-		return (*Expression)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ForLoopInitializer) MustExpr() *Expression {
-	return (*Expression)(n.ptr)
-}
-
-func (n *ForLoopInitializer) IsExpr() bool {
-	return n.kind == ForInitExpr
-}
-
-func NewVarDeclForInit(n *VariableDeclaration) ForLoopInitializer {
-	return ForLoopInitializer{kind: ForInitVarDecl, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ForLoopInitializer) VarDecl() (*VariableDeclaration, bool) {
-	if n.kind == ForInitVarDecl {
-		return (*VariableDeclaration)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ForLoopInitializer) MustVarDecl() *VariableDeclaration {
-	return (*VariableDeclaration)(n.ptr)
-}
-
-func (n *ForLoopInitializer) IsVarDecl() bool {
-	return n.kind == ForInitVarDecl
-}
-
-func (n *ForLoopInitializer) Idx0() Idx {
-	switch n.kind {
-	case ForInitExpr:
-		return (*Expression)(n.ptr).Idx0()
-	case ForInitVarDecl:
-		return (*VariableDeclaration)(n.ptr).Idx0()
-	}
-	return 0
-}
-
-func (n *ForLoopInitializer) Idx1() Idx {
-	switch n.kind {
-	case ForInitExpr:
-		return (*Expression)(n.ptr).Idx1()
-	case ForInitVarDecl:
-		return (*VariableDeclaration)(n.ptr).Idx1()
-	}
-	return 0
-}
-
-func (n *ForLoopInitializer) Unwrap() VisitableNode {
-	if n == nil {
-		return nil
-	}
-	switch n.kind {
-	case ForInitExpr:
-		return (*Expression)(n.ptr)
-	case ForInitVarDecl:
-		return (*VariableDeclaration)(n.ptr)
-	}
-	return nil
-}
-
-// ---- ForInto tagged union ----
-
-type ForIntoKind uint8
-
-const (
-	ForIntoNone ForIntoKind = iota
-	ForIntoExpr
-	ForIntoVarDecl
-)
-
-func (k ForIntoKind) String() string {
-	switch k {
-	case ForIntoNone:
-		return "ForIntoNone"
-	case ForIntoExpr:
-		return "ForIntoExpr"
-	case ForIntoVarDecl:
-		return "ForIntoVarDecl"
-	}
-	return "ForIntoKind(?)"
-}
-
-func (n *ForInto) Kind() ForIntoKind { return n.kind }
-func (n *ForInto) IsNone() bool      { return n.kind == ForIntoNone }
-
-func NewExprForInto(n *Expression) ForInto {
-	return ForInto{kind: ForIntoExpr, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ForInto) Expr() (*Expression, bool) {
-	if n.kind == ForIntoExpr {
-		return (*Expression)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ForInto) MustExpr() *Expression {
-	return (*Expression)(n.ptr)
-}
-
-func (n *ForInto) IsExpr() bool {
-	return n.kind == ForIntoExpr
-}
-
-func NewVarDeclForInto(n *VariableDeclaration) ForInto {
-	return ForInto{kind: ForIntoVarDecl, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ForInto) VarDecl() (*VariableDeclaration, bool) {
-	if n.kind == ForIntoVarDecl {
-		return (*VariableDeclaration)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ForInto) MustVarDecl() *VariableDeclaration {
-	return (*VariableDeclaration)(n.ptr)
-}
-
-func (n *ForInto) IsVarDecl() bool {
-	return n.kind == ForIntoVarDecl
-}
-
-func (n *ForInto) Idx0() Idx {
-	switch n.kind {
-	case ForIntoExpr:
-		return (*Expression)(n.ptr).Idx0()
-	case ForIntoVarDecl:
-		return (*VariableDeclaration)(n.ptr).Idx0()
-	}
-	return 0
-}
-
-func (n *ForInto) Idx1() Idx {
-	switch n.kind {
-	case ForIntoExpr:
-		return (*Expression)(n.ptr).Idx1()
-	case ForIntoVarDecl:
-		return (*VariableDeclaration)(n.ptr).Idx1()
-	}
-	return 0
-}
-
-func (n *ForInto) Unwrap() VisitableNode {
-	if n == nil {
-		return nil
-	}
-	switch n.kind {
-	case ForIntoExpr:
-		return (*Expression)(n.ptr)
-	case ForIntoVarDecl:
-		return (*VariableDeclaration)(n.ptr)
 	}
 	return nil
 }

@@ -18,13 +18,14 @@ type nodeAllocator struct {
 	// contiguous slice allocations don't fragment with individual node allocs.
 	exprSlice miniArena[ast.Expression]
 	stmtSlice miniArena[ast.Statement]
+	propSlice miniArena[ast.Property]
+	declSlice miniArena[ast.VariableDeclarator]
+	elemSlice miniArena[ast.ClassElement]
 
 	// Concrete expression nodes.
 	ident     miniArena[ast.Identifier]
 	strLit    miniArena[ast.StringLiteral]
 	numLit    miniArena[ast.NumberLiteral]
-	boolLit   miniArena[ast.BooleanLiteral]
-	nullLit   miniArena[ast.NullLiteral]
 	regexpLit miniArena[ast.RegExpLiteral]
 	binExpr   miniArena[ast.BinaryExpression]
 	unaryExpr miniArena[ast.UnaryExpression]
@@ -48,13 +49,10 @@ type nodeAllocator struct {
 	arrPat    miniArena[ast.ArrayPattern]
 	objPat    miniArena[ast.ObjectPattern]
 	tmplLit   miniArena[ast.TemplateLiteral]
-	thisExpr  miniArena[ast.ThisExpression]
-	superExpr miniArena[ast.SuperExpression]
 	awaitExpr miniArena[ast.AwaitExpression]
 	yieldExpr miniArena[ast.YieldExpression]
 	arrowFn   miniArena[ast.ArrowFunctionLiteral]
 	funcLit   miniArena[ast.FunctionLiteral]
-	invalidEx miniArena[ast.InvalidExpression]
 
 	// Property nodes.
 	propKeyed miniArena[ast.PropertyKeyed]
@@ -75,9 +73,6 @@ type nodeAllocator struct {
 	forOfStmt miniArena[ast.ForOfStatement]
 	whileStmt miniArena[ast.WhileStatement]
 	doWhile   miniArena[ast.DoWhileStatement]
-	debugStmt miniArena[ast.DebuggerStatement]
-	emptyStmt miniArena[ast.EmptyStatement]
-	badStmt   miniArena[ast.BadStatement]
 	labelStmt miniArena[ast.LabelledStatement]
 	breakStmt miniArena[ast.BreakStatement]
 	contStmt  miniArena[ast.ContinueStatement]
@@ -109,102 +104,97 @@ type nodeAllocator struct {
 func newNodeAllocator() nodeAllocator {
 	return nodeAllocator{
 		// Wrapper types — high volume.
-		expr: *newArena[ast.Expression](1024),
-		stmt: *newArena[ast.Statement](1024),
+		expr: newArena[ast.Expression](1024),
+		stmt: newArena[ast.Statement](1024),
 
 		// Slice backing arenas.
-		exprSlice: *newArena[ast.Expression](1024),
-		stmtSlice: *newArena[ast.Statement](1024),
+		exprSlice: newArena[ast.Expression](1024),
+		stmtSlice: newArena[ast.Statement](1024),
+		propSlice: newArena[ast.Property](256),
+		declSlice: newArena[ast.VariableDeclarator](256),
+		elemSlice: newArena[ast.ClassElement](64),
 
 		// Identifiers are the most frequent node.
-		ident: *newArena[ast.Identifier](1024),
+		ident: newArena[ast.Identifier](1024),
 
 		// Literals.
-		strLit:    *newArena[ast.StringLiteral](256),
-		numLit:    *newArena[ast.NumberLiteral](256),
-		boolLit:   *newArena[ast.BooleanLiteral](64),
-		nullLit:   *newArena[ast.NullLiteral](32),
-		regexpLit: *newArena[ast.RegExpLiteral](32),
+		strLit:    newArena[ast.StringLiteral](256),
+		numLit:    newArena[ast.NumberLiteral](256),
+		regexpLit: newArena[ast.RegExpLiteral](32),
 
 		// Expressions.
-		binExpr:   *newArena[ast.BinaryExpression](256),
-		unaryExpr: *newArena[ast.UnaryExpression](64),
-		updateExp: *newArena[ast.UpdateExpression](64),
-		assignExp: *newArena[ast.AssignExpression](64),
-		condExpr:  *newArena[ast.ConditionalExpression](64),
-		seqExpr:   *newArena[ast.SequenceExpression](32),
-		memberExp: *newArena[ast.MemberExpression](256),
-		memberPrp: *newArena[ast.MemberProperty](256),
-		compProp:  *newArena[ast.ComputedProperty](64),
-		callExpr:  *newArena[ast.CallExpression](256),
-		newExpr:   *newArena[ast.NewExpression](32),
-		spread:    *newArena[ast.SpreadElement](64),
-		privIdent: *newArena[ast.PrivateIdentifier](32),
-		privDot:   *newArena[ast.PrivateDotExpression](32),
-		metaProp:  *newArena[ast.MetaProperty](8),
-		optional:  *newArena[ast.Optional](32),
-		optChain:  *newArena[ast.OptionalChain](32),
-		objLit:    *newArena[ast.ObjectLiteral](64),
-		arrLit:    *newArena[ast.ArrayLiteral](64),
-		arrPat:    *newArena[ast.ArrayPattern](32),
-		objPat:    *newArena[ast.ObjectPattern](32),
-		tmplLit:   *newArena[ast.TemplateLiteral](32),
-		thisExpr:  *newArena[ast.ThisExpression](32),
-		superExpr: *newArena[ast.SuperExpression](8),
-		awaitExpr: *newArena[ast.AwaitExpression](32),
-		yieldExpr: *newArena[ast.YieldExpression](32),
-		arrowFn:   *newArena[ast.ArrowFunctionLiteral](64),
-		funcLit:   *newArena[ast.FunctionLiteral](64),
-		invalidEx: *newArena[ast.InvalidExpression](32),
+		binExpr:   newArena[ast.BinaryExpression](256),
+		unaryExpr: newArena[ast.UnaryExpression](64),
+		updateExp: newArena[ast.UpdateExpression](64),
+		assignExp: newArena[ast.AssignExpression](64),
+		condExpr:  newArena[ast.ConditionalExpression](64),
+		seqExpr:   newArena[ast.SequenceExpression](32),
+		memberExp: newArena[ast.MemberExpression](256),
+		memberPrp: newArena[ast.MemberProperty](256),
+		compProp:  newArena[ast.ComputedProperty](64),
+		callExpr:  newArena[ast.CallExpression](256),
+		newExpr:   newArena[ast.NewExpression](32),
+		spread:    newArena[ast.SpreadElement](64),
+		privIdent: newArena[ast.PrivateIdentifier](32),
+		privDot:   newArena[ast.PrivateDotExpression](32),
+		metaProp:  newArena[ast.MetaProperty](8),
+		optional:  newArena[ast.Optional](32),
+		optChain:  newArena[ast.OptionalChain](32),
+		objLit:    newArena[ast.ObjectLiteral](64),
+		arrLit:    newArena[ast.ArrayLiteral](64),
+		arrPat:    newArena[ast.ArrayPattern](32),
+		objPat:    newArena[ast.ObjectPattern](32),
+		tmplLit:   newArena[ast.TemplateLiteral](32),
+		awaitExpr: newArena[ast.AwaitExpression](32),
+		yieldExpr: newArena[ast.YieldExpression](32),
+		arrowFn:   newArena[ast.ArrowFunctionLiteral](64),
+		funcLit:   newArena[ast.FunctionLiteral](64),
 
 		// Properties.
-		propKeyed: *newArena[ast.PropertyKeyed](128),
-		propShort: *newArena[ast.PropertyShort](64),
+		propKeyed: newArena[ast.PropertyKeyed](128),
+		propShort: newArena[ast.PropertyShort](64),
 
 		// Statements.
-		exprStmt:  *newArena[ast.ExpressionStatement](256),
-		blockStmt: *newArena[ast.BlockStatement](128),
-		retStmt:   *newArena[ast.ReturnStatement](64),
-		ifStmt:    *newArena[ast.IfStatement](64),
-		throwStmt: *newArena[ast.ThrowStatement](32),
-		switchStm: *newArena[ast.SwitchStatement](16),
-		withStmt:  *newArena[ast.WithStatement](8),
-		tryStmt:   *newArena[ast.TryStatement](16),
-		catchStmt: *newArena[ast.CatchStatement](16),
-		forStmt:   *newArena[ast.ForStatement](32),
-		forInStmt: *newArena[ast.ForInStatement](16),
-		forOfStmt: *newArena[ast.ForOfStatement](16),
-		whileStmt: *newArena[ast.WhileStatement](32),
-		doWhile:   *newArena[ast.DoWhileStatement](16),
-		debugStmt: *newArena[ast.DebuggerStatement](8),
-		emptyStmt: *newArena[ast.EmptyStatement](16),
-		badStmt:   *newArena[ast.BadStatement](8),
-		labelStmt: *newArena[ast.LabelledStatement](16),
-		breakStmt: *newArena[ast.BreakStatement](16),
-		contStmt:  *newArena[ast.ContinueStatement](16),
+		exprStmt:  newArena[ast.ExpressionStatement](256),
+		blockStmt: newArena[ast.BlockStatement](128),
+		retStmt:   newArena[ast.ReturnStatement](64),
+		ifStmt:    newArena[ast.IfStatement](64),
+		throwStmt: newArena[ast.ThrowStatement](32),
+		switchStm: newArena[ast.SwitchStatement](16),
+		withStmt:  newArena[ast.WithStatement](8),
+		tryStmt:   newArena[ast.TryStatement](16),
+		catchStmt: newArena[ast.CatchStatement](16),
+		forStmt:   newArena[ast.ForStatement](32),
+		forInStmt: newArena[ast.ForInStatement](16),
+		forOfStmt: newArena[ast.ForOfStatement](16),
+		whileStmt: newArena[ast.WhileStatement](32),
+		doWhile:   newArena[ast.DoWhileStatement](16),
+		labelStmt: newArena[ast.LabelledStatement](16),
+		breakStmt: newArena[ast.BreakStatement](16),
+		contStmt:  newArena[ast.ContinueStatement](16),
 
 		// Declarations.
-		varDecl:  *newArena[ast.VariableDeclaration](64),
-		varDeclr: *newArena[ast.VariableDeclarator](128),
-		funcDecl: *newArena[ast.FunctionDeclaration](32),
-		classLit: *newArena[ast.ClassLiteral](16),
-		classDcl: *newArena[ast.ClassDeclaration](16),
-		methDef:  *newArena[ast.MethodDefinition](32),
-		fieldDef: *newArena[ast.FieldDefinition](32),
-		staticBl: *newArena[ast.ClassStaticBlock](8),
+		varDecl:  newArena[ast.VariableDeclaration](64),
+		varDeclr: newArena[ast.VariableDeclarator](128),
+		funcDecl: newArena[ast.FunctionDeclaration](32),
+		classLit: newArena[ast.ClassLiteral](16),
+		classDcl: newArena[ast.ClassDeclaration](16),
+		methDef:  newArena[ast.MethodDefinition](32),
+		fieldDef: newArena[ast.FieldDefinition](32),
+		staticBl: newArena[ast.ClassStaticBlock](8),
 
 		// Wrappers.
-		bindTgt:   *newArena[ast.BindingTarget](128),
-		concBody:  *newArena[ast.ConciseBody](64),
-		forInit:   *newArena[ast.ForLoopInitializer](32),
-		forInto:   *newArena[ast.ForInto](16),
-		paramList: *newArena[ast.ParameterList](64),
+		bindTgt:   newArena[ast.BindingTarget](128),
+		concBody:  newArena[ast.ConciseBody](64),
+		forInit:   newArena[ast.ForLoopInitializer](32),
+		forInto:   newArena[ast.ForInto](16),
+		paramList: newArena[ast.ParameterList](64),
 
 		// String pointers.
-		str: *newArena[string](256),
+		str: newArena[string](256),
 
 		// Scopes.
-		scopes: *newArena[scope](64),
+		scopes: newArena[scope](64),
 	}
 }
 
@@ -246,6 +236,33 @@ func (a *nodeAllocator) CopyStatements(src []ast.Statement) ast.Statements {
 	return dst
 }
 
+func (a *nodeAllocator) CopyProperties(src []ast.Property) ast.Properties {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.propSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (a *nodeAllocator) CopyDeclarators(src []ast.VariableDeclarator) ast.VariableDeclarators {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.declSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (a *nodeAllocator) CopyClassElements(src []ast.ClassElement) ast.ClassElements {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.elemSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
 // stringPtr arena-allocates a *string, avoiding the heap escape of &localVar.
 func (a *nodeAllocator) stringPtr(s string) *string {
 	p := a.str.make()
@@ -272,18 +289,6 @@ func (a *nodeAllocator) StringLiteral(idx ast.Idx, value, raw string) *ast.Strin
 func (a *nodeAllocator) NumberLiteral(idx ast.Idx, value float64, raw string) *ast.NumberLiteral {
 	n := a.numLit.make()
 	*n = ast.NumberLiteral{Idx: idx, Value: value, Raw: a.stringPtr(raw)}
-	return n
-}
-
-func (a *nodeAllocator) BooleanLiteral(idx ast.Idx, value bool) *ast.BooleanLiteral {
-	n := a.boolLit.make()
-	*n = ast.BooleanLiteral{Idx: idx, Value: value}
-	return n
-}
-
-func (a *nodeAllocator) NullLiteral(idx ast.Idx) *ast.NullLiteral {
-	n := a.nullLit.make()
-	*n = ast.NullLiteral{Idx: idx}
 	return n
 }
 
@@ -425,18 +430,6 @@ func (a *nodeAllocator) TemplateLiteral(openQuote ast.Idx) *ast.TemplateLiteral 
 	return n
 }
 
-func (a *nodeAllocator) ThisExpression(idx ast.Idx) *ast.ThisExpression {
-	n := a.thisExpr.make()
-	*n = ast.ThisExpression{Idx: idx}
-	return n
-}
-
-func (a *nodeAllocator) SuperExpression(idx ast.Idx) *ast.SuperExpression {
-	n := a.superExpr.make()
-	*n = ast.SuperExpression{Idx: idx}
-	return n
-}
-
 func (a *nodeAllocator) AwaitExpression(idx ast.Idx, argument *ast.Expression) *ast.AwaitExpression {
 	n := a.awaitExpr.make()
 	*n = ast.AwaitExpression{Await: idx, Argument: argument}
@@ -464,12 +457,6 @@ func (a *nodeAllocator) ParameterList(pl ast.ParameterList) *ast.ParameterList {
 func (a *nodeAllocator) FunctionLiteral(start ast.Idx, async bool) *ast.FunctionLiteral {
 	n := a.funcLit.make()
 	*n = ast.FunctionLiteral{Function: start, Async: async}
-	return n
-}
-
-func (a *nodeAllocator) InvalidExpression(from, to ast.Idx) *ast.InvalidExpression {
-	n := a.invalidEx.make()
-	*n = ast.InvalidExpression{From: from, To: to}
 	return n
 }
 
@@ -563,24 +550,6 @@ func (a *nodeAllocator) WhileStatement(test *ast.Expression) *ast.WhileStatement
 
 func (a *nodeAllocator) DoWhileStatement() *ast.DoWhileStatement {
 	return a.doWhile.make()
-}
-
-func (a *nodeAllocator) DebuggerStatement(idx ast.Idx) *ast.DebuggerStatement {
-	n := a.debugStmt.make()
-	*n = ast.DebuggerStatement{Debugger: idx}
-	return n
-}
-
-func (a *nodeAllocator) EmptyStatement(idx ast.Idx) *ast.EmptyStatement {
-	n := a.emptyStmt.make()
-	*n = ast.EmptyStatement{Semicolon: idx}
-	return n
-}
-
-func (a *nodeAllocator) BadStatement(from, to ast.Idx) *ast.BadStatement {
-	n := a.badStmt.make()
-	*n = ast.BadStatement{From: from, To: to}
-	return n
 }
 
 func (a *nodeAllocator) LabelledStatement(label *ast.Identifier, colon ast.Idx, stmt *ast.Statement) *ast.LabelledStatement {

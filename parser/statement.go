@@ -14,9 +14,9 @@ func (p *parser) parseBlockStatement() *ast.BlockStatement {
 	return node
 }
 
-func (p *parser) parseEmptyStatement() *ast.EmptyStatement {
+func (p *parser) parseEmptyStatement() ast.EmptyStatement {
 	idx := p.expect(token.Semicolon)
-	return p.alloc.EmptyStatement(idx)
+	return ast.EmptyStatement{Semicolon: idx}
 }
 
 func (p *parser) parseStatementList() (list ast.Statements) {
@@ -33,7 +33,7 @@ func (p *parser) parseStatement() *ast.Statement {
 	tok := p.currentKind()
 	if tok == token.Eof {
 		p.errorUnexpectedToken(tok)
-		return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(p.currentOffset(), p.currentOffset()+1)))
+		return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: p.currentOffset(), To: p.currentOffset() + 1}))
 	}
 
 	switch tok {
@@ -130,7 +130,7 @@ func (p *parser) parseTryStatement() *ast.Statement {
 
 	if node.Catch == nil && node.Finally == nil {
 		p.errorf("Missing catch or finally after try")
-		return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(node.Try, node.Body.Idx1())))
+		return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: node.Try, To: node.Body.Idx1()}))
 	}
 
 	return p.alloc.Statement(ast.NewTryStmt(node))
@@ -322,7 +322,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			}
 		}
 		generator := false
-		if p.currentKind() == token.Multiply && (kind == "" || kind == ast.PropertyKindMethod) {
+		if p.currentKind() == token.Multiply && (kind == 0 || kind == ast.PropertyKindMethod) {
 			generator = true
 			kind = ast.PropertyKindMethod
 			p.next()
@@ -339,11 +339,11 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			p.errorf("Classes may not have a static property named 'prototype'")
 		}
 
-		if kind == "" && p.currentKind() == token.LeftParenthesis {
+		if kind == 0 && p.currentKind() == token.LeftParenthesis {
 			kind = ast.PropertyKindMethod
 		}
 
-		if kind != "" {
+		if kind != 0 {
 			if keyName == "constructor" && !computed {
 				if !static {
 					if kind != ast.PropertyKindMethod {
@@ -394,9 +394,8 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 
 func (p *parser) parseDebuggerStatement() *ast.Statement {
 	idx := p.expect(token.Debugger)
-	node := p.alloc.DebuggerStatement(idx)
 	p.semicolon()
-	return p.alloc.Statement(ast.NewDebuggerStmt(node))
+	return p.alloc.Statement(ast.NewDebuggerStmt(ast.DebuggerStatement{Debugger: idx}))
 }
 
 func (p *parser) parseReturnStatement() *ast.Statement {
@@ -405,7 +404,7 @@ func (p *parser) parseReturnStatement() *ast.Statement {
 	if !p.scope.inFunction {
 		p.errorf("Illegal return statement")
 		p.nextStatement()
-		return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(idx, p.currentOffset())))
+		return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: idx, To: p.currentOffset()}))
 	}
 
 	node := p.alloc.ReturnStatement(idx)
@@ -425,7 +424,7 @@ func (p *parser) parseThrowStatement() *ast.Statement {
 	if p.token.OnNewLine {
 		p.errorf("Illegal newline after throw")
 		p.nextStatement()
-		return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(idx, p.currentOffset())))
+		return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: idx, To: p.currentOffset()}))
 	}
 
 	node := p.alloc.ThrowStatement(idx, p.parseExpression())
@@ -606,7 +605,7 @@ func (p *parser) parseForOrForInStatement() *ast.Statement {
 				default:
 					p.errorf("Invalid left-hand side in for-in or for-of")
 					p.nextStatement()
-					return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(idx, p.currentOffset())))
+					return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: idx, To: p.currentOffset()}))
 				}
 				into = p.alloc.ForIntoPtr(ast.NewExprForInto(exprNode))
 			} else {
@@ -742,7 +741,7 @@ func (p *parser) parseBreakStatement() *ast.Statement {
 		identifier := p.parseIdentifier()
 		if !p.scope.hasLabel(identifier.Name) {
 			p.errorf("%s", identifier.Name)
-			return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(idx, identifier.Idx1())))
+			return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: idx, To: identifier.Idx1()}))
 		}
 		p.semicolon()
 		return p.alloc.Statement(ast.NewBreakStmt(p.alloc.BreakStatement(idx, identifier)))
@@ -753,7 +752,7 @@ func (p *parser) parseBreakStatement() *ast.Statement {
 illegal:
 	p.errorf("Illegal break statement")
 	p.nextStatement()
-	return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(idx, p.currentOffset())))
+	return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: idx, To: p.currentOffset()}))
 }
 
 func (p *parser) parseContinueStatement() *ast.Statement {
@@ -774,7 +773,7 @@ func (p *parser) parseContinueStatement() *ast.Statement {
 		identifier := p.parseIdentifier()
 		if !p.scope.hasLabel(identifier.Name) {
 			p.errorf("%s", identifier.Name)
-			return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(idx, identifier.Idx1())))
+			return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: idx, To: identifier.Idx1()}))
 		}
 		if !p.scope.inIteration {
 			goto illegal
@@ -788,7 +787,7 @@ func (p *parser) parseContinueStatement() *ast.Statement {
 illegal:
 	p.errorf("Illegal continue statement")
 	p.nextStatement()
-	return p.alloc.Statement(ast.NewBadStmt(p.alloc.BadStatement(idx, p.currentOffset())))
+	return p.alloc.Statement(ast.NewBadStmt(ast.BadStatement{From: idx, To: p.currentOffset()}))
 }
 
 func (p *parser) nextStatement() {

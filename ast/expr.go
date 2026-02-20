@@ -8,14 +8,14 @@ import (
 type (
 	Expressions []Expression
 
-	//union:ArrayLiteral,ArrayPattern,ArrowFunctionLiteral,AssignExpression,AwaitExpression,BinaryExpression,BooleanLiteral,CallExpression,ClassLiteral,ConditionalExpression,FunctionLiteral,Identifier,InvalidExpression,MemberExpression,MetaProperty,NewExpression,NullLiteral,NumberLiteral,ObjectLiteral,ObjectPattern,OptionalChain,Optional,PrivateDotExpression,PrivateIdentifier,PropertyKeyed,PropertyShort,RegExpLiteral,SequenceExpression,SpreadElement,StringLiteral,SuperExpression,ThisExpression,TemplateLiteral,UnaryExpression,UpdateExpression,VariableDeclarator,YieldExpression
+	//union:ArrayLiteral,ArrayPattern,ArrowFunctionLiteral,AssignExpression,AwaitExpression,BinaryExpression,BooleanLiteral[inline],CallExpression,ClassLiteral,ConditionalExpression,FunctionLiteral,Identifier,InvalidExpression[inline],MemberExpression,MetaProperty,NewExpression,NullLiteral[inline],NumberLiteral,ObjectLiteral,ObjectPattern,OptionalChain,Optional,PrivateDotExpression,PrivateIdentifier,PropertyKeyed,PropertyShort,RegExpLiteral,SequenceExpression,SpreadElement,StringLiteral,SuperExpression[inline],ThisExpression[inline],TemplateLiteral,UnaryExpression,UpdateExpression,VariableDeclarator,YieldExpression
 	Expression struct {
-		ptr unsafe.Pointer
-
 		kind ExprKind
+
+		ptr unsafe.Pointer
 	}
 
-	//union:ArrayPattern,Identifier,InvalidExpression,MemberExpression,ObjectPattern
+	//union:ArrayPattern,Identifier,InvalidExpression[inline],MemberExpression,ObjectPattern
 	BindingTarget struct {
 		ptr  unsafe.Pointer
 		kind BindingTargetKind
@@ -107,8 +107,8 @@ type (
 
 	//union:BlockStatement,Expression
 	ConciseBody struct {
-		ptr  unsafe.Pointer
 		kind ConciseBodyKind
+		ptr  unsafe.Pointer
 	}
 
 	ArrowFunctionLiteral struct {
@@ -127,8 +127,8 @@ type (
 	}
 
 	NewExpression struct {
-		Callee       *Expression
 		ArgumentList Expressions
+		Callee       *Expression
 
 		New              Idx
 		LeftParenthesis  Idx
@@ -219,7 +219,7 @@ func BindingTargetFromExpression(expr *Expression) BindingTarget {
 	case ExprIdent:
 		return NewIdentBindingTarget((*Identifier)(expr.ptr))
 	case ExprInvalid:
-		return NewInvalidBindingTarget((*InvalidExpression)(expr.ptr))
+		return NewInvalidBindingTarget(*(*InvalidExpression)(unsafe.Pointer(&expr.ptr)))
 	}
 	return BindingTarget{}
 }

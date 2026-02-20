@@ -32,7 +32,7 @@ type (
 
 	MethodDefinition struct {
 		Key  *Expression
-		Kind PropertyKind // "method", "get" or "set"
+		Kind PropertyKind
 		Body *FunctionLiteral
 
 		Idx      Idx

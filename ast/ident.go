@@ -1,7 +1,7 @@
 package ast
 
 type (
-	ScopeContext int
+	ScopeContext int32
 
 	Id struct {
 		Name         string
@@ -19,4 +19,4 @@ type (
 func (n *Identifier) ToId() Id {
 	return Id{Name: n.Name, ScopeContext: n.ScopeContext}
 }
-func (i *Id) String() string         { return i.Name }
+func (i *Id) String() string { return i.Name }
