@@ -108,7 +108,9 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 func (g *GenVisitor) VisitArrayPattern(n *ast.ArrayPattern) {
 	g.out.WriteString("[")
 	for i, elem := range n.Elements {
-		g.gen(elem.Expr)
+		if elem.Expr != nil {
+			g.gen(elem.Expr)
+		}
 		if i < len(n.Elements)-1 {
 			g.out.WriteString(", ")
 		}

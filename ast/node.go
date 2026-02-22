@@ -5,7 +5,7 @@ import "github.com/nukilabs/ftoa"
 //go:generate go run ast/gen_visit.go
 
 // Idx is a compact encoding of a source position within JS code.
-type Idx int
+type Idx uint32
 
 type Node interface {
 	// Idx0 returns the index of the first character belonging to the node.

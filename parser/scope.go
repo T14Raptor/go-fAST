@@ -16,10 +16,12 @@ type scope struct {
 }
 
 func (p *parser) openScope() {
-	p.scope = &scope{
+	s := p.alloc.scopes.make()
+	*s = scope{
 		outer:   p.scope,
 		allowIn: true,
 	}
+	p.scope = s
 }
 
 func (p *parser) closeScope() {
