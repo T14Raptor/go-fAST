@@ -1,11 +1,12 @@
 package generator
 
 import (
-	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
 )
 
 func Generate(node ast.VisitableNode) string {
@@ -276,7 +277,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Kind() {
 	case ast.ExprAssign, ast.ExprBinary, ast.ExprUnary, ast.ExprSequence, ast.ExprConditional, ast.ExprNumLit,
-		ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprUpdate:
+		ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprUpdate, ast.ExprObjLit, ast.ExprObjPat, ast.ExprClassLit:
 		g.out.WriteString("(")
 		g.gen(n.Object.Unwrap())
 		g.out.WriteString(")")
@@ -285,6 +286,30 @@ func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	}
 
 	g.gen(n.Property)
+}
+
+func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
+	if computed, ok := n.Computed(); ok {
+		g.out.WriteString("[")
+		if computed.Expr != nil {
+			g.gen(computed.Expr.Unwrap())
+		}
+		g.out.WriteString("]")
+		return
+	}
+	if ident, ok := n.Ident(); ok {
+		g.out.WriteString(".")
+		g.gen(ident)
+		return
+	}
+}
+
+func (g *GenVisitor) VisitComputedProperty(n *ast.ComputedProperty) {
+	g.out.WriteString("[")
+	if n.Expr != nil {
+		g.gen(n.Expr.Unwrap())
+	}
+	g.out.WriteString("]")
 }
 
 func (g *GenVisitor) VisitEmptyStatement(n *ast.EmptyStatement) {
