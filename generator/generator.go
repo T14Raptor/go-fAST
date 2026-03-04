@@ -1,11 +1,12 @@
 package generator
 
 import (
-	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
 	"math"
 	"strconv"
 	"strings"
+
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
 )
 
 func Generate(node ast.VisitableNode) string {
@@ -276,7 +277,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Kind() {
 	case ast.ExprAssign, ast.ExprBinary, ast.ExprUnary, ast.ExprSequence, ast.ExprConditional, ast.ExprNumLit,
-		ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprUpdate:
+		ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprUpdate, ast.ExprObjLit, ast.ExprObjPat, ast.ExprClassLit:
 		g.out.WriteString("(")
 		g.gen(n.Object.Unwrap())
 		g.out.WriteString(")")
@@ -285,6 +286,26 @@ func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	}
 
 	g.gen(n.Property)
+}
+
+func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
+	switch {
+	case n.IsComputed():
+		g.out.WriteString("[")
+		g.gen(n.MustComputed().Expr.Unwrap())
+		g.out.WriteString("]")
+	case n.IsIdent():
+		g.out.WriteString(".")
+		g.gen(n.MustIdent())
+	}
+}
+
+func (g *GenVisitor) VisitComputedProperty(n *ast.ComputedProperty) {
+	g.out.WriteString("[")
+	if n.Expr != nil {
+		g.gen(n.Expr.Unwrap())
+	}
+	g.out.WriteString("]")
 }
 
 func (g *GenVisitor) VisitEmptyStatement(n *ast.EmptyStatement) {
@@ -505,9 +526,10 @@ func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 }
 
 func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
-	if n.Kind == ast.PropertyKindGet {
+	switch n.Kind {
+	case ast.PropertyKindGet:
 		g.out.WriteString("get ")
-	} else if n.Kind == ast.PropertyKindSet {
+	case ast.PropertyKindSet:
 		g.out.WriteString("set ")
 	}
 	if n.Kind == ast.PropertyKindGet || n.Kind == ast.PropertyKindSet {
@@ -743,9 +765,10 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			if e.Static {
 				g.out.WriteString("static ")
 			}
-			if e.Kind == ast.PropertyKindGet {
+			switch e.Kind {
+			case ast.PropertyKindGet:
 				g.out.WriteString("get ")
-			} else if e.Kind == ast.PropertyKindSet {
+			case ast.PropertyKindSet:
 				g.out.WriteString("set ")
 			}
 			if e.Computed {
