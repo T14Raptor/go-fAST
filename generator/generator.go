@@ -526,9 +526,10 @@ func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 }
 
 func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
-	if n.Kind == ast.PropertyKindGet {
+	switch n.Kind {
+	case ast.PropertyKindGet:
 		g.out.WriteString("get ")
-	} else if n.Kind == ast.PropertyKindSet {
+	case ast.PropertyKindSet:
 		g.out.WriteString("set ")
 	}
 	if n.Kind == ast.PropertyKindGet || n.Kind == ast.PropertyKindSet {
@@ -764,9 +765,10 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			if e.Static {
 				g.out.WriteString("static ")
 			}
-			if e.Kind == ast.PropertyKindGet {
+			switch e.Kind {
+			case ast.PropertyKindGet:
 				g.out.WriteString("get ")
-			} else if e.Kind == ast.PropertyKindSet {
+			case ast.PropertyKindSet:
 				g.out.WriteString("set ")
 			}
 			if e.Computed {
