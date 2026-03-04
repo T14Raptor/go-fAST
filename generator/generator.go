@@ -289,18 +289,14 @@ func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 }
 
 func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
-	if computed, ok := n.Computed(); ok {
+	switch {
+	case n.IsComputed():
 		g.out.WriteString("[")
-		if computed.Expr != nil {
-			g.gen(computed.Expr.Unwrap())
-		}
+		g.gen(n.MustComputed().Expr.Unwrap())
 		g.out.WriteString("]")
-		return
-	}
-	if ident, ok := n.Ident(); ok {
+	case n.IsIdent():
 		g.out.WriteString(".")
-		g.gen(ident)
-		return
+		g.gen(n.MustIdent())
 	}
 }
 
