@@ -1806,14 +1806,6 @@ func TestForOfWithIdentifierNamedOfParses(t *testing.T) {
 	}
 }
 
-func mustParseError(t *testing.T, code string) error {
-	_, err := parser.ParseFile(code)
-	if err == nil {
-		t.Fatalf("Expected parse error for:\n%s", code)
-	}
-	return err
-}
-
 func TestEscapedOfDoesNotCountAsForOfKeyword(t *testing.T) {
 	code := "for (const x \\u006f\\u0066 arr) {}"
 	_, err := parser.ParseFile(code)
