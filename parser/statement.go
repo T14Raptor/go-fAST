@@ -571,7 +571,7 @@ func (p *parser) parseForOrForInStatement() *ast.Statement {
 				if p.currentKind() == token.In {
 					p.next()
 					forIn = true
-				} else if p.currentKind() == token.Of {
+				} else if p.currentKind() == token.Of || (p.currentKind() == token.Identifier && !p.scanner.Token.HasEscape && p.currentString() == "of") {
 					p.next()
 					forOf = true
 				}
@@ -591,7 +591,7 @@ func (p *parser) parseForOrForInStatement() *ast.Statement {
 			if p.currentKind() == token.In {
 				p.next()
 				forIn = true
-			} else if p.currentKind() == token.Of {
+			} else if p.currentKind() == token.Of || (p.currentKind() == token.Identifier && !p.scanner.Token.HasEscape && p.currentString() == "of") {
 				p.next()
 				forOf = true
 			}
