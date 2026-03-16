@@ -1787,6 +1787,44 @@ func TestForOfStatementAST(t *testing.T) {
 	}
 }
 
+func TestBareOfIdentifierParses(t *testing.T) {
+	mustParse(t, "var of = null;")
+	mustParse(t, "function of() { return 1 }")
+	mustParse(t, "({ of })")
+}
+
+func TestForOfWithIdentifierNamedOfParses(t *testing.T) {
+	p := mustParse(t, "for (let of of arr) {}")
+	forOf := firstStmt(p, 0).(*ast.ForOfStatement)
+	into := forOf.Into.Unwrap().(*ast.VariableDeclaration)
+	binding := into.List[0].Target.Unwrap().(*ast.Identifier)
+	if binding.Name != "of" {
+		t.Fatalf("loop binding = %q; want of", binding.Name)
+	}
+	if id := forOf.Source.MustIdent(); id.Name != "arr" {
+		t.Errorf("source = %q; want arr", id.Name)
+	}
+}
+
+func mustParseError(t *testing.T, code string) error {
+	_, err := parser.ParseFile(code)
+	if err == nil {
+		t.Fatalf("Expected parse error for:\n%s", code)
+	}
+	return err
+}
+
+func TestEscapedOfDoesNotCountAsForOfKeyword(t *testing.T) {
+	code := "for (const x \\u006f\\u0066 arr) {}"
+	_, err := parser.ParseFile(code)
+	if err == nil {
+		t.Fatalf("Expected parse error for:\n%s", code)
+	}
+	if !strings.Contains(err.Error(), "Unexpected") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 // ===========================================================================
 // ASSIGNMENT OPERATORS
 // ===========================================================================

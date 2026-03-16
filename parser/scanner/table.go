@@ -436,8 +436,6 @@ func (s *Scanner) Next() {
 
 		case 'o':
 			switch s.scanIdentifierTail() {
-			case "of":
-				s.Token.Kind = token.Of
 			default:
 				s.Token.Kind = token.Identifier
 			}
