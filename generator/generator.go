@@ -770,6 +770,12 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 	g.out.WriteString("}")
 }
 
+func (g *GenVisitor) VisitMetaProperty(n *ast.MetaProperty) {
+	g.gen(n.Meta)
+	g.out.WriteString(".")
+	g.gen(n.Property)
+}
+
 func (g *GenVisitor) VisitSpreadElement(n *ast.SpreadElement) {
 	g.out.WriteString("...")
 	g.gen(n.Expression.Expr)
