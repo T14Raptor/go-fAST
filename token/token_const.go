@@ -1,7 +1,9 @@
 package token
 
 const (
-	_ Token = iota
+	Undetermined Token = iota
+
+	Skip
 
 	Illegal
 	Eof
@@ -38,11 +40,14 @@ const (
 	ShiftRightAssign         // >>=
 	UnsignedShiftRightAssign // >>>=
 
-	LogicalAnd // &&
-	LogicalOr  // ||
-	Coalesce   // ??
-	Increment  // ++
-	Decrement  // --
+	LogicalAnd       // &&
+	LogicalOr        // ||
+	Coalesce         // ??
+	LogicalAndAssign // &&=
+	LogicalOrAssign  // ||=
+	CoalesceAssign   // ??=
+	Increment        // ++
+	Decrement        // --
 
 	Equal       // ==
 	StrictEqual // ===
@@ -77,6 +82,11 @@ const (
 
 	PrivateIdentifier
 
+	TemplateHead
+	TemplateMiddle
+	TemplateTail
+	NoSubstitutionTemplate
+
 	Identifier
 	Keyword
 	Boolean
@@ -84,7 +94,6 @@ const (
 
 	If
 	In
-	Of
 	Do
 
 	Var
@@ -123,6 +132,7 @@ const (
 
 	EscapedReservedWord
 
+	Of
 	Let
 	Static
 	Async
@@ -168,6 +178,9 @@ var token2string = [...]string{
 	LogicalAnd:               "&&",
 	LogicalOr:                "||",
 	Coalesce:                 "??",
+	LogicalAndAssign:         "&&=",
+	LogicalOrAssign:          "||=",
+	CoalesceAssign:           "??=",
 	Increment:                "++",
 	Decrement:                "--",
 	Equal:                    "==",

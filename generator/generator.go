@@ -108,7 +108,9 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 func (g *GenVisitor) VisitArrayPattern(n *ast.ArrayPattern) {
 	g.out.WriteString("[")
 	for i, elem := range n.Elements {
-		g.gen(elem.Expr)
+		if elem.Expr != nil {
+			g.gen(elem.Expr)
+		}
 		if i < len(n.Elements)-1 {
 			g.out.WriteString(", ")
 		}
@@ -276,7 +278,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Expr.(type) {
 	case *ast.AssignExpression, *ast.BinaryExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression, *ast.NumberLiteral,
-		*ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.UpdateExpression:
+		*ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.UpdateExpression, *ast.AwaitExpression:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
 		g.out.WriteString(")")
@@ -565,7 +567,7 @@ func (g *GenVisitor) VisitReturnStatement(n *ast.ReturnStatement) {
 
 func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
 	switch g.p.(type) {
-	case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.UpdateExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.ArrayLiteral:
+	case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.UpdateExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.NewExpression, *ast.ArrayLiteral, *ast.ReturnStatement, *ast.ThrowStatement, *ast.AwaitExpression:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
