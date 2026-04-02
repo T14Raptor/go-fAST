@@ -10,7 +10,7 @@ import (
 
 // parser ...
 type parser struct {
-	scanner *scanner.Scanner
+	scanner scanner.Scanner
 
 	str string
 
@@ -59,7 +59,7 @@ func getParser(src string) *parser {
 func putParser(p *parser) {
 	p.str = ""
 	p.alloc = nodeAllocator{}
-	p.scanner = nil
+	p.scanner = scanner.Scanner{}
 	p.scope = nil
 	p.errors = nil
 	p.recover.idx = 0

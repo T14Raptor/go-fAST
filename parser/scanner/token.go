@@ -14,7 +14,7 @@ type Token struct {
 	Idx0, Idx1 ast.Idx // 8 bytes
 }
 
-func (t Token) String(s *Scanner) string {
+func (t Token) String(s Scanner) string {
 	if t.HasEscape {
 		return s.EscapedStr
 	}
@@ -35,13 +35,13 @@ func (t Token) String(s *Scanner) string {
 	return raw
 }
 
-func (t Token) Raw(s *Scanner) string {
+func (t Token) Raw(s Scanner) string {
 	return s.src.Slice(t.Idx0, t.Idx1)
 }
 
 // TemplateLiteral returns the raw source text of a template literal element
 // (without the surrounding delimiters).
-func (t Token) TemplateLiteral(s *Scanner) string {
+func (t Token) TemplateLiteral(s Scanner) string {
 	raw := s.src.Slice(t.Idx0, t.Idx1)
 	switch t.Kind {
 	case token.NoSubstitutionTemplate, token.TemplateTail:
@@ -56,7 +56,7 @@ func (t Token) TemplateLiteral(s *Scanner) string {
 
 // TemplateParsed returns the escape-processed content of a template literal element.
 // If no escapes were present, returns the same as TemplateLiteral.
-func (t Token) TemplateParsed(s *Scanner) string {
+func (t Token) TemplateParsed(s Scanner) string {
 	if t.HasEscape {
 		return s.EscapedStr
 	}
