@@ -10,13 +10,10 @@ type Source struct {
 	base unsafe.Pointer
 	pos  ast.Idx
 	len  ast.Idx
-
-	str string
 }
 
 func NewSource(src string) Source {
 	return Source{
-		str:  src,
 		base: unsafe.Pointer(unsafe.StringData(src)),
 		pos:  0,
 		len:  ast.Idx(len(src)),

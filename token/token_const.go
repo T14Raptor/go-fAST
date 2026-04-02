@@ -92,7 +92,6 @@ const (
 
 	If
 	In
-	Of
 	Do
 
 	Var
@@ -131,6 +130,7 @@ const (
 
 	EscapedReservedWord
 
+	Of
 	Let
 	Static
 	Async
