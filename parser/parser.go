@@ -59,7 +59,7 @@ func getParser(src string) *parser {
 func putParser(p *parser) {
 	p.str = ""
 	p.alloc = nodeAllocator{}
-	p.scanner = nil
+	p.scanner = scanner.Scanner{}
 	p.scope = nil
 	p.errors = nil
 	p.recover.idx = 0
