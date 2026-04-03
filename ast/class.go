@@ -2,11 +2,12 @@ package ast
 
 type (
 	ClassLiteral struct {
-		Class      Idx
-		RightBrace Idx
 		Name       *Identifier `optional:"true"`
 		SuperClass *Expression `optional:"true"`
 		Body       ClassElements
+
+		Class      Idx
+		RightBrace Idx
 	}
 
 	ClassElements []ClassElement
@@ -21,25 +22,29 @@ type (
 	}
 
 	FieldDefinition struct {
-		Idx         Idx
 		Key         *Expression
 		Initializer *Expression `optional:"true"`
-		Computed    bool
-		Static      bool
+
+		Idx Idx
+
+		Computed bool
+		Static   bool
 	}
 
 	MethodDefinition struct {
+		Key  *Expression
+		Kind PropertyKind // "method", "get" or "set"
+		Body *FunctionLiteral
+
 		Idx      Idx
-		Key      *Expression
-		Kind     PropertyKind // "method", "get" or "set"
-		Body     *FunctionLiteral
 		Computed bool
 		Static   bool
 	}
 
 	ClassStaticBlock struct {
+		Block *BlockStatement
+
 		Static Idx
-		Block  *BlockStatement
 	}
 )
 

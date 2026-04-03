@@ -1,6 +1,8 @@
 package ast
 
-import "github.com/t14raptor/go-fast/token"
+import (
+	"github.com/t14raptor/go-fast/token"
+)
 
 type (
 	Expressions []Expression
@@ -32,33 +34,39 @@ type (
 	}
 
 	YieldExpression struct {
-		Yield    Idx
 		Argument *Expression
+
+		Yield Idx
+
 		Delegate bool
 	}
 
 	AwaitExpression struct {
-		Await    Idx
 		Argument *Expression
+
+		Await Idx
 	}
 
 	ArrayLiteral struct {
+		Value Expressions
+
 		LeftBracket  Idx
 		RightBracket Idx
-		Value        Expressions
 	}
 
 	ArrayPattern struct {
+		Elements Expressions
+		Rest     *Expression
+
 		LeftBracket  Idx
 		RightBracket Idx
-		Elements     Expressions
-		Rest         *Expression
 	}
 
 	AssignExpression struct {
+		Left  *Expression
+		Right *Expression
+
 		Operator token.Token
-		Left     *Expression
-		Right    *Expression
 	}
 
 	InvalidExpression struct {
@@ -67,9 +75,10 @@ type (
 	}
 
 	BinaryExpression struct {
+		Left  *Expression
+		Right *Expression
+
 		Operator token.Token
-		Left     *Expression
-		Right    *Expression
 	}
 
 	MemberExpression struct {
@@ -87,9 +96,10 @@ type (
 	}
 
 	CallExpression struct {
-		Callee           *Expression
+		Callee       *Expression
+		ArgumentList Expressions
+
 		LeftParenthesis  Idx
-		ArgumentList     Expressions
 		RightParenthesis Idx
 	}
 
@@ -123,12 +133,13 @@ type (
 	}
 
 	ArrowFunctionLiteral struct {
-		Start         Idx
 		ParameterList ParameterList
 		Body          *ConciseBody
-		Async         bool
 
 		ScopeContext ScopeContext
+
+		Start Idx
+		Async bool
 	}
 
 	PrivateIdentifier struct {
@@ -136,24 +147,27 @@ type (
 	}
 
 	NewExpression struct {
+		Callee       *Expression
+		ArgumentList Expressions
+
 		New              Idx
-		Callee           *Expression
 		LeftParenthesis  Idx
-		ArgumentList     Expressions
 		RightParenthesis Idx
 	}
 
 	ObjectLiteral struct {
+		Value Properties
+
 		LeftBrace  Idx
 		RightBrace Idx
-		Value      Properties
 	}
 
 	ObjectPattern struct {
-		LeftBrace  Idx
-		RightBrace Idx
 		Properties Properties
 		Rest       Expr `optional:"true"`
+
+		LeftBrace  Idx
+		RightBrace Idx
 	}
 
 	SpreadElement struct {
@@ -167,18 +181,19 @@ type (
 	TemplateElements []TemplateElement
 
 	TemplateElement struct {
-		Idx     Idx
 		Literal string
 		Parsed  string
-		Valid   bool
+
+		Idx Idx
 	}
 
 	TemplateLiteral struct {
-		OpenQuote   Idx
-		CloseQuote  Idx
 		Tag         *Expression `optional:"true"`
 		Elements    TemplateElements
 		Expressions Expressions
+
+		OpenQuote  Idx
+		CloseQuote Idx
 	}
 
 	ThisExpression struct {
@@ -190,16 +205,20 @@ type (
 	}
 
 	UnaryExpression struct {
+		Operand *Expression
+
 		Operator token.Token
-		Idx      Idx
-		Operand  *Expression
+
+		Idx Idx
 	}
 
 	UpdateExpression struct {
+		Operand *Expression
+
 		Operator token.Token
-		Idx      Idx // If a prefix operation
-		Operand  *Expression
 		Postfix  bool
+
+		Idx Idx // If a prefix operation
 	}
 
 	MetaProperty struct {

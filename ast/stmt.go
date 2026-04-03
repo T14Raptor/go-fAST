@@ -20,35 +20,40 @@ type (
 	}
 
 	BlockStatement struct {
-		LeftBrace  Idx
-		List       Statements
-		RightBrace Idx
+		List Statements
 
 		ScopeContext ScopeContext
+
+		LeftBrace  Idx
+		RightBrace Idx
 	}
 
 	BreakStatement struct {
-		Idx   Idx
 		Label *Identifier `optional:"true"`
+
+		Idx Idx
 	}
 
 	ContinueStatement struct {
-		Idx   Idx
 		Label *Identifier `optional:"true"`
+
+		Idx Idx
 	}
 
 	CaseStatements []CaseStatement
 
 	CaseStatement struct {
-		Case       Idx
 		Test       *Expression `optional:"true"`
 		Consequent Statements
+
+		Case Idx
 	}
 
 	CatchStatement struct {
-		Catch     Idx
 		Parameter *BindingTarget `optional:"true"`
 		Body      *BlockStatement
+
+		Catch Idx
 	}
 
 	DebuggerStatement struct {
@@ -56,9 +61,10 @@ type (
 	}
 
 	DoWhileStatement struct {
-		Do   Idx
 		Test *Expression
 		Body *Statement
+
+		Do Idx
 	}
 
 	EmptyStatement struct {
@@ -71,60 +77,69 @@ type (
 	}
 
 	IfStatement struct {
-		If         Idx
 		Test       *Expression
 		Consequent *Statement
 		Alternate  *Statement `optional:"true"`
+
+		If Idx
 	}
 
 	LabelledStatement struct {
 		Label     *Identifier
-		Colon     Idx
 		Statement *Statement
+
+		Colon Idx
 	}
 
 	ReturnStatement struct {
-		Return   Idx
 		Argument *Expression `optional:"true"`
+
+		Return Idx
 	}
 
 	SwitchStatement struct {
-		Switch       Idx
 		Discriminant *Expression
 		Default      int
 		Body         CaseStatements
+
+		Switch Idx
 	}
 
 	ThrowStatement struct {
-		Throw    Idx
 		Argument *Expression
+
+		Throw Idx
 	}
 
 	TryStatement struct {
-		Try     Idx
 		Body    *BlockStatement
 		Catch   *CatchStatement `optional:"true"`
 		Finally *BlockStatement `optional:"true"`
+
+		Try Idx
 	}
 
 	WhileStatement struct {
+		Test *Expression
+		Body *Statement
+
 		While Idx
-		Test  *Expression
-		Body  *Statement
 	}
 
 	WithStatement struct {
-		With   Idx
 		Object *Expression
 		Body   *Statement
+
+		With Idx
 	}
 
 	ForStatement struct {
-		For         Idx
 		Initializer *ForLoopInitializer `optional:"true"`
 		Update      *Expression
 		Test        *Expression
 		Body        *Statement
+
+		For Idx
 	}
 
 	ForLoopInitializer struct {
@@ -137,17 +152,19 @@ type (
 	}
 
 	ForInStatement struct {
-		For    Idx
 		Into   *ForInto
 		Source *Expression
 		Body   *Statement
+
+		For Idx
 	}
 
 	ForOfStatement struct {
-		For    Idx
 		Into   *ForInto
 		Source *Expression
 		Body   *Statement
+
+		For Idx
 	}
 
 	ForInto struct {

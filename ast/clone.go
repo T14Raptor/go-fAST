@@ -617,7 +617,7 @@ func (n *SwitchStatement) Clone() *SwitchStatement {
 	return &SwitchStatement{Switch: n.Switch, Discriminant: n.Discriminant.Clone(), Default: n.Default, Body: *n.Body.Clone()}
 }
 func (n *TemplateElement) Clone() *TemplateElement {
-	return &TemplateElement{Idx: n.Idx, Literal: n.Literal, Parsed: n.Parsed, Valid: n.Valid}
+	return &TemplateElement{Idx: n.Idx, Literal: n.Literal, Parsed: n.Parsed}
 }
 func (n *TemplateElements) Clone() *TemplateElements {
 	ns := make(TemplateElements, len(*n))

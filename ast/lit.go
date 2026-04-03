@@ -11,25 +11,28 @@ type (
 	}
 
 	NumberLiteral struct {
-		Idx Idx
 		// Note: NaN should not be stored here, use an identifier instead.
 		Value float64
 
 		Raw *string
+
+		Idx Idx
 	}
 
 	RegExpLiteral struct {
-		Idx     Idx
 		Literal string
 		Pattern string
 		Flags   string
+
+		Idx Idx
 	}
 
 	StringLiteral struct {
-		Idx   Idx
 		Value string
 
 		Raw *string
+
+		Idx Idx
 	}
 )
 

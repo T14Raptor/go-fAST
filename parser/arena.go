@@ -15,9 +15,9 @@ type miniArena[T any] struct {
 	index uintptr
 }
 
-func newArena[T any](startLen int) *miniArena[T] {
+func newArena[T any](startLen int) miniArena[T] {
 	var t T
-	return &miniArena[T]{
+	return miniArena[T]{
 		elementSize: unsafe.Sizeof(t),
 		len:         uintptr(startLen),
 		a:           unsafe.Pointer(&make([]T, startLen)[0]),

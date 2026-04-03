@@ -1,7 +1,7 @@
 package ast
 
 type (
-	ScopeContext int
+	ScopeContext int32
 
 	Id struct {
 		Name         string
@@ -9,9 +9,10 @@ type (
 	}
 
 	Identifier struct {
-		Idx          Idx
 		Name         string
 		ScopeContext ScopeContext
+
+		Idx Idx
 	}
 )
 

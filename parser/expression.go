@@ -450,7 +450,6 @@ func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 			Idx:     start,
 			Literal: literal,
 			Parsed:  parsed,
-			Valid:   true,
 		})
 
 		if kind == token.NoSubstitutionTemplate || kind == token.TemplateTail {

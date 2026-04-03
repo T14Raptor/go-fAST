@@ -1,11 +1,10 @@
 package scanner
 
 import (
-	"github.com/t14raptor/go-fast/token"
 	"unsafe"
 )
 
-func (s *Scanner) handleLineBreak() token.Token {
+func (s *Scanner) handleLineBreak() {
 	s.Token.OnNewLine = true
 
 	pos := s.src.pos
@@ -13,11 +12,13 @@ func (s *Scanner) handleLineBreak() token.Token {
 	end := s.src.len
 	for pos < end {
 		b := *(*byte)(unsafe.Add(base, pos))
-		if b != ' ' && b != '\t' && b != '\r' && b != '\n' {
-			break
+
+		switch b {
+		case ' ', '\t', '\r', '\n':
+			pos++
+			continue
 		}
-		pos++
+		break
 	}
 	s.src.pos = pos
-	return token.Skip
 }

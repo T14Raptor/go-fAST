@@ -2,20 +2,22 @@ package ast
 
 type (
 	FunctionLiteral struct {
-		Function      Idx
 		Name          *Identifier `optional:"true"`
 		ParameterList ParameterList
 		Body          *BlockStatement
 
-		Async, Generator bool
-
 		ScopeContext ScopeContext
+
+		Function Idx
+
+		Async, Generator bool
 	}
 
 	ParameterList struct {
+		List VariableDeclarators
+		Rest Expr `optional:"true"`
+
 		Opening Idx
-		List    VariableDeclarators
-		Rest    Expr `optional:"true"`
 		Closing Idx
 	}
 )

@@ -29,10 +29,13 @@ func (s *Scanner) Next() {
 			end := s.src.len
 			for pos < end {
 				c := *(*byte)(unsafe.Add(base, pos))
-				if c != ' ' && c != '\t' {
-					break
+
+				switch c {
+				case ' ', '\t':
+					pos++
+					continue
 				}
-				pos++
+				break
 			}
 			s.src.pos = pos
 			continue
