@@ -497,6 +497,19 @@ func (g *GenVisitor) VisitNumberLiteral(n *ast.NumberLiteral) {
 	}
 }
 
+func (g *GenVisitor) VisitBigIntLiteral(n *ast.BigIntLiteral) {
+	if n.Raw != nil {
+		g.out.WriteString(*n.Raw)
+		return
+	}
+	if n.Value != nil {
+		g.out.WriteString(n.Value.String())
+	} else {
+		g.out.WriteString("0")
+	}
+	g.out.WriteString("n")
+}
+
 func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 	switch g.p.(type) {
 	case *ast.BinaryExpression, *ast.ArrowFunctionLiteral:

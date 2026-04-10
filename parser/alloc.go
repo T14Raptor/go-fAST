@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"math/big"
+
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/token"
 )
@@ -23,6 +25,7 @@ type nodeAllocator struct {
 	ident     miniArena[ast.Identifier]
 	strLit    miniArena[ast.StringLiteral]
 	numLit    miniArena[ast.NumberLiteral]
+	bigIntLit miniArena[ast.BigIntLiteral]
 	boolLit   miniArena[ast.BooleanLiteral]
 	nullLit   miniArena[ast.NullLiteral]
 	regexpLit miniArena[ast.RegExpLiteral]
@@ -123,6 +126,7 @@ func newNodeAllocator() nodeAllocator {
 		// Literals.
 		strLit:    newArena[ast.StringLiteral](256),
 		numLit:    newArena[ast.NumberLiteral](256),
+		bigIntLit: newArena[ast.BigIntLiteral](8),
 		boolLit:   newArena[ast.BooleanLiteral](64),
 		nullLit:   newArena[ast.NullLiteral](32),
 		regexpLit: newArena[ast.RegExpLiteral](32),
@@ -274,6 +278,12 @@ func (a *nodeAllocator) StringLiteral(idx ast.Idx, value, raw string) *ast.Strin
 func (a *nodeAllocator) NumberLiteral(idx ast.Idx, value float64, raw string) *ast.NumberLiteral {
 	n := a.numLit.make()
 	*n = ast.NumberLiteral{Idx: idx, Value: value, Raw: a.stringPtr(raw)}
+	return n
+}
+
+func (a *nodeAllocator) BigIntLiteral(idx ast.Idx, value *big.Int, raw string) *ast.BigIntLiteral {
+	n := a.bigIntLit.make()
+	*n = ast.BigIntLiteral{Idx: idx, Value: value, Raw: a.stringPtr(raw)}
 	return n
 }
 

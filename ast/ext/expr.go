@@ -193,6 +193,11 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 			return BoolValue{}, true
 		}
 		return BoolValue{Known(true)}, true
+	case *ast.BigIntLiteral:
+		if e.Value == nil || e.Value.Sign() == 0 {
+			return BoolValue{}, true
+		}
+		return BoolValue{Known(true)}, true
 	case *ast.BooleanLiteral:
 		return BoolValue{Known(e.Value)}, true
 	case *ast.StringLiteral:
@@ -579,7 +584,7 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 			return true
 		}
 		return false
-	case *ast.StringLiteral, *ast.NumberLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.RegExpLiteral:
+	case *ast.StringLiteral, *ast.NumberLiteral, *ast.BigIntLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.RegExpLiteral:
 		return false
 	// Function expression does not have any side effect if it's not used.
 	case *ast.FunctionLiteral, *ast.ArrowFunctionLiteral:

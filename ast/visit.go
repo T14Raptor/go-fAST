@@ -8,6 +8,7 @@ type Visitor interface {
 	VisitAssignExpression(n *AssignExpression)
 	VisitAwaitExpression(n *AwaitExpression)
 	VisitBadStatement(n *BadStatement)
+	VisitBigIntLiteral(n *BigIntLiteral)
 	VisitBinaryExpression(n *BinaryExpression)
 	VisitBindingTarget(n *BindingTarget)
 	VisitBlockStatement(n *BlockStatement)
@@ -107,6 +108,9 @@ func (nv *NoopVisitor) VisitAwaitExpression(n *AwaitExpression) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBadStatement(n *BadStatement) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitBigIntLiteral(n *BigIntLiteral) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBinaryExpression(n *BinaryExpression) {
@@ -380,6 +384,11 @@ func (n *BadStatement) VisitWith(v Visitor) {
 	v.VisitBadStatement(n)
 }
 func (n *BadStatement) VisitChildrenWith(v Visitor) {
+}
+func (n *BigIntLiteral) VisitWith(v Visitor) {
+	v.VisitBigIntLiteral(n)
+}
+func (n *BigIntLiteral) VisitChildrenWith(v Visitor) {
 }
 func (n *BinaryExpression) VisitWith(v Visitor) {
 	v.VisitBinaryExpression(n)

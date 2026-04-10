@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"math/big"
 	"strings"
 
 	"github.com/t14raptor/go-fast/ast"
@@ -37,6 +38,14 @@ func (p *parser) parsePrimaryExpression() ast.Expr {
 		parsedLiteral := p.currentString()
 		raw := p.scanner.Token.Raw(p.scanner)
 		p.next()
+		if isBigIntLiteral(parsedLiteral) {
+			value, err := parseBigIntLiteral(parsedLiteral)
+			if err != nil {
+				p.errorf("%s", err.Error())
+				value = new(big.Int)
+			}
+			return p.alloc.BigIntLiteral(idx, value, raw)
+		}
 		value, err := parseNumberLiteral(parsedLiteral)
 		if err != nil {
 			p.errorf("%s", err.Error())
@@ -260,11 +269,20 @@ func (p *parser) parseObjectPropertyKey() (string, string, ast.Expr, token.Token
 	case token.Identifier, token.String, token.Keyword, token.EscapedReservedWord:
 		value = p.alloc.StringLiteral(idx, parsedLiteral, literal)
 	case token.Number:
-		num, err := parseNumberLiteral(literal)
-		if err != nil {
-			p.errorf("%s", err.Error())
+		if isBigIntLiteral(literal) {
+			bi, err := parseBigIntLiteral(literal)
+			if err != nil {
+				p.errorf("%s", err.Error())
+			} else {
+				value = p.alloc.BigIntLiteral(idx, bi, literal)
+			}
 		} else {
-			value = p.alloc.NumberLiteral(idx, num, literal)
+			num, err := parseNumberLiteral(literal)
+			if err != nil {
+				p.errorf("%s", err.Error())
+			} else {
+				value = p.alloc.NumberLiteral(idx, num, literal)
+			}
 		}
 	case token.PrivateIdentifier:
 		value = p.alloc.PrivateIdentifier(p.alloc.Identifier(idx, parsedLiteral))

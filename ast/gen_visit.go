@@ -265,7 +265,13 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 				children = append(children, newChild(field.Names[0].Name, optional))
 			}
 		case *ast.StarExpr:
-			if ident, ok := fieldType.X.(*ast.Ident); ok && ident.Name == "string" {
+			ident, ok := fieldType.X.(*ast.Ident)
+			if !ok {
+				// Pointer to a type from another package (e.g. *big.Int). Not a
+				// visitable AST node — skip.
+				continue
+			}
+			if ident.Name == "string" {
 				continue
 			}
 			children = append(children, newChild(field.Names[0].Name, optional))

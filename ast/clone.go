@@ -19,6 +19,9 @@ func (n *AwaitExpression) Clone() *AwaitExpression {
 func (n *BadStatement) Clone() *BadStatement {
 	return &BadStatement{From: n.From, To: n.To}
 }
+func (n *BigIntLiteral) Clone() *BigIntLiteral {
+	return &BigIntLiteral{Value: n.Value, Raw: n.Raw, Idx: n.Idx}
+}
 func (n *BinaryExpression) Clone() *BinaryExpression {
 	return &BinaryExpression{Left: n.Left.Clone(), Right: n.Right.Clone(), Operator: n.Operator}
 }
@@ -155,6 +158,8 @@ func (n *Expression) Clone() *Expression {
 	case *AssignExpression:
 		clonedExpr = expr.Clone()
 	case *AwaitExpression:
+		clonedExpr = expr.Clone()
+	case *BigIntLiteral:
 		clonedExpr = expr.Clone()
 	case *BinaryExpression:
 		clonedExpr = expr.Clone()
@@ -343,6 +348,8 @@ func (n *ObjectPattern) Clone() *ObjectPattern {
 		clonedExpr = expr.Clone()
 	case *AwaitExpression:
 		clonedExpr = expr.Clone()
+	case *BigIntLiteral:
+		clonedExpr = expr.Clone()
 	case *BinaryExpression:
 		clonedExpr = expr.Clone()
 	case *BooleanLiteral:
@@ -428,6 +435,8 @@ func (n *ParameterList) Clone() *ParameterList {
 	case *AssignExpression:
 		clonedExpr = expr.Clone()
 	case *AwaitExpression:
+		clonedExpr = expr.Clone()
+	case *BigIntLiteral:
 		clonedExpr = expr.Clone()
 	case *BinaryExpression:
 		clonedExpr = expr.Clone()

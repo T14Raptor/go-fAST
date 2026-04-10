@@ -384,7 +384,9 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 				}
 				children = append(children, newChild(field.Names[0].Name, ident.Name, true, true, optional))
 			} else {
-				children = append(children, newChild(field.Names[0].Name, "", true, false, optional))
+				// Pointer to a type from another package (e.g. *big.Int).
+				// Shallow-copy the pointer — not a cloneable AST node.
+				children = append(children, newChild(field.Names[0].Name, "", false, false, optional))
 			}
 		}
 	}

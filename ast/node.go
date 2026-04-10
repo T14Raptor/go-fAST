@@ -45,6 +45,7 @@ func (n *InvalidExpression) Idx0() Idx     { return n.From }
 func (n *NewExpression) Idx0() Idx         { return n.New }
 func (n *NullLiteral) Idx0() Idx           { return n.Idx }
 func (n *NumberLiteral) Idx0() Idx         { return n.Idx }
+func (n *BigIntLiteral) Idx0() Idx         { return n.Idx }
 func (n *ObjectLiteral) Idx0() Idx         { return n.LeftBrace }
 func (n *RegExpLiteral) Idx0() Idx         { return n.Idx }
 func (n *SequenceExpression) Idx0() Idx    { return n.Sequence[0].Expr.Idx0() }
@@ -131,6 +132,16 @@ func (n *NumberLiteral) Idx1() Idx {
 	}
 	raw := ftoa.FormatFloat(n.Value, 'g', -1, 64)
 	return Idx(int(n.Idx) + len(raw))
+}
+func (n *BigIntLiteral) Idx1() Idx {
+	if n.Raw != nil {
+		return Idx(int(n.Idx) + len(*n.Raw))
+	}
+	// Value string + trailing 'n'.
+	if n.Value != nil {
+		return Idx(int(n.Idx) + len(n.Value.String()) + 1)
+	}
+	return n.Idx
 }
 func (n *ObjectLiteral) Idx1() Idx      { return n.RightBrace + 1 }
 func (n *ObjectPattern) Idx1() Idx      { return n.RightBrace + 1 }

@@ -226,7 +226,7 @@ func PreserveEffects(val ast.Expression, exprs []ast.Expression) ast.Expression 
 // ExtractSideEffectsTo adds side effects of expr to to.
 func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 	switch e := expr.Expr.(type) {
-	case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.RegExpLiteral,
+	case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.BigIntLiteral, *ast.RegExpLiteral,
 		*ast.ThisExpression, *ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.PrivateIdentifier:
 	case *ast.Identifier:
 		if MayHaveSideEffects(expr) {

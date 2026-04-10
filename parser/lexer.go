@@ -2,8 +2,49 @@ package parser
 
 import (
 	"errors"
+	"math/big"
 	"strconv"
+	"strings"
 )
+
+// isBigIntLiteral reports whether literal is a BigInt numeric literal
+// (i.e. ends with the 'n' suffix). The scanner includes the 'n' in the
+// token's raw text.
+func isBigIntLiteral(literal string) bool {
+	return len(literal) > 0 && literal[len(literal)-1] == 'n'
+}
+
+// parseBigIntLiteral parses a BigInt numeric literal (including the trailing
+// 'n' suffix) into a *big.Int. It supports decimal, hex (0x), octal (0o) and
+// binary (0b) bases, as well as numeric separators ('_').
+func parseBigIntLiteral(literal string) (*big.Int, error) {
+	if !isBigIntLiteral(literal) {
+		return nil, errors.New("not a BigInt literal")
+	}
+	s := literal[:len(literal)-1]
+	if strings.ContainsRune(s, '_') {
+		s = strings.ReplaceAll(s, "_", "")
+	}
+	base := 10
+	if len(s) >= 2 && s[0] == '0' {
+		switch s[1] {
+		case 'x', 'X':
+			base = 16
+			s = s[2:]
+		case 'o', 'O':
+			base = 8
+			s = s[2:]
+		case 'b', 'B':
+			base = 2
+			s = s[2:]
+		}
+	}
+	v, ok := new(big.Int).SetString(s, base)
+	if !ok {
+		return nil, errors.New("illegal BigInt literal")
+	}
+	return v, nil
+}
 
 func parseNumberLiteral(literal string) (value float64, err error) {
 	// TODO Is Uint okay? What about -MAX_UINT
