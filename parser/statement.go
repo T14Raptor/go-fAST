@@ -522,13 +522,13 @@ func (p *parser) parseForIn(idx ast.Idx, into *ast.ForInto) *ast.ForInStatement 
 	return p.alloc.ForInStatement(idx, into, source, p.parseIterationStatement())
 }
 
-func (p *parser) parseForOf(idx ast.Idx, into *ast.ForInto) *ast.ForOfStatement {
+func (p *parser) parseForOf(idx ast.Idx, await bool, into *ast.ForInto) *ast.ForOfStatement {
 	// Already have consumed "<into> of"
 
 	source := p.parseAssignmentExpression()
 	p.expect(token.RightParenthesis)
 
-	return p.alloc.ForOfStatement(idx, into, source, p.parseIterationStatement())
+	return p.alloc.ForOfStatement(idx, await, into, source, p.parseIterationStatement())
 }
 
 func (p *parser) parseFor(idx ast.Idx, initializer *ast.ForLoopInitializer) *ast.ForStatement {
@@ -551,6 +551,14 @@ func (p *parser) parseFor(idx ast.Idx, initializer *ast.ForLoopInitializer) *ast
 
 func (p *parser) parseForOrForInStatement() *ast.Statement {
 	idx := p.expect(token.For)
+	forAwait := false
+	if p.currentKind() == token.Await {
+		if !p.scope.allowAwait {
+			p.errorf("for-await-of is only allowed in async functions")
+		}
+		p.next()
+		forAwait = true
+	}
 	p.expect(token.LeftParenthesis)
 
 	var initializer *ast.ForLoopInitializer
@@ -624,12 +632,18 @@ func (p *parser) parseForOrForInStatement() *ast.Statement {
 	}
 
 	if forIn {
+		if forAwait {
+			p.errorf("for-await-of is only allowed with for-of")
+		}
 		return p.alloc.Statement(p.parseForIn(idx, into))
 	}
 	if forOf {
-		return p.alloc.Statement(p.parseForOf(idx, into))
+		return p.alloc.Statement(p.parseForOf(idx, forAwait, into))
 	}
 
+	if forAwait {
+		p.errorf("for-await-of is only allowed with for-of")
+	}
 	p.expect(token.Semicolon)
 	return p.alloc.Statement(p.parseFor(idx, initializer))
 }

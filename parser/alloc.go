@@ -545,9 +545,9 @@ func (a *nodeAllocator) ForInStatement(idx ast.Idx, into *ast.ForInto, source *a
 	return n
 }
 
-func (a *nodeAllocator) ForOfStatement(idx ast.Idx, into *ast.ForInto, source *ast.Expression, body *ast.Statement) *ast.ForOfStatement {
+func (a *nodeAllocator) ForOfStatement(idx ast.Idx, await bool, into *ast.ForInto, source *ast.Expression, body *ast.Statement) *ast.ForOfStatement {
 	n := a.forOfStmt.make()
-	*n = ast.ForOfStatement{For: idx, Into: into, Source: source, Body: body}
+	*n = ast.ForOfStatement{For: idx, Await: await, Into: into, Source: source, Body: body}
 	return n
 }
 

@@ -324,6 +324,11 @@ func (g *GenVisitor) VisitForInStatement(n *ast.ForInStatement) {
 
 func (g *GenVisitor) VisitForOfStatement(n *ast.ForOfStatement) {
 	g.out.WriteString("for (")
+	g.out.WriteString("for")
+	if n.Await {
+		g.out.WriteString(" await")
+	}
+	g.out.WriteString(" (")
 	g.gen(n.Into)
 	g.out.WriteString(" of ")
 	g.gen(n.Source.Expr)

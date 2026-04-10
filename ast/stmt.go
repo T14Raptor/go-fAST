@@ -164,7 +164,8 @@ type (
 		Source *Expression
 		Body   *Statement
 
-		For Idx
+		For   Idx
+		Await bool
 	}
 
 	ForInto struct {

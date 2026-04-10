@@ -264,7 +264,7 @@ func (n *ForLoopInitializer) Clone() *ForLoopInitializer {
 	return &ForLoopInitializer{Initializer: clonedForLoopInit}
 }
 func (n *ForOfStatement) Clone() *ForOfStatement {
-	return &ForOfStatement{Into: n.Into.Clone(), Source: n.Source.Clone(), Body: n.Body.Clone(), For: n.For}
+	return &ForOfStatement{Into: n.Into.Clone(), Source: n.Source.Clone(), Body: n.Body.Clone(), For: n.For, Await: n.Await}
 }
 func (n *ForStatement) Clone() *ForStatement {
 	var initializer *ForLoopInitializer
