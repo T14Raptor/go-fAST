@@ -51,8 +51,8 @@ func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 	if n.Async {
 		g.out.WriteString("async ")
 	}
-	g.gen(&n.ParameterList)
 	g.out.WriteString(" => ")
+	g.gen(n.ParameterList)
 	g.gen(n.Body)
 }
 
@@ -409,8 +409,8 @@ func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	} else {
 		g.out.WriteString("function")
 	}
-	g.gen(&n.ParameterList)
 	g.out.WriteString(" ")
+	g.gen(n.ParameterList)
 	g.gen(n.Body)
 }
 
@@ -529,8 +529,8 @@ func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 			g.gen(n.Key.Expr)
 		}
 		f := n.Value.Expr.(*ast.FunctionLiteral)
-		g.gen(&f.ParameterList)
 		g.out.WriteString(" ")
+		g.gen(f.ParameterList)
 		g.gen(f.Body)
 		return
 	}
@@ -761,8 +761,8 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			} else {
 				g.gen(e.Key)
 			}
-			g.gen(&e.Body.ParameterList)
 			g.out.WriteString(" ")
+			g.gen(e.Body.ParameterList)
 			g.gen(e.Body.Body)
 		}
 	}

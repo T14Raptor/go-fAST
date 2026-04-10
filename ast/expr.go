@@ -133,7 +133,7 @@ type (
 	}
 
 	ArrowFunctionLiteral struct {
-		ParameterList ParameterList
+		ParameterList *ParameterList
 		Body          *ConciseBody
 
 		ScopeContext ScopeContext

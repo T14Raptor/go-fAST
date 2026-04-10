@@ -92,6 +92,8 @@ type nodeAllocator struct {
 	fieldDef miniArena[ast.FieldDefinition]
 	staticBl miniArena[ast.ClassStaticBlock]
 
+	paramList miniArena[ast.ParameterList]
+
 	// Wrapper/helper types.
 	bindTgt  miniArena[ast.BindingTarget]
 	concBody miniArena[ast.ConciseBody]
@@ -185,12 +187,14 @@ func newNodeAllocator() nodeAllocator {
 		// Declarations.
 		varDecl:  newArena[ast.VariableDeclaration](64),
 		varDeclr: newArena[ast.VariableDeclarator](128),
-		funcDecl: newArena[ast.FunctionDeclaration](32),
+		funcDecl: newArena[ast.FunctionDeclaration](64),
 		classLit: newArena[ast.ClassLiteral](16),
 		classDcl: newArena[ast.ClassDeclaration](16),
 		methDef:  newArena[ast.MethodDefinition](32),
 		fieldDef: newArena[ast.FieldDefinition](32),
 		staticBl: newArena[ast.ClassStaticBlock](8),
+
+		paramList: newArena[ast.ParameterList](64),
 
 		// Wrappers.
 		bindTgt:  newArena[ast.BindingTarget](128),
@@ -447,7 +451,7 @@ func (a *nodeAllocator) YieldExpression(idx ast.Idx) *ast.YieldExpression {
 	return n
 }
 
-func (a *nodeAllocator) ArrowFunctionLiteral(start ast.Idx, params ast.ParameterList, async bool) *ast.ArrowFunctionLiteral {
+func (a *nodeAllocator) ArrowFunctionLiteral(start ast.Idx, params *ast.ParameterList, async bool) *ast.ArrowFunctionLiteral {
 	n := a.arrowFn.make()
 	*n = ast.ArrowFunctionLiteral{Start: start, ParameterList: params, Async: async}
 	return n
@@ -662,5 +666,11 @@ func (a *nodeAllocator) ForLoopInitializer(init ast.ForLoopInit) *ast.ForLoopIni
 func (a *nodeAllocator) ForIntoPtr(into ast.Into) *ast.ForInto {
 	n := a.forInto.make()
 	*n = ast.ForInto{Into: into}
+	return n
+}
+
+func (a *nodeAllocator) ParameterList(list ast.VariableDeclarators, rest ast.Expr, opening, closing ast.Idx) *ast.ParameterList {
+	n := a.paramList.make()
+	*n = ast.ParameterList{List: list, Rest: rest, Opening: opening, Closing: closing}
 	return n
 }

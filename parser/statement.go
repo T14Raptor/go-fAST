@@ -136,7 +136,7 @@ func (p *parser) parseTryStatement() ast.Stmt {
 	return node
 }
 
-func (p *parser) parseFunctionParameterList() ast.ParameterList {
+func (p *parser) parseFunctionParameterList() *ast.ParameterList {
 	opening := p.expect(token.LeftParenthesis)
 	var list ast.VariableDeclarators
 	var rest ast.Expr
@@ -158,12 +158,7 @@ func (p *parser) parseFunctionParameterList() ast.ParameterList {
 	closing := p.expect(token.RightParenthesis)
 	p.scope.inFuncParams = savedFuncParams
 
-	return ast.ParameterList{
-		Opening: opening,
-		List:    list,
-		Rest:    rest,
-		Closing: closing,
-	}
+	return p.alloc.ParameterList(list, rest, opening, closing)
 }
 
 func (p *parser) parseMaybeAsyncFunction(declaration bool) *ast.FunctionLiteral {

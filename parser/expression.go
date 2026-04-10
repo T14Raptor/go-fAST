@@ -109,7 +109,7 @@ func (p *parser) parseSuperProperty() ast.Expr {
 	}
 }
 
-func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.ParameterList {
+func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) *ast.ParameterList {
 	firstRestIdx := -1
 	mark := len(p.declBuf)
 	for i, item := range list {
@@ -122,7 +122,7 @@ func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.
 		if firstRestIdx != -1 {
 			p.errorf("Rest parameter must be last formal parameter")
 			p.declBuf = p.declBuf[:mark]
-			return ast.ParameterList{}
+			return &ast.ParameterList{}
 		}
 		p.declBuf = append(p.declBuf, p.reinterpretAsBinding(item.Expr))
 	}
@@ -130,10 +130,10 @@ func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) ast.
 	if firstRestIdx != -1 {
 		rest = p.reinterpretAsBindingRestElement(list[firstRestIdx].Expr)
 	}
-	return ast.ParameterList{
-		List: p.finishDeclBuf(mark),
-		Rest: rest,
-	}
+	return p.alloc.ParameterList(
+		p.finishDeclBuf(mark),
+		rest, 0, 0,
+	)
 }
 
 func (p *parser) parseParenthesisedExpression() ast.Expr {
@@ -835,7 +835,7 @@ func (p *parser) parseConditionalExpression() ast.Expr {
 	return left
 }
 
-func (p *parser) parseArrowFunction(start ast.Idx, paramList ast.ParameterList, async bool) ast.Expr {
+func (p *parser) parseArrowFunction(start ast.Idx, paramList *ast.ParameterList, async bool) ast.Expr {
 	p.expect(token.Arrow)
 	node := p.alloc.ArrowFunctionLiteral(start, paramList, async)
 	node.Body = p.parseArrowFunctionBody(async)
@@ -857,13 +857,7 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 
 	id := p.parseIdentifier()
 
-	paramList := ast.ParameterList{
-		Opening: id.Idx,
-		Closing: id.Idx1(),
-		List: ast.VariableDeclarators{{
-			Target: p.alloc.BindingTarget(id),
-		}},
-	}
+	paramList := p.alloc.ParameterList(ast.VariableDeclarators{{Target: p.alloc.BindingTarget(id)}}, nil, id.Idx, id.Idx1())
 
 	result := p.parseArrowFunction(start, paramList, async)
 	p.scope.allowAwait = savedAwait
@@ -903,21 +897,13 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 	if operator == 0 && kind == token.Arrow {
 		var paramList *ast.ParameterList
 		if id, ok := left.(*ast.Identifier); ok {
-			paramList = &ast.ParameterList{
-				Opening: id.Idx,
-				Closing: id.Idx1() - 1,
-				List: ast.VariableDeclarators{{
-					Target: p.alloc.BindingTarget(id),
-				}},
-			}
+			paramList = p.alloc.ParameterList(ast.VariableDeclarators{{Target: p.alloc.BindingTarget(id)}}, nil, id.Idx, id.Idx1()-1)
 		} else if parenthesis {
 			if seq, ok := left.(*ast.SequenceExpression); ok && p.errors == nil {
-				paramL := p.reinterpretSequenceAsArrowFuncParams(seq.Sequence)
-				paramList = &paramL
+				paramList = p.reinterpretSequenceAsArrowFuncParams(seq.Sequence)
 			} else {
 				p.restore(state)
-				paramL := p.parseFunctionParameterList()
-				paramList = &paramL
+				paramList = p.parseFunctionParameterList()
 			}
 		} else if async {
 			// async (x, y) => ...
@@ -928,15 +914,14 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 			if _, ok := left.(*ast.CallExpression); ok {
 				p.restore(state)
 				p.next() // skip "async"
-				paramL := p.parseFunctionParameterList()
-				paramList = &paramL
+				paramList = p.parseFunctionParameterList()
 			}
 			if paramList == nil {
 				p.errorf("Malformed arrow function parameter list")
 				p.scope.allowAwait = savedAwait
 				return p.alloc.Expression(p.alloc.InvalidExpression(left.Idx0(), left.Idx1()))
 			}
-			result := p.alloc.Expression(p.parseArrowFunction(start, *paramList, async))
+			result := p.alloc.Expression(p.parseArrowFunction(start, paramList, async))
 			p.scope.allowAwait = savedAwait
 			return result
 		}
@@ -944,7 +929,7 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 			p.errorf("Malformed arrow function parameter list")
 			return p.alloc.Expression(p.alloc.InvalidExpression(left.Idx0(), left.Idx1()))
 		}
-		return p.alloc.Expression(p.parseArrowFunction(start, *paramList, async))
+		return p.alloc.Expression(p.parseArrowFunction(start, paramList, async))
 	}
 
 	if operator != 0 {

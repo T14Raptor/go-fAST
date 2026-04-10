@@ -198,7 +198,7 @@ func (a *analyzer) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 		}
 
 		if v.scope.foundArguments {
-			v.scope.bindingsAffectedByArguments = collectIdentifiers(&n.ParameterList)
+			v.scope.bindingsAffectedByArguments = collectIdentifiers(n.ParameterList)
 		}
 	})
 }

@@ -3,7 +3,7 @@ package ast
 type (
 	FunctionLiteral struct {
 		Name          *Identifier `optional:"true"`
-		ParameterList ParameterList
+		ParameterList *ParameterList
 		Body          *BlockStatement
 
 		ScopeContext ScopeContext
