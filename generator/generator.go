@@ -1,17 +1,34 @@
 package generator
 
 import (
+	"github.com/t14raptor/go-fast/ast"
+	"github.com/t14raptor/go-fast/token"
 	"math"
 	"strconv"
 	"strings"
-	"unicode"
-
-	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
 )
 
+// Options controls code generation behavior.
+type Options struct {
+	// Minified disables pretty printing: no newlines, no indentation, and
+	// line (`//`) comments are omitted to keep the output on a single line.
+	Minified bool
+}
+
+// Generate renders node as JavaScript source using the default (pretty) options.
 func Generate(node ast.VisitableNode) string {
-	g := &GenVisitor{}
+	return GenerateWithOptions(node, Options{})
+}
+
+// GenerateMinified renders node without pretty printing (no newlines or
+// indentation). It is equivalent to GenerateWithOptions(node, Options{Minified: true}).
+func GenerateMinified(node ast.VisitableNode) string {
+	return GenerateWithOptions(node, Options{Minified: true})
+}
+
+// GenerateWithOptions renders node as JavaScript source using the supplied options.
+func GenerateWithOptions(node ast.VisitableNode, opts Options) string {
+	g := &GenVisitor{opts: opts}
 	g.V = g
 	g.gen(node)
 	return g.out.String()
@@ -20,7 +37,8 @@ func Generate(node ast.VisitableNode) string {
 type GenVisitor struct {
 	ast.NoopVisitor
 
-	out strings.Builder
+	out  strings.Builder
+	opts Options
 
 	indent int
 
@@ -37,22 +55,37 @@ func (g *GenVisitor) gen(node ast.VisitableNode) {
 }
 
 func (g *GenVisitor) line() {
+	if g.opts.Minified {
+		return
+	}
 	g.out.WriteString("\n")
 }
 
 func (g *GenVisitor) lineAndPad() {
-	g.line()
+	if g.opts.Minified {
+		return
+	}
+	g.out.WriteString("\n")
 	for i := 0; i < g.indent; i++ {
 		g.out.WriteString("    ")
 	}
+}
+
+func (g *GenVisitor) space() {
+	if g.opts.Minified {
+		return
+	}
+	g.out.WriteString(" ")
 }
 
 func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 	if n.Async {
 		g.out.WriteString("async ")
 	}
-	g.out.WriteString(" => ")
 	g.gen(n.ParameterList)
+	g.space()
+	g.out.WriteString("=>")
+	g.space()
 	g.gen(n.Body)
 }
 
@@ -68,7 +101,8 @@ func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 			g.gen(ex.Expr)
 		}
 		if i < len(n.Value)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 	}
 	g.out.WriteString("]")
@@ -95,12 +129,12 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 
 	g.gen(n.Left.Expr)
 
-	g.out.WriteString(" ")
+	g.space()
 	g.out.WriteString(n.Operator.String())
 	if n.Operator != token.Assign {
 		g.out.WriteString("=")
 	}
-	g.out.WriteString(" ")
+	g.space()
 
 	g.gen(n.Right.Expr)
 }
@@ -112,7 +146,8 @@ func (g *GenVisitor) VisitArrayPattern(n *ast.ArrayPattern) {
 			g.gen(elem.Expr)
 		}
 		if i < len(n.Elements)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 	}
 	g.out.WriteString("]")
@@ -123,12 +158,14 @@ func (g *GenVisitor) VisitObjectPattern(n *ast.ObjectPattern) {
 	for i, prop := range n.Properties {
 		g.gen(prop.Prop)
 		if i < len(n.Properties)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 	}
 	if n.Rest != nil {
 		if len(n.Properties) > 0 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 		g.out.WriteString("...")
 		g.gen(n.Rest)
@@ -138,15 +175,23 @@ func (g *GenVisitor) VisitObjectPattern(n *ast.ObjectPattern) {
 
 func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
 	if pn, ok := g.p.(*ast.BinaryExpression); ok {
-		operatorPrecedence := n.Operator.Precedence(true)
-		parentOperatorPrecedence := pn.Operator.Precedence(true)
-		if operatorPrecedence < parentOperatorPrecedence || operatorPrecedence == parentOperatorPrecedence && pn.Right.Expr == n {
+		opPrec := n.Operator.Precedence(true)
+		parentOpPrec := pn.Operator.Precedence(true)
+		if opPrec < parentOpPrec || opPrec == parentOpPrec && pn.Right.Expr == n {
 			g.out.WriteString("(")
 			defer g.out.WriteString(")")
 		}
 	}
 	g.gen(n.Left.Expr)
-	g.out.WriteString(" " + n.Operator.String() + " ")
+
+	if op := n.Operator.String(); len(op) > 2 {
+		g.out.WriteString(" " + op + " ")
+	} else {
+		g.space()
+		g.out.WriteString(op)
+		g.space()
+	}
+
 	g.gen(n.Right.Expr)
 }
 
@@ -209,7 +254,8 @@ func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
 	for i, a := range n.ArgumentList {
 		g.gen(a.Expr)
 		if i < len(n.ArgumentList)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 	}
 	g.out.WriteString(")")
@@ -219,9 +265,9 @@ func (g *GenVisitor) VisitCaseStatement(n *ast.CaseStatement) {
 	if n.Test != nil {
 		g.out.WriteString("case ")
 		g.gen(n.Test.Expr)
-		g.out.WriteString(": ")
+		g.out.WriteString(":")
 	} else {
-		g.out.WriteString("default: ")
+		g.out.WriteString("default:")
 	}
 	g.indent++
 	for i := range n.Consequent {
@@ -257,9 +303,13 @@ func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
 	default:
 		g.gen(n.Test.Expr)
 	}
-	g.out.WriteString(" ? ")
+	g.space()
+	g.out.WriteString("?")
+	g.space()
 	g.gen(n.Consequent.Expr)
-	g.out.WriteString(" : ")
+	g.space()
+	g.out.WriteString(":")
+	g.space()
 	g.gen(n.Alternate.Expr)
 }
 
@@ -308,52 +358,59 @@ func (g *GenVisitor) VisitEmptyStatement(n *ast.EmptyStatement) {
 func (g *GenVisitor) VisitExpressionStatement(n *ast.ExpressionStatement) {
 	g.gen(n.Expression.Expr)
 	g.out.WriteString(";")
-	if len(n.Comment) > 0 {
+	if len(n.Comment) > 0 && !g.opts.Minified {
 		g.out.WriteString(" // " + n.Comment)
 	}
 }
 
 func (g *GenVisitor) VisitForInStatement(n *ast.ForInStatement) {
-	g.out.WriteString("for (")
+	g.out.WriteString("for")
+	g.space()
+	g.out.WriteString("(")
 	g.gen(n.Into)
 	g.out.WriteString(" in ")
 	g.gen(n.Source.Expr)
-	g.out.WriteString(") ")
+	g.out.WriteString(")")
+	g.space()
 	g.gen(n.Body.Stmt)
 }
 
 func (g *GenVisitor) VisitForOfStatement(n *ast.ForOfStatement) {
-	g.out.WriteString("for (")
 	g.out.WriteString("for")
 	if n.Await {
 		g.out.WriteString(" await")
 	}
-	g.out.WriteString(" (")
+	g.space()
+	g.out.WriteString("(")
 	g.gen(n.Into)
 	g.out.WriteString(" of ")
 	g.gen(n.Source.Expr)
-	g.out.WriteString(") ")
+	g.out.WriteString(")")
+	g.space()
 	g.gen(n.Body.Stmt)
 }
 
 func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
-	g.out.WriteString("for (")
+	g.out.WriteString("for")
+	g.space()
+	g.out.WriteString("(")
 	if n.Initializer != nil {
 		g.gen(n.Initializer)
-
-		g.out.WriteString(" ")
 	} else {
-		g.out.WriteString("; ")
+		g.out.WriteString(";")
 	}
+	g.space()
 
 	if n.Test.Expr != nil {
 		g.gen(n.Test.Expr)
 	}
-	g.out.WriteString("; ")
+	g.out.WriteString(";")
+	g.space()
 	if n.Update.Expr != nil {
 		g.gen(n.Update.Expr)
 	}
-	g.out.WriteString(") ")
+	g.out.WriteString(")")
+	g.space()
 
 	switch n.Body.Stmt.(type) {
 	case *ast.EmptyStatement, *ast.BlockStatement:
@@ -392,7 +449,8 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 	for i, p := range n.List {
 		g.gen(&p)
 		if i < len(n.List)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 	}
 
@@ -414,8 +472,8 @@ func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	} else {
 		g.out.WriteString("function")
 	}
-	g.out.WriteString(" ")
 	g.gen(n.ParameterList)
+	g.space()
 	g.gen(n.Body)
 }
 
@@ -426,9 +484,12 @@ func (g *GenVisitor) VisitIdentifier(n *ast.Identifier) {
 }
 
 func (g *GenVisitor) VisitIfStatement(n *ast.IfStatement) {
-	g.out.WriteString("if (")
+	g.out.WriteString("if")
+	g.space()
+	g.out.WriteString("(")
 	g.gen(n.Test.Expr)
-	g.out.WriteString(") ")
+	g.out.WriteString(")")
+	g.space()
 
 	switch n.Consequent.Stmt.(type) {
 	case *ast.EmptyStatement, *ast.BlockStatement:
@@ -457,7 +518,8 @@ func (g *GenVisitor) VisitIfStatement(n *ast.IfStatement) {
 
 func (g *GenVisitor) VisitLabelledStatement(n *ast.LabelledStatement) {
 	g.gen(n.Label)
-	g.out.WriteString(": ")
+	g.out.WriteString(":")
+	g.space()
 	g.gen(n.Statement.Stmt)
 }
 
@@ -475,7 +537,8 @@ func (g *GenVisitor) VisitNewExpression(n *ast.NewExpression) {
 	for i, a := range n.ArgumentList {
 		g.gen(a.Expr)
 		if i < len(n.ArgumentList)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 	}
 	g.out.WriteString(")")
@@ -547,8 +610,8 @@ func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 			g.gen(n.Key.Expr)
 		}
 		f := n.Value.Expr.(*ast.FunctionLiteral)
-		g.out.WriteString(" ")
 		g.gen(f.ParameterList)
+		g.space()
 		g.gen(f.Body)
 		return
 	}
@@ -559,7 +622,8 @@ func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 	} else {
 		g.gen(n.Key.Expr)
 	}
-	g.out.WriteString(": ")
+	g.out.WriteString(":")
+	g.space()
 	g.gen(n.Value.Expr)
 }
 
@@ -592,7 +656,8 @@ func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
 	for i, e := range n.Sequence {
 		g.gen(e.Expr)
 		if i < len(n.Sequence)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 	}
 }
@@ -606,9 +671,13 @@ func (g *GenVisitor) VisitStringLiteral(n *ast.StringLiteral) {
 }
 
 func (g *GenVisitor) VisitSwitchStatement(n *ast.SwitchStatement) {
-	g.out.WriteString("switch (")
+	g.out.WriteString("switch")
+	g.space()
+	g.out.WriteString("(")
 	g.gen(n.Discriminant.Expr)
-	g.out.WriteString(") {")
+	g.out.WriteString(")")
+	g.space()
+	g.out.WriteString("{")
 
 	g.indent++
 	for _, c := range n.Body {
@@ -634,21 +703,27 @@ func (g *GenVisitor) VisitThrowStatement(n *ast.ThrowStatement) {
 }
 
 func (g *GenVisitor) VisitTryStatement(n *ast.TryStatement) {
-	g.out.WriteString("try ")
+	g.out.WriteString("try")
+	g.space()
 
 	g.gen(n.Body)
 
 	if n.Catch != nil {
-		g.out.WriteString(" catch ")
-		if n.Catch.Parameter != nil && n.Catch.Parameter.Target != nil {
+		g.space()
+		g.out.WriteString("catch")
+		g.space()
+		if n.Catch.Parameter != nil {
 			g.out.WriteString("(")
 			g.gen(n.Catch.Parameter)
-			g.out.WriteString(") ")
+			g.out.WriteString(")")
+			g.space()
 		}
 		g.gen(n.Catch.Body)
 	}
 	if n.Finally != nil {
-		g.out.WriteString(" finally ")
+		g.space()
+		g.out.WriteString("finally")
+		g.space()
 		g.gen(n.Finally)
 	}
 }
@@ -702,23 +777,31 @@ func (g *GenVisitor) VisitUpdateExpression(n *ast.UpdateExpression) {
 }
 
 func (g *GenVisitor) VisitWhileStatement(n *ast.WhileStatement) {
-	g.out.WriteString("while (")
+	g.out.WriteString("while")
+	g.space()
+	g.out.WriteString("(")
 	g.gen(n.Test.Expr)
-	g.out.WriteString(") ")
+	g.out.WriteString(")")
+	g.space()
 	g.gen(n.Body.Stmt)
 }
 
 func (g *GenVisitor) VisitWithStatement(n *ast.WithStatement) {
-	g.out.WriteString("with (")
+	g.out.WriteString("with")
+	g.space()
+	g.out.WriteString("(")
 	g.gen(n.Object.Expr)
-	g.out.WriteString(") ")
+	g.out.WriteString(")")
+	g.space()
 	g.gen(n.Body.Stmt)
 }
 
 func (g *GenVisitor) VisitVariableDeclarator(n *ast.VariableDeclarator) {
 	g.gen(n.Target)
 	if n.Initializer != nil {
-		g.out.WriteString(" = ")
+		g.space()
+		g.out.WriteString("=")
+		g.space()
 		g.gen(n.Initializer.Expr)
 	}
 }
@@ -742,22 +825,25 @@ func (g *GenVisitor) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	for i, b := range n.List {
 		g.gen(&b)
 		if i < len(n.List)-1 {
-			g.out.WriteString(", ")
+			g.out.WriteString(",")
+			g.space()
 		}
 	}
 
 	g.out.WriteString(";")
-	if len(n.Comment) > 0 {
+	if len(n.Comment) > 0 && !g.opts.Minified {
 		g.out.WriteString(" // " + n.Comment)
 	}
 }
 
 func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
-	g.out.WriteString("class ")
+	g.out.WriteString("class")
 	if n.Name != nil {
+		g.out.WriteString(" ")
 		g.gen(n.Name)
 	}
-	g.out.WriteString(" {")
+	g.space()
+	g.out.WriteString("{")
 
 	g.indent++
 	for _, element := range n.Body {
@@ -779,8 +865,8 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			} else {
 				g.gen(e.Key)
 			}
-			g.out.WriteString(" ")
 			g.gen(e.Body.ParameterList)
+			g.space()
 			g.gen(e.Body.Body)
 		}
 	}
@@ -799,16 +885,4 @@ func (g *GenVisitor) VisitMetaProperty(n *ast.MetaProperty) {
 func (g *GenVisitor) VisitSpreadElement(n *ast.SpreadElement) {
 	g.out.WriteString("...")
 	g.gen(n.Expression.Expr)
-}
-
-func valid(s string) bool {
-	for i, r := range s {
-		if i == 0 && unicode.IsDigit(r) {
-			return false
-		}
-		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
-			return false
-		}
-	}
-	return true
 }
