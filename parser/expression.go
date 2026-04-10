@@ -1052,7 +1052,10 @@ func (p *parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) ast
 
 func (p *parser) reinterpretArrayAssignPatternAsBinding(pattern *ast.ArrayPattern) *ast.ArrayPattern {
 	for i, item := range pattern.Elements {
-		pattern.Elements[i] = ast.Expression{Expr: p.reinterpretAsDestructBindingTarget(item.Expr)}
+		if item.Expr == nil {
+			continue
+		}
+		pattern.Elements[i] = ast.Expression{Expr: p.reinterpretAsBindingElement(item.Expr)}
 	}
 	if pattern.Rest != nil {
 		pattern.Rest = p.alloc.Expression(p.reinterpretAsDestructBindingTarget(pattern.Rest.Expr))
