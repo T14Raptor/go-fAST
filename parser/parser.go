@@ -3,7 +3,7 @@ package parser
 import (
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/parser/scanner"
-	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 // parser ...

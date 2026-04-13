@@ -4,7 +4,7 @@ import (
 	"unicode/utf8"
 	"unsafe"
 
-	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 func (s *Scanner) readZero() token.Token {

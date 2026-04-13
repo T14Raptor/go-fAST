@@ -5,7 +5,7 @@ import (
 	"unsafe"
 
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 // String end match tables indexed by byte value; true means "this byte ends the fast scan".

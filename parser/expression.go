@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 func (p *parser) parseIdentifier() *ast.Identifier {

@@ -7,7 +7,7 @@ import (
 
 	"github.com/nukilabs/unicodeid"
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 // Lookup tables for ASCII identifier characters.

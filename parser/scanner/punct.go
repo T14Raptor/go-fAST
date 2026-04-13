@@ -1,6 +1,6 @@
 package scanner
 
-import "github.com/t14raptor/go-fast/token"
+import "github.com/t14raptor/go-fast/parser/scanner/token"
 
 func (s *Scanner) readDot() token.Token {
 	if s.AdvanceIfByteEquals('.') {

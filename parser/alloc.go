@@ -4,7 +4,7 @@ import (
 	"math/big"
 
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
+	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 // nodeAllocator encapsulates typed arenas for all frequently allocated AST
