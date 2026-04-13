@@ -2,6 +2,7 @@ package ast
 
 import "github.com/nukilabs/ftoa"
 
+//go:generate go run ast/gen_clone.go
 //go:generate go run ast/gen_visit.go
 
 // Idx is a compact encoding of a source position within JS code.
@@ -33,6 +34,7 @@ func (y *YieldExpression) Idx0() Idx       { return y.Yield }
 func (a *AwaitExpression) Idx0() Idx       { return a.Await }
 func (a *AssignExpression) Idx0() Idx      { return a.Left.Expr.Idx0() }
 func (b *BinaryExpression) Idx0() Idx      { return b.Left.Expr.Idx0() }
+func (b *LogicalExpression) Idx0() Idx     { return b.Left.Expr.Idx0() }
 func (b *BooleanLiteral) Idx0() Idx        { return b.Idx }
 func (n *CallExpression) Idx0() Idx        { return n.Callee.Expr.Idx0() }
 func (n *ConditionalExpression) Idx0() Idx { return n.Test.Expr.Idx0() }
@@ -110,6 +112,7 @@ func (a *AssignExpression) Idx1() Idx      { return a.Right.Expr.Idx1() }
 func (a *AwaitExpression) Idx1() Idx       { return a.Argument.Expr.Idx1() }
 func (n *InvalidExpression) Idx1() Idx     { return n.To }
 func (b *BinaryExpression) Idx1() Idx      { return b.Right.Expr.Idx1() }
+func (b *LogicalExpression) Idx1() Idx     { return b.Right.Expr.Idx1() }
 func (b *BooleanLiteral) Idx1() Idx        { return Idx(int(b.Idx) + 4) }
 func (n *CallExpression) Idx1() Idx        { return n.RightParenthesis + 1 }
 func (n *ConditionalExpression) Idx1() Idx { return n.Test.Expr.Idx1() }

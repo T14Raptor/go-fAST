@@ -45,6 +45,7 @@ type Visitor interface {
 	VisitIfStatement(n *IfStatement)
 	VisitInvalidExpression(n *InvalidExpression)
 	VisitLabelledStatement(n *LabelledStatement)
+	VisitLogicalExpression(n *LogicalExpression)
 	VisitMemberExpression(n *MemberExpression)
 	VisitMemberProperty(n *MemberProperty)
 	VisitMetaProperty(n *MetaProperty)
@@ -219,6 +220,9 @@ func (nv *NoopVisitor) VisitInvalidExpression(n *InvalidExpression) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitLabelledStatement(n *LabelledStatement) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitLogicalExpression(n *LogicalExpression) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitMemberExpression(n *MemberExpression) {
@@ -650,6 +654,13 @@ func (n *LabelledStatement) VisitWith(v Visitor) {
 func (n *LabelledStatement) VisitChildrenWith(v Visitor) {
 	n.Label.VisitWith(v)
 	n.Statement.VisitWith(v)
+}
+func (n *LogicalExpression) VisitWith(v Visitor) {
+	v.VisitLogicalExpression(n)
+}
+func (n *LogicalExpression) VisitChildrenWith(v Visitor) {
+	n.Left.VisitWith(v)
+	n.Right.VisitWith(v)
 }
 func (n *MemberExpression) VisitWith(v Visitor) {
 	v.VisitMemberExpression(n)

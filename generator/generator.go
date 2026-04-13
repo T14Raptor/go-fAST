@@ -2,7 +2,6 @@ package generator
 
 import (
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
 	"math"
 	"strconv"
 	"strings"
@@ -118,7 +117,8 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 		}
 	}
 	// we also need parentheses if parent is binary expression
-	if _, ok := g.p.(*ast.BinaryExpression); ok {
+	switch g.p.(type) {
+	case *ast.BinaryExpression, *ast.LogicalExpression:
 		needsParens = true
 	}
 
@@ -131,9 +131,6 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 
 	g.space()
 	g.out.WriteString(n.Operator.String())
-	if n.Operator != token.Assign {
-		g.out.WriteString("=")
-	}
 	g.space()
 
 	g.gen(n.Right.Expr)
@@ -174,14 +171,26 @@ func (g *GenVisitor) VisitObjectPattern(n *ast.ObjectPattern) {
 }
 
 func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
-	if pn, ok := g.p.(*ast.BinaryExpression); ok {
-		opPrec := n.Operator.Precedence(true)
-		parentOpPrec := pn.Operator.Precedence(true)
-		if opPrec < parentOpPrec || opPrec == parentOpPrec && pn.Right.Expr == n {
+	var (
+		parentPrec  ast.Precedence
+		parentRight *ast.Expression
+	)
+	switch pn := g.p.(type) {
+	case *ast.BinaryExpression:
+		parentPrec = pn.Operator.Precedence()
+		parentRight = pn.Right
+	case *ast.LogicalExpression:
+		parentPrec = pn.Operator.Precedence()
+		parentRight = pn.Right
+	}
+	if parentPrec > ast.PrecedenceLowest {
+		prec := n.Operator.Precedence()
+		if prec < parentPrec || prec == parentPrec && parentRight.Expr == n {
 			g.out.WriteString("(")
 			defer g.out.WriteString(")")
 		}
 	}
+
 	g.gen(n.Left.Expr)
 
 	if op := n.Operator.String(); len(op) > 2 {
@@ -191,6 +200,36 @@ func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
 		g.out.WriteString(op)
 		g.space()
 	}
+
+	g.gen(n.Right.Expr)
+}
+
+func (g *GenVisitor) VisitLogicalExpression(n *ast.LogicalExpression) {
+	var (
+		parentPrec  ast.Precedence
+		parentRight *ast.Expression
+	)
+	switch pn := g.p.(type) {
+	case *ast.BinaryExpression:
+		parentPrec = pn.Operator.Precedence()
+		parentRight = pn.Right
+	case *ast.LogicalExpression:
+		parentPrec = pn.Operator.Precedence()
+		parentRight = pn.Right
+	}
+	if parentPrec > ast.PrecedenceLowest {
+		prec := n.Operator.Precedence()
+		if prec < parentPrec || prec == parentPrec && parentRight.Expr == n {
+			g.out.WriteString("(")
+			defer g.out.WriteString(")")
+		}
+	}
+
+	g.gen(n.Left.Expr)
+
+	g.space()
+	g.out.WriteString(n.Operator.String())
+	g.space()
 
 	g.gen(n.Right.Expr)
 }
@@ -291,7 +330,7 @@ func (g *GenVisitor) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 
 func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
 	switch g.p.(type) {
-	case *ast.BinaryExpression, *ast.NewExpression:
+	case *ast.BinaryExpression, *ast.LogicalExpression, *ast.NewExpression:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -327,7 +366,7 @@ func (g *GenVisitor) VisitDoWhileStatement(n *ast.DoWhileStatement) {
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Expr.(type) {
-	case *ast.AssignExpression, *ast.BinaryExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression, *ast.NumberLiteral,
+	case *ast.AssignExpression, *ast.BinaryExpression, *ast.LogicalExpression, *ast.UnaryExpression, *ast.SequenceExpression, *ast.ConditionalExpression, *ast.NumberLiteral,
 		*ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.UpdateExpression, *ast.AwaitExpression:
 		g.out.WriteString("(")
 		g.gen(n.Object.Expr)
@@ -526,7 +565,7 @@ func (g *GenVisitor) VisitLabelledStatement(n *ast.LabelledStatement) {
 func (g *GenVisitor) VisitNewExpression(n *ast.NewExpression) {
 	g.out.WriteString("new ")
 	switch n.Callee.Expr.(type) {
-	case *ast.BinaryExpression, *ast.CallExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.SequenceExpression:
+	case *ast.BinaryExpression, *ast.LogicalExpression, *ast.CallExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.SequenceExpression:
 		g.out.WriteString("(")
 		g.gen(n.Callee.Expr)
 		g.out.WriteString(")")
@@ -575,7 +614,7 @@ func (g *GenVisitor) VisitBigIntLiteral(n *ast.BigIntLiteral) {
 
 func (g *GenVisitor) VisitObjectLiteral(n *ast.ObjectLiteral) {
 	switch g.p.(type) {
-	case *ast.BinaryExpression, *ast.ArrowFunctionLiteral:
+	case *ast.BinaryExpression, *ast.LogicalExpression, *ast.ArrowFunctionLiteral:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -649,7 +688,7 @@ func (g *GenVisitor) VisitReturnStatement(n *ast.ReturnStatement) {
 
 func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
 	switch g.p.(type) {
-	case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.UpdateExpression, *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.NewExpression, *ast.ArrayLiteral, *ast.ReturnStatement, *ast.ThrowStatement, *ast.AwaitExpression:
+	case *ast.VariableDeclarator, *ast.PropertyKeyed, *ast.UnaryExpression, *ast.UpdateExpression, *ast.BinaryExpression, *ast.LogicalExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.CallExpression, *ast.NewExpression, *ast.ArrayLiteral, *ast.ReturnStatement, *ast.ThrowStatement, *ast.AwaitExpression:
 		g.out.WriteString("(")
 		defer g.out.WriteString(")")
 	}
@@ -736,7 +775,7 @@ func (g *GenVisitor) VisitUnaryExpression(n *ast.UnaryExpression) {
 
 	wrap := false
 	switch n.Operand.Expr.(type) {
-	case *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.UpdateExpression:
+	case *ast.BinaryExpression, *ast.LogicalExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.UpdateExpression:
 		wrap = true
 	}
 
@@ -759,7 +798,7 @@ func (g *GenVisitor) VisitUpdateExpression(n *ast.UpdateExpression) {
 
 	wrap := false
 	switch n.Operand.Expr.(type) {
-	case *ast.BinaryExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.UpdateExpression:
+	case *ast.BinaryExpression, *ast.LogicalExpression, *ast.ConditionalExpression, *ast.AssignExpression, *ast.UnaryExpression, *ast.UpdateExpression:
 		wrap = true
 	}
 

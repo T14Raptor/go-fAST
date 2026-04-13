@@ -669,9 +669,8 @@ L:
 }
 
 func (p *parser) parseUpdateExpression() ast.Expr {
-	switch p.currentKind() {
-	case token.Increment, token.Decrement:
-		tkn := p.currentKind()
+	kind := p.currentKind()
+	if isUpdateOperator(kind) {
 		idx := p.currentOffset()
 		p.next()
 		operand := p.parseUnaryExpression()
@@ -682,40 +681,35 @@ func (p *parser) parseUpdateExpression() ast.Expr {
 			p.nextStatement()
 			return p.alloc.InvalidExpression(idx, p.currentOffset())
 		}
-		return p.alloc.UpdateExpression(tkn, idx, p.alloc.Expression(operand), false)
-	default:
-		operand := p.parseLeftHandSideExpressionAllowCall()
-		if p.currentKind() == token.Increment || p.currentKind() == token.Decrement {
-			// Make sure there is no line terminator here
-			if p.scanner.Token.OnNewLine {
-				return operand
-			}
-			tkn := p.currentKind()
-			idx := p.currentOffset()
-			p.next()
-			switch operand.(type) {
-			case *ast.Identifier, *ast.PrivateDotExpression, *ast.MemberExpression:
-			default:
-				p.errorf("Invalid left-hand side in assignment")
-				p.nextStatement()
-				return p.alloc.InvalidExpression(idx, p.currentOffset())
-			}
-			return p.alloc.UpdateExpression(tkn, idx, p.alloc.Expression(operand), true)
-		}
-		return operand
+		return p.alloc.UpdateExpression(toUpdateOperator(kind), idx, p.alloc.Expression(operand), false)
 	}
+
+	operand := p.parseLeftHandSideExpressionAllowCall()
+	postKind := p.currentKind()
+	if isUpdateOperator(postKind) && !p.scanner.Token.OnNewLine {
+		idx := p.currentOffset()
+		p.next()
+		switch operand.(type) {
+		case *ast.Identifier, *ast.PrivateDotExpression, *ast.MemberExpression:
+		default:
+			p.errorf("Invalid left-hand side in assignment")
+			p.nextStatement()
+			return p.alloc.InvalidExpression(idx, p.currentOffset())
+		}
+		return p.alloc.UpdateExpression(toUpdateOperator(postKind), idx, p.alloc.Expression(operand), true)
+	}
+	return operand
 }
 
 func (p *parser) parseUnaryExpression() ast.Expr {
-	switch p.currentKind() {
-	case token.Plus, token.Minus, token.Not, token.BitwiseNot:
-		fallthrough
-	case token.Delete, token.Void, token.Typeof:
-		tkn := p.currentKind()
+	kind := p.currentKind()
+	if isUnaryOperator(kind) {
 		idx := p.currentOffset()
 		p.next()
-		return p.alloc.UnaryExpression(tkn, idx, p.alloc.Expression(p.parseUnaryExpression()))
-	case token.Await:
+		return p.alloc.UnaryExpression(toUnaryOperator(kind), idx, p.alloc.Expression(p.parseUnaryExpression()))
+	}
+
+	if kind == token.Await {
 		if p.scope.allowAwait {
 			idx := p.currentOffset()
 			p.next()
@@ -737,7 +731,6 @@ func (p *parser) parseUnaryExpression() ast.Expr {
 // minPrecedence is the minimum precedence level to parse (operators with lower
 // or equal precedence will stop the loop, depending on associativity).
 //
-// This is a 1:1 port of oxc's parse_binary_expression_or_higher().
 // See: https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 func (p *parser) parseBinaryExpressionOrHigher(minPrecedence Precedence) ast.Expr {
 	lhsParenthesized := p.currentKind() == token.LeftParenthesis
@@ -790,16 +783,17 @@ func (p *parser) parseBinaryExpressionRest(lhs ast.Expr, lhsParenthesized bool, 
 		if isLogicalOperator(kind) {
 			// Mixed coalesce check: ?? cannot be mixed with && or || without parentheses.
 			if kind == token.Coalesce {
-				if bexp, isBin := rhs.(*ast.BinaryExpression); isBin && !rhsParenthesized &&
-					(bexp.Operator == token.LogicalAnd || bexp.Operator == token.LogicalOr) {
+				if lexp, ok := rhs.(*ast.LogicalExpression); ok && !rhsParenthesized &&
+					(lexp.Operator == ast.LogicalAnd || lexp.Operator == ast.LogicalOr) {
 					p.errorf("Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 				}
-				if bexp, isBin := lhs.(*ast.BinaryExpression); isBin && !lhsParenthesized &&
-					(bexp.Operator == token.LogicalAnd || bexp.Operator == token.LogicalOr) {
+				if lexp, ok := lhs.(*ast.LogicalExpression); ok && !lhsParenthesized &&
+					(lexp.Operator == ast.LogicalAnd || lexp.Operator == ast.LogicalOr) {
 					p.errorf("Logical expressions and coalesce expressions cannot be mixed. Wrap either by parentheses")
 				}
 			}
-		} else {
+			lhs = p.alloc.LogicalExpression(toLogicalOperator(kind), p.alloc.Expression(lhs), p.alloc.Expression(rhs))
+		} else if isBinaryOperator(kind) {
 			// Check for unparenthesized unary/await before **
 			if kind == token.Exponent && !lhsParenthesized {
 				switch lhs.(type) {
@@ -807,8 +801,10 @@ func (p *parser) parseBinaryExpressionRest(lhs ast.Expr, lhsParenthesized bool, 
 					p.errorf("Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence")
 				}
 			}
+			lhs = p.alloc.BinaryExpression(toBinaryOperator(kind), p.alloc.Expression(lhs), p.alloc.Expression(rhs))
+		} else {
+			break
 		}
-		lhs = p.alloc.BinaryExpression(kind, p.alloc.Expression(lhs), p.alloc.Expression(rhs))
 
 		// After first iteration, lhs is a BinaryExpression we just built — not parenthesized.
 		lhsParenthesized = false
@@ -818,7 +814,6 @@ func (p *parser) parseBinaryExpressionRest(lhs ast.Expr, lhsParenthesized bool, 
 }
 
 // parsePrivateInExpression handles the `#identifier in expr` syntax.
-// This is a 1:1 port of oxc's parse_private_in_expression().
 func (p *parser) parsePrivateInExpression(minPrecedence Precedence) ast.Expr {
 	left := p.alloc.PrivateIdentifier(p.alloc.Identifier(p.currentOffset(), p.currentString()))
 	p.next()
@@ -830,7 +825,7 @@ func (p *parser) parsePrivateInExpression(minPrecedence Precedence) ast.Expr {
 
 	p.next() // consume `in`
 	rhs := p.parseBinaryExpressionOrHigher(PrecedenceCompare)
-	return p.alloc.BinaryExpression(token.In, p.alloc.Expression(left), p.alloc.Expression(rhs))
+	return p.alloc.BinaryExpression(ast.BinaryIn, p.alloc.Expression(left), p.alloc.Expression(rhs))
 }
 
 func (p *parser) parseConditionalExpression() ast.Expr {
@@ -911,8 +906,8 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 	}
 	left := p.parseConditionalExpression()
 	kind := p.currentKind()
-	operator := assignToOperator[kind]
-	if operator == 0 && kind == token.Arrow {
+
+	if kind == token.Arrow {
 		var paramList *ast.ParameterList
 		if id, ok := left.(*ast.Identifier); ok {
 			paramList = p.alloc.ParameterList(ast.VariableDeclarators{{Target: p.alloc.BindingTarget(id)}}, nil, id.Idx, id.Idx1()-1)
@@ -950,7 +945,9 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 		return p.alloc.Expression(p.parseArrowFunction(start, paramList, async))
 	}
 
-	if operator != 0 {
+	if isAssignOperator(kind) {
+		operator := toAssignOperator(kind)
+
 		idx := p.currentOffset()
 		p.next()
 		ok := false
@@ -958,12 +955,12 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 		case *ast.Identifier, *ast.PrivateDotExpression, *ast.MemberExpression:
 			ok = true
 		case *ast.ArrayLiteral:
-			if !parenthesis && operator == token.Assign {
+			if !parenthesis && operator == ast.AssignmentAssign {
 				left = p.reinterpretAsArrayAssignmentPattern(l)
 				ok = true
 			}
 		case *ast.ObjectLiteral:
-			if !parenthesis && operator == token.Assign {
+			if !parenthesis && operator == ast.AssignmentAssign {
 				left = p.reinterpretAsObjectAssignmentPattern(l)
 				ok = true
 			}
@@ -1167,7 +1164,7 @@ func (p *parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) ast.
 func (p *parser) reinterpretAsAssignmentElement(expr ast.Expr) ast.Expr {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
-		if expr.Operator == token.Assign {
+		if expr.Operator == ast.AssignmentAssign {
 			expr.Left = p.alloc.Expression(p.reinterpretAsDestructAssignTarget(expr.Left.Expr))
 			return expr
 		} else {
@@ -1182,7 +1179,7 @@ func (p *parser) reinterpretAsAssignmentElement(expr ast.Expr) ast.Expr {
 func (p *parser) reinterpretAsBindingElement(expr ast.Expr) ast.Expr {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
-		if expr.Operator == token.Assign {
+		if expr.Operator == ast.AssignmentAssign {
 			expr.Left = p.alloc.Expression(p.reinterpretAsDestructBindingTarget(expr.Left.Expr))
 			return expr
 		} else {
@@ -1197,7 +1194,7 @@ func (p *parser) reinterpretAsBindingElement(expr ast.Expr) ast.Expr {
 func (p *parser) reinterpretAsBinding(expr ast.Expr) ast.VariableDeclarator {
 	switch expr := expr.(type) {
 	case *ast.AssignExpression:
-		if expr.Operator == token.Assign {
+		if expr.Operator == ast.AssignmentAssign {
 			return ast.VariableDeclarator{
 				Target:      p.alloc.BindingTarget(p.reinterpretAsDestructBindingTarget(expr.Left.Expr)),
 				Initializer: expr.Right,

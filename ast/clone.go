@@ -177,6 +177,8 @@ func (n *Expression) Clone() *Expression {
 		clonedExpr = expr.Clone()
 	case *InvalidExpression:
 		clonedExpr = expr.Clone()
+	case *LogicalExpression:
+		clonedExpr = expr.Clone()
 	case *MemberExpression:
 		clonedExpr = expr.Clone()
 	case *MetaProperty:
@@ -304,6 +306,9 @@ func (n *InvalidExpression) Clone() *InvalidExpression {
 func (n *LabelledStatement) Clone() *LabelledStatement {
 	return &LabelledStatement{Label: n.Label.Clone(), Statement: n.Statement.Clone(), Colon: n.Colon}
 }
+func (n *LogicalExpression) Clone() *LogicalExpression {
+	return &LogicalExpression{Left: n.Left.Clone(), Right: n.Right.Clone(), Operator: n.Operator}
+}
 func (n *MemberExpression) Clone() *MemberExpression {
 	return &MemberExpression{Object: n.Object.Clone(), Property: n.Property.Clone()}
 }
@@ -365,6 +370,8 @@ func (n *ObjectPattern) Clone() *ObjectPattern {
 	case *Identifier:
 		clonedExpr = expr.Clone()
 	case *InvalidExpression:
+		clonedExpr = expr.Clone()
+	case *LogicalExpression:
 		clonedExpr = expr.Clone()
 	case *MemberExpression:
 		clonedExpr = expr.Clone()
@@ -453,6 +460,8 @@ func (n *ParameterList) Clone() *ParameterList {
 	case *Identifier:
 		clonedExpr = expr.Clone()
 	case *InvalidExpression:
+		clonedExpr = expr.Clone()
+	case *LogicalExpression:
 		clonedExpr = expr.Clone()
 	case *MemberExpression:
 		clonedExpr = expr.Clone()

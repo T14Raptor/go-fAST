@@ -30,6 +30,7 @@ type nodeAllocator struct {
 	nullLit   miniArena[ast.NullLiteral]
 	regexpLit miniArena[ast.RegExpLiteral]
 	binExpr   miniArena[ast.BinaryExpression]
+	logExpr   miniArena[ast.LogicalExpression]
 	unaryExpr miniArena[ast.UnaryExpression]
 	updateExp miniArena[ast.UpdateExpression]
 	assignExp miniArena[ast.AssignExpression]
@@ -133,6 +134,7 @@ func newNodeAllocator() nodeAllocator {
 
 		// Expressions.
 		binExpr:   newArena[ast.BinaryExpression](256),
+		logExpr:   newArena[ast.LogicalExpression](128),
 		unaryExpr: newArena[ast.UnaryExpression](64),
 		updateExp: newArena[ast.UpdateExpression](64),
 		assignExp: newArena[ast.AssignExpression](64),
@@ -305,25 +307,31 @@ func (a *nodeAllocator) RegExpLiteral(idx ast.Idx, literal, pattern, flags strin
 	return n
 }
 
-func (a *nodeAllocator) BinaryExpression(op token.Token, left, right *ast.Expression) *ast.BinaryExpression {
+func (a *nodeAllocator) BinaryExpression(op ast.BinaryOperator, left, right *ast.Expression) *ast.BinaryExpression {
 	n := a.binExpr.make()
 	*n = ast.BinaryExpression{Operator: op, Left: left, Right: right}
 	return n
 }
 
-func (a *nodeAllocator) UnaryExpression(op token.Token, idx ast.Idx, operand *ast.Expression) *ast.UnaryExpression {
+func (a *nodeAllocator) LogicalExpression(op ast.LogicalOperator, left, right *ast.Expression) *ast.LogicalExpression {
+	n := a.logExpr.make()
+	*n = ast.LogicalExpression{Operator: op, Left: left, Right: right}
+	return n
+}
+
+func (a *nodeAllocator) UnaryExpression(op ast.UnaryOperator, idx ast.Idx, operand *ast.Expression) *ast.UnaryExpression {
 	n := a.unaryExpr.make()
 	*n = ast.UnaryExpression{Operator: op, Idx: idx, Operand: operand}
 	return n
 }
 
-func (a *nodeAllocator) UpdateExpression(op token.Token, idx ast.Idx, operand *ast.Expression, postfix bool) *ast.UpdateExpression {
+func (a *nodeAllocator) UpdateExpression(op ast.UpdateOperator, idx ast.Idx, operand *ast.Expression, postfix bool) *ast.UpdateExpression {
 	n := a.updateExp.make()
 	*n = ast.UpdateExpression{Operator: op, Idx: idx, Operand: operand, Postfix: postfix}
 	return n
 }
 
-func (a *nodeAllocator) AssignExpression(op token.Token, left, right *ast.Expression) *ast.AssignExpression {
+func (a *nodeAllocator) AssignExpression(op ast.AssignmentOperator, left, right *ast.Expression) *ast.AssignExpression {
 	n := a.assignExp.make()
 	*n = ast.AssignExpression{Operator: op, Left: left, Right: right}
 	return n

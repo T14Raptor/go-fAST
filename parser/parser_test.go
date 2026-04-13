@@ -8,7 +8,6 @@ import (
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/generator"
 	"github.com/t14raptor/go-fast/parser"
-	"github.com/t14raptor/go-fast/token"
 )
 
 func TestIssue26(t *testing.T) {
@@ -722,7 +721,7 @@ func TestForStatementFullAST(t *testing.T) {
 	if !ok {
 		t.Fatalf("test type = %T; want *BinaryExpression", forStmt.Test.Expr)
 	}
-	if bin.Operator != token.Less {
+	if bin.Operator != ast.BinaryLessThan {
 		t.Errorf("test op = %v; want <", bin.Operator)
 	}
 
@@ -1489,39 +1488,39 @@ func TestNumericLiteralInExpressions(t *testing.T) {
 func TestPrecedenceMultiplicativeOverAdditive(t *testing.T) {
 	p := mustParse(t, "var x = a + b * c")
 	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
-	if bin.Operator != token.Plus {
+	if bin.Operator != ast.BinaryAddition {
 		t.Fatalf("top operator = %v; want +", bin.Operator)
 	}
 	right := bin.Right.Expr.(*ast.BinaryExpression)
-	if right.Operator != token.Multiply {
+	if right.Operator != ast.BinaryMultiplication {
 		t.Errorf("right operator = %v; want *", right.Operator)
 	}
 }
 
 func TestPrecedenceComparisonOverLogical(t *testing.T) {
 	p := mustParse(t, "var x = a < b && c > d")
-	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
-	if bin.Operator != token.LogicalAnd {
+	bin := initializerExpr(firstStmt(p, 0)).(*ast.LogicalExpression)
+	if bin.Operator != ast.LogicalAnd {
 		t.Fatalf("top operator = %v; want &&", bin.Operator)
 	}
 	left := bin.Left.Expr.(*ast.BinaryExpression)
-	if left.Operator != token.Less {
+	if left.Operator != ast.BinaryLessThan {
 		t.Errorf("left operator = %v; want <", left.Operator)
 	}
 	right := bin.Right.Expr.(*ast.BinaryExpression)
-	if right.Operator != token.Greater {
+	if right.Operator != ast.BinaryGreaterThan {
 		t.Errorf("right operator = %v; want >", right.Operator)
 	}
 }
 
 func TestPrecedenceOrOverAnd(t *testing.T) {
 	p := mustParse(t, "var x = a || b && c")
-	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
-	if bin.Operator != token.LogicalOr {
+	bin := initializerExpr(firstStmt(p, 0)).(*ast.LogicalExpression)
+	if bin.Operator != ast.LogicalOr {
 		t.Fatalf("top operator = %v; want ||", bin.Operator)
 	}
-	right := bin.Right.Expr.(*ast.BinaryExpression)
-	if right.Operator != token.LogicalAnd {
+	right := bin.Right.Expr.(*ast.LogicalExpression)
+	if right.Operator != ast.LogicalAnd {
 		t.Errorf("right operator = %v; want &&", right.Operator)
 	}
 }
@@ -1540,15 +1539,15 @@ func TestPrecedenceTernaryOverAssignment(t *testing.T) {
 
 func TestPrecedenceUnaryOverBinary(t *testing.T) {
 	p := mustParse(t, "var x = !a && b")
-	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
-	if bin.Operator != token.LogicalAnd {
+	bin := initializerExpr(firstStmt(p, 0)).(*ast.LogicalExpression)
+	if bin.Operator != ast.LogicalAnd {
 		t.Fatalf("top operator = %v; want &&", bin.Operator)
 	}
 	unary, ok := bin.Left.Expr.(*ast.UnaryExpression)
 	if !ok {
 		t.Fatalf("left type = %T; want *UnaryExpression", bin.Left.Expr)
 	}
-	if unary.Operator != token.Not {
+	if unary.Operator != ast.UnaryLogicalNot {
 		t.Errorf("unary operator = %v; want !", unary.Operator)
 	}
 }
@@ -1556,11 +1555,11 @@ func TestPrecedenceUnaryOverBinary(t *testing.T) {
 func TestPrecedenceGrouping(t *testing.T) {
 	p := mustParse(t, "var x = (a + b) * c")
 	bin := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
-	if bin.Operator != token.Multiply {
+	if bin.Operator != ast.BinaryMultiplication {
 		t.Fatalf("top operator = %v; want *", bin.Operator)
 	}
 	left := bin.Left.Expr.(*ast.BinaryExpression)
-	if left.Operator != token.Plus {
+	if left.Operator != ast.BinaryAddition {
 		t.Errorf("grouped operator = %v; want +", left.Operator)
 	}
 }
@@ -1569,27 +1568,27 @@ func TestPrecedenceBitwiseChain(t *testing.T) {
 	// a | b ^ c & d  =>  a | (b ^ (c & d))
 	p := mustParse(t, "var x = a | b ^ c & d")
 	or := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
-	if or.Operator != token.Or {
+	if or.Operator != ast.BinaryBitwiseOR {
 		t.Fatalf("top = %v; want |", or.Operator)
 	}
 	xor := or.Right.Expr.(*ast.BinaryExpression)
-	if xor.Operator != token.ExclusiveOr {
+	if xor.Operator != ast.BinaryBitwiseXOR {
 		t.Fatalf("right = %v; want ^", xor.Operator)
 	}
 	and := xor.Right.Expr.(*ast.BinaryExpression)
-	if and.Operator != token.And {
+	if and.Operator != ast.BinaryBitwiseAnd {
 		t.Errorf("inner = %v; want &", and.Operator)
 	}
 }
 
 func TestPrecedenceNullishCoalescing(t *testing.T) {
 	p := mustParse(t, "var x = a ?? b ?? c")
-	outer := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
-	if outer.Operator != token.Coalesce {
+	outer := initializerExpr(firstStmt(p, 0)).(*ast.LogicalExpression)
+	if outer.Operator != ast.LogicalCoalesce {
 		t.Fatalf("top = %v; want ??", outer.Operator)
 	}
-	inner := outer.Left.Expr.(*ast.BinaryExpression)
-	if inner.Operator != token.Coalesce {
+	inner := outer.Left.Expr.(*ast.LogicalExpression)
+	if inner.Operator != ast.LogicalCoalesce {
 		t.Errorf("left = %v; want ??", inner.Operator)
 	}
 }
@@ -1597,14 +1596,14 @@ func TestPrecedenceNullishCoalescing(t *testing.T) {
 func TestPrecedenceExponentiationRightAssociative(t *testing.T) {
 	p := mustParse(t, "var x = a ** b ** c")
 	outer := initializerExpr(firstStmt(p, 0)).(*ast.BinaryExpression)
-	if outer.Operator != token.Exponent {
+	if outer.Operator != ast.BinaryExponential {
 		t.Fatalf("top = %v; want **", outer.Operator)
 	}
 	inner, ok := outer.Right.Expr.(*ast.BinaryExpression)
 	if !ok {
 		t.Fatalf("right = %T; want *BinaryExpression", outer.Right.Expr)
 	}
-	if inner.Operator != token.Exponent {
+	if inner.Operator != ast.BinaryExponential {
 		t.Errorf("right op = %v; want **", inner.Operator)
 	}
 }
@@ -1792,12 +1791,12 @@ func TestBareOfIdentifierParses(t *testing.T) {
 func TestForOfWithIdentifierNamedOfParses(t *testing.T) {
 	p := mustParse(t, "for (let of of arr) {}")
 	forOf := firstStmt(p, 0).(*ast.ForOfStatement)
-	into := forOf.Into.Unwrap().(*ast.VariableDeclaration)
-	binding := into.List[0].Target.Unwrap().(*ast.Identifier)
+	into := forOf.Into.Into.(*ast.VariableDeclaration)
+	binding := into.List[0].Target.Target.(*ast.Identifier)
 	if binding.Name != "of" {
 		t.Fatalf("loop binding = %q; want of", binding.Name)
 	}
-	if id := forOf.Source.MustIdent(); id.Name != "arr" {
+	if id := forOf.Source.Expr.(*ast.Identifier); id.Name != "arr" {
 		t.Errorf("source = %q; want arr", id.Name)
 	}
 }
@@ -1820,24 +1819,24 @@ func TestEscapedOfDoesNotCountAsForOfKeyword(t *testing.T) {
 func TestAssignmentOperatorsAST(t *testing.T) {
 	ops := []struct {
 		code string
-		tok  token.Token
+		tok  ast.AssignmentOperator
 	}{
-		{"x = 1", token.Assign},
-		{"x += 1", token.Plus},
-		{"x -= 1", token.Minus},
-		{"x *= 1", token.Multiply},
-		{"x /= 1", token.Slash},
-		{"x %= 1", token.Remainder},
-		{"x **= 1", token.Exponent},
-		{"x <<= 1", token.ShiftLeft},
-		{"x >>= 1", token.ShiftRight},
-		{"x >>>= 1", token.UnsignedShiftRight},
-		{"x &= 1", token.And},
-		{"x |= 1", token.Or},
-		{"x ^= 1", token.ExclusiveOr},
-		{"x &&= 1", token.LogicalAnd},
-		{"x ||= 1", token.LogicalOr},
-		{"x ??= 1", token.Coalesce},
+		{"x = 1", ast.AssignmentAssign},
+		{"x += 1", ast.AssignmentAddition},
+		{"x -= 1", ast.AssignmentSubtraction},
+		{"x *= 1", ast.AssignmentMultiplication},
+		{"x /= 1", ast.AssignmentDivision},
+		{"x %= 1", ast.AssignmentRemainder},
+		{"x **= 1", ast.AssignmentExponential},
+		{"x <<= 1", ast.AssignmentShiftLeft},
+		{"x >>= 1", ast.AssignmentShiftRight},
+		{"x >>>= 1", ast.AssignmentUnsignedShiftRight},
+		{"x &= 1", ast.AssignmentBitwiseAnd},
+		{"x |= 1", ast.AssignmentBitwiseOR},
+		{"x ^= 1", ast.AssignmentBitwiseXOR},
+		{"x &&= 1", ast.AssignmentLogicalAnd},
+		{"x ||= 1", ast.AssignmentLogicalOr},
+		{"x ??= 1", ast.AssignmentLogicalNullish},
 	}
 	for _, tt := range ops {
 		p := mustParse(t, tt.code)
@@ -1855,15 +1854,15 @@ func TestAssignmentOperatorsAST(t *testing.T) {
 func TestUnaryExpressionsAST(t *testing.T) {
 	tests := []struct {
 		code string
-		op   token.Token
+		op   ast.UnaryOperator
 	}{
-		{"!x", token.Not},
-		{"~x", token.BitwiseNot},
-		{"+x", token.Plus},
-		{"-x", token.Minus},
-		{"typeof x", token.Typeof},
-		{"void x", token.Void},
-		{"delete x", token.Delete},
+		{"!x", ast.UnaryLogicalNot},
+		{"~x", ast.UnaryBitwiseNot},
+		{"+x", ast.UnaryPlus},
+		{"-x", ast.UnaryNegation},
+		{"typeof x", ast.UnaryTypeof},
+		{"void x", ast.UnaryVoid},
+		{"delete x", ast.UnaryDelete},
 	}
 	for _, tt := range tests {
 		p := mustParse(t, tt.code)
@@ -1877,13 +1876,13 @@ func TestUnaryExpressionsAST(t *testing.T) {
 func TestUpdateExpressionsAST(t *testing.T) {
 	tests := []struct {
 		code    string
-		op      token.Token
+		op      ast.UpdateOperator
 		postfix bool
 	}{
-		{"++x", token.Increment, false},
-		{"--x", token.Decrement, false},
-		{"x++", token.Increment, true},
-		{"x--", token.Decrement, true},
+		{"++x", ast.UpdateIncrement, false},
+		{"--x", ast.UpdateDecrement, false},
+		{"x++", ast.UpdateIncrement, true},
+		{"x--", ast.UpdateDecrement, true},
 	}
 	for _, tt := range tests {
 		p := mustParse(t, tt.code)
@@ -1908,7 +1907,7 @@ func TestDoWhileAST(t *testing.T) {
 		t.Fatal("test is nil")
 	}
 	bin := dw.Test.Expr.(*ast.BinaryExpression)
-	if bin.Operator != token.Less {
+	if bin.Operator != ast.BinaryLessThan {
 		t.Errorf("test op = %v; want <", bin.Operator)
 	}
 }
@@ -1917,7 +1916,7 @@ func TestWhileAST(t *testing.T) {
 	p := mustParse(t, "while (x > 0) { x-- }")
 	w := firstStmt(p, 0).(*ast.WhileStatement)
 	bin := w.Test.Expr.(*ast.BinaryExpression)
-	if bin.Operator != token.Greater {
+	if bin.Operator != ast.BinaryGreaterThan {
 		t.Errorf("test op = %v; want >", bin.Operator)
 	}
 }
@@ -2008,7 +2007,7 @@ func TestComputedPropertyKey(t *testing.T) {
 		t.Error("computed = false; want true")
 	}
 	bin := pk.Key.Expr.(*ast.BinaryExpression)
-	if bin.Operator != token.Plus {
+	if bin.Operator != ast.BinaryAddition {
 		t.Errorf("key op = %v; want +", bin.Operator)
 	}
 }

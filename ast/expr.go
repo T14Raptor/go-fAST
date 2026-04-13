@@ -1,9 +1,5 @@
 package ast
 
-import (
-	"github.com/t14raptor/go-fast/token"
-)
-
 type (
 	Expressions []Expression
 
@@ -66,7 +62,7 @@ type (
 		Left  *Expression
 		Right *Expression
 
-		Operator token.Token
+		Operator AssignmentOperator
 	}
 
 	InvalidExpression struct {
@@ -78,7 +74,14 @@ type (
 		Left  *Expression
 		Right *Expression
 
-		Operator token.Token
+		Operator BinaryOperator
+	}
+
+	LogicalExpression struct {
+		Left  *Expression
+		Right *Expression
+
+		Operator LogicalOperator
 	}
 
 	MemberExpression struct {
@@ -207,7 +210,7 @@ type (
 	UnaryExpression struct {
 		Operand *Expression
 
-		Operator token.Token
+		Operator UnaryOperator
 
 		Idx Idx
 	}
@@ -215,7 +218,7 @@ type (
 	UpdateExpression struct {
 		Operand *Expression
 
-		Operator token.Token
+		Operator UpdateOperator
 		Postfix  bool
 
 		Idx Idx // If a prefix operation
@@ -245,6 +248,7 @@ func (*YieldExpression) _expr()       {}
 func (*AwaitExpression) _expr()       {}
 func (*InvalidExpression) _expr()     {}
 func (*BinaryExpression) _expr()      {}
+func (*LogicalExpression) _expr()     {}
 func (*CallExpression) _expr()        {}
 func (*ConditionalExpression) _expr() {}
 func (*MemberExpression) _expr()      {}
