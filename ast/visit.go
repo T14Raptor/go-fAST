@@ -377,7 +377,6 @@ func (n *AssignExpression) VisitWith(v Visitor) {
 func (n *AssignExpression) VisitChildrenWith(v Visitor) {
 	n.Left.VisitWith(v)
 	n.Right.VisitWith(v)
-	n.Operator.VisitWith(v)
 }
 func (n *AwaitExpression) VisitWith(v Visitor) {
 	v.VisitAwaitExpression(n)
@@ -401,7 +400,6 @@ func (n *BinaryExpression) VisitWith(v Visitor) {
 func (n *BinaryExpression) VisitChildrenWith(v Visitor) {
 	n.Left.VisitWith(v)
 	n.Right.VisitWith(v)
-	n.Operator.VisitWith(v)
 }
 func (n *BindingTarget) VisitWith(v Visitor) {
 	v.VisitBindingTarget(n)
@@ -663,7 +661,6 @@ func (n *LogicalExpression) VisitWith(v Visitor) {
 func (n *LogicalExpression) VisitChildrenWith(v Visitor) {
 	n.Left.VisitWith(v)
 	n.Right.VisitWith(v)
-	n.Operator.VisitWith(v)
 }
 func (n *MemberExpression) VisitWith(v Visitor) {
 	v.VisitMemberExpression(n)
@@ -900,14 +897,12 @@ func (n *UnaryExpression) VisitWith(v Visitor) {
 }
 func (n *UnaryExpression) VisitChildrenWith(v Visitor) {
 	n.Operand.VisitWith(v)
-	n.Operator.VisitWith(v)
 }
 func (n *UpdateExpression) VisitWith(v Visitor) {
 	v.VisitUpdateExpression(n)
 }
 func (n *UpdateExpression) VisitChildrenWith(v Visitor) {
 	n.Operand.VisitWith(v)
-	n.Operator.VisitWith(v)
 }
 func (n *VariableDeclaration) VisitWith(v Visitor) {
 	v.VisitVariableDeclaration(n)

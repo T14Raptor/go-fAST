@@ -259,7 +259,8 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			}
 
 			switch fieldType.Name {
-			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "float64":
+			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "float64",
+				"UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator":
 			default:
 				fmt.Println(fieldType.Name)
 				children = append(children, newChild(field.Names[0].Name, optional))
