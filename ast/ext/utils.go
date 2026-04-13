@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
 )
 
 // classHasSideEffect returns true if the class may have side effects.
@@ -199,7 +198,7 @@ func (v *literalVisitor) VisitUnaryExpression(n *ast.UnaryExpression) {
 		return
 	}
 	switch n.Operator {
-	case token.Minus, token.Plus, token.BitwiseNot, token.Not:
+	case ast.UnaryNegation, ast.UnaryPlus, ast.UnaryBitwiseNot, ast.UnaryLogicalNot:
 		v.cost++
 		n.VisitChildrenWith(v)
 	default:
@@ -253,18 +252,19 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 	case *ast.ConditionalExpression:
 		*to = append(*to, *expr)
 	case *ast.UnaryExpression:
-		if e.Operator == token.Typeof {
+		if e.Operator == ast.UnaryTypeof {
 			if _, ok := e.Operand.Expr.(*ast.Identifier); ok {
 				return
 			}
 		}
 		ExtractSideEffectsTo(to, e.Operand)
 	case *ast.BinaryExpression:
-		if e.Operator.MayShortCircuit() {
+		ExtractSideEffectsTo(to, e.Left)
+		ExtractSideEffectsTo(to, e.Right)
+	case *ast.LogicalExpression:
+		switch e.Operator {
+		case ast.LogicalCoalesce, ast.LogicalOr, ast.LogicalAnd:
 			*to = append(*to, *expr)
-		} else {
-			ExtractSideEffectsTo(to, e.Left)
-			ExtractSideEffectsTo(to, e.Right)
 		}
 	case *ast.SequenceExpression:
 		for _, expr := range e.Sequence {

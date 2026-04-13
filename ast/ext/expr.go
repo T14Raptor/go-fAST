@@ -9,7 +9,6 @@ import (
 
 	"github.com/nukilabs/ftoa"
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/token"
 )
 
 // IsString returns true if the expression is a potential string value.
@@ -18,15 +17,15 @@ func IsString(n *ast.Expression) bool {
 	case *ast.StringLiteral, *ast.TemplateLiteral:
 		return true
 	case *ast.UnaryExpression:
-		if n.Operator == token.Typeof {
+		if n.Operator == ast.UnaryTypeof {
 			return true
 		}
 	case *ast.BinaryExpression:
-		if n.Operator == token.Plus {
+		if n.Operator == ast.BinaryAddition {
 			return IsString(n.Left) || IsString(n.Right)
 		}
 	case *ast.AssignExpression:
-		if n.Operator == token.Assign || n.Operator == token.AddAssign {
+		if n.Operator == ast.AssignmentAssign || n.Operator == ast.AssignmentAddition {
 			return IsString(n.Right)
 		}
 	case *ast.SequenceExpression:
@@ -59,7 +58,7 @@ func IsUndefined(expr *ast.Expression) bool {
 // IsVoid returns true if expr is a void operator.
 func IsVoid(expr *ast.Expression) bool {
 	if unary, ok := expr.Expr.(*ast.UnaryExpression); ok {
-		return unary.Operator == token.Void
+		return unary.Operator == ast.UnaryVoid
 	}
 	return false
 }
@@ -88,22 +87,22 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 
 	switch e := expr.Expr.(type) {
 	case *ast.AssignExpression:
-		if e.Operator == token.Assign {
+		if e.Operator == ast.AssignmentAssign {
 			v, _ := CastToBool(e.Right)
 			return v, false
 		}
 	case *ast.UnaryExpression:
 		switch e.Operator {
-		case token.Minus:
+		case ast.UnaryNegation:
 			if n := AsPureNumber(e.Operand); n.Known() {
 				value = BoolValue{Known(!(math.IsNaN(n.Val()) || n.Val() == 0))}
 			} else {
 				return BoolValue{Unknown[bool]()}, false
 			}
-		case token.Not:
+		case ast.UnaryLogicalNot:
 			b, pure := CastToBool(e.Operand)
 			return b.Not(), pure
-		case token.Void:
+		case ast.UnaryVoid:
 			value = BoolValue{}
 		}
 	case *ast.SequenceExpression:
@@ -112,7 +111,7 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 		}
 	case *ast.BinaryExpression:
 		switch e.Operator {
-		case token.Minus:
+		case ast.BinarySubtraction:
 			ln, lp := CastToNumber(e.Left)
 			rn, rp := CastToNumber(e.Right)
 
@@ -120,7 +119,7 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 				return BoolValue{Known(ln.Val() != rn.Val())}, lp && rp
 			}
 			return BoolValue{Unknown[bool]()}, lp && rp
-		case token.Slash:
+		case ast.BinaryDivision:
 			ln := AsPureNumber(e.Left)
 			rn := AsPureNumber(e.Right)
 			if ln.Known() && rn.Known() {
@@ -136,7 +135,7 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 				return BoolValue{Known(v != 0.0)}, true
 			}
 			value = BoolValue{Unknown[bool]()}
-		case token.And, token.Or:
+		case ast.BinaryBitwiseAnd, ast.BinaryBitwiseOR:
 			if GetType(e.Left).Value != Known[Type](BoolType{}) || GetType(e.Right).Value != Known[Type](BoolType{}) {
 				return BoolValue{Unknown[bool]()}, false
 			}
@@ -146,7 +145,7 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 			rv, rp := CastToBool(e.Right)
 
 			var v BoolValue
-			if e.Operator == token.And {
+			if e.Operator == ast.BinaryBitwiseAnd {
 				v = lv.And(rv)
 			} else {
 				v = lv.Or(rv)
@@ -155,7 +154,20 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 				return v, true
 			}
 			value = v
-		case token.LogicalOr:
+		case ast.BinaryAddition:
+			if strLit, ok := e.Left.Expr.(*ast.StringLiteral); ok && strLit.Value != "" {
+				return BoolValue{Known(true)}, false
+			}
+			if strLit, ok := e.Right.Expr.(*ast.StringLiteral); ok && strLit.Value != "" {
+				return BoolValue{Known(true)}, false
+			}
+			value = BoolValue{Unknown[bool]()}
+		default:
+			value = BoolValue{Unknown[bool]()}
+		}
+	case *ast.LogicalExpression:
+		switch e.Operator {
+		case ast.LogicalOr:
 			lv, lp := CastToBool(e.Left)
 			if lv.Value == Known(true) {
 				return lv, lp
@@ -165,7 +177,7 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 				return rv, lp && rp
 			}
 			value = BoolValue{Unknown[bool]()}
-		case token.LogicalAnd:
+		case ast.LogicalAnd:
 			lv, lp := CastToBool(e.Left)
 			if lv.Value == Known(false) {
 				return lv, lp
@@ -174,16 +186,6 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 			if rv.Value == Known(false) {
 				return rv, lp && rp
 			}
-			value = BoolValue{Unknown[bool]()}
-		case token.Plus:
-			if strLit, ok := e.Left.Expr.(*ast.StringLiteral); ok && strLit.Value != "" {
-				return BoolValue{Known(true)}, false
-			}
-			if strLit, ok := e.Right.Expr.(*ast.StringLiteral); ok && strLit.Value != "" {
-				return BoolValue{Known(true)}, false
-			}
-			value = BoolValue{Unknown[bool]()}
-		default:
 			value = BoolValue{Unknown[bool]()}
 		}
 	case *ast.FunctionLiteral, *ast.ClassLiteral, *ast.NewExpression, *ast.ArrayLiteral, *ast.ObjectLiteral:
@@ -255,12 +257,12 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 		return Unknown[float64](), true
 	case *ast.UnaryExpression:
 		switch e.Operator {
-		case token.Minus:
+		case ast.UnaryNegation:
 			if n, pure := CastToNumber(e.Operand); n.Known() && pure {
 				return Known(-n.val), true
 			}
 			return Unknown[float64](), false
-		case token.Not:
+		case ast.UnaryLogicalNot:
 			if b, pure := CastToBool(e.Operand); b.Known() && pure {
 				if b.val {
 					return Value[float64]{}, true
@@ -268,7 +270,7 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 				return Known(1.0), true
 			}
 			return Unknown[float64](), false
-		case token.Void:
+		case ast.UnaryVoid:
 			if MayHaveSideEffects(e.Operand) {
 				return Known(math.NaN()), false
 			} else {
@@ -324,9 +326,9 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		}
 	case *ast.UnaryExpression:
 		switch e.Operator {
-		case token.Void:
+		case ast.UnaryVoid:
 			return Known("undefined")
-		case token.Not:
+		case ast.UnaryLogicalNot:
 			if b := AsPureBool(e.Operand); b.Known() {
 				return Known(fmt.Sprint(!b.Val()))
 			}
@@ -342,7 +344,7 @@ func AsPureString(expr *ast.Expression) Value[string] {
 			case *ast.NullLiteral:
 				sb.WriteString("")
 			case *ast.UnaryExpression:
-				if e.Operator == token.Void {
+				if e.Operator == ast.UnaryVoid {
 					if MayHaveSideEffects(e.Operand) {
 						return Unknown[string]()
 					}
@@ -422,15 +424,15 @@ func GetType(expr *ast.Expression) TypeValue {
 	switch e := expr.Expr.(type) {
 	case *ast.AssignExpression:
 		switch e.Operator {
-		case token.Assign:
+		case ast.AssignmentAssign:
 			return GetType(e.Right)
-		case token.AddAssign:
+		case ast.AssignmentAddition:
 			if rt := GetType(e.Right); !rt.Unknown() && (rt.Val() == StringType{}) {
 				return TypeValue{Known[Type](StringType{})}
 			}
-		case token.AndAssign, token.ExclusiveOrAssign, token.OrAssign,
-			token.ShiftLeftAssign, token.ShiftRightAssign, token.UnsignedShiftRightAssign,
-			token.SubtractAssign, token.MultiplyAssign, token.ExponentAssign, token.QuotientAssign, token.RemainderAssign:
+		case ast.AssignmentLogicalAnd, ast.AssignmentBitwiseXOR, ast.AssignmentBitwiseOR, ast.AssignmentShiftLeft,
+			ast.AssignmentShiftRight, ast.AssignmentUnsignedShiftRight, ast.AssignmentSubtraction,
+			ast.AssignmentMultiplication, ast.AssignmentExponential, ast.AssignmentDivision, ast.AssignmentRemainder:
 			return TypeValue{Known[Type](NumberType{})}
 		}
 	case *ast.MemberExpression:
@@ -452,11 +454,7 @@ func GetType(expr *ast.Expression) TypeValue {
 		}
 	case *ast.BinaryExpression:
 		switch e.Operator {
-		case token.LogicalAnd, token.LogicalOr:
-			if lt, rt := GetType(e.Left), GetType(e.Right); !lt.Unknown() && !rt.Unknown() && lt == rt {
-				return lt
-			}
-		case token.Plus:
+		case ast.BinaryAddition:
 			rt := GetType(e.Right)
 			if !rt.Unknown() && (rt.Val() == StringType{}) {
 				return TypeValue{Known[Type](StringType{})}
@@ -478,12 +476,21 @@ func GetType(expr *ast.Expression) TypeValue {
 			if !rt.Unknown() && !lt.Unknown() && !mayBeStr(lt.Val()) && !mayBeStr(rt.Val()) {
 				return TypeValue{Known[Type](NumberType{})}
 			}
-		case token.Or, token.ExclusiveOr, token.And, token.ShiftLeft, token.ShiftRight, token.UnsignedShiftRight,
-			token.Minus, token.Multiply, token.Remainder, token.Slash, token.Exponent:
+		case ast.BinaryBitwiseOR, ast.BinaryBitwiseXOR, ast.BinaryBitwiseAnd, ast.BinaryShiftLeft, ast.BinaryShiftRight,
+			ast.BinaryUnsignedShiftRight, ast.BinarySubtraction, ast.BinaryMultiplication, ast.BinaryRemainder,
+			ast.BinaryDivision, ast.BinaryExponential:
 			return TypeValue{Known[Type](NumberType{})}
-		case token.Equal, token.NotEqual, token.StrictEqual, token.StrictNotEqual, token.Less, token.LessOrEqual,
-			token.Greater, token.GreaterOrEqual, token.In, token.InstanceOf:
+		case ast.BinaryEquality, ast.BinaryInequality, ast.BinaryStrictEquality, ast.BinaryStrictInequality,
+			ast.BinaryLessThan, ast.BinaryLessEqualThan, ast.BinaryGreaterThan, ast.BinaryGreaterEqualThan,
+			ast.BinaryIn, ast.BinaryInstanceof:
 			return TypeValue{Known[Type](BoolType{})}
+		}
+	case *ast.LogicalExpression:
+		switch e.Operator {
+		case ast.LogicalAnd, ast.LogicalOr:
+			if lt, rt := GetType(e.Left), GetType(e.Right); !lt.Unknown() && !rt.Unknown() && lt == rt {
+				return lt
+			}
 		}
 	case *ast.ConditionalExpression:
 		ct := GetType(e.Consequent)
@@ -505,18 +512,18 @@ func GetType(expr *ast.Expression) TypeValue {
 		return TypeValue{Known[Type](NumberType{})}
 	case *ast.UnaryExpression:
 		switch e.Operator {
-		case token.Minus, token.Plus, token.BitwiseNot:
+		case ast.UnaryNegation, ast.UnaryPlus, ast.UnaryBitwiseNot:
 			return TypeValue{Known[Type](NumberType{})}
-		case token.Not, token.Delete:
+		case ast.UnaryLogicalNot, ast.UnaryDelete:
 			return TypeValue{Known[Type](BoolType{})}
-		case token.Typeof:
+		case ast.UnaryTypeof:
 			return TypeValue{Known[Type](StringType{})}
-		case token.Void:
+		case ast.UnaryVoid:
 			return TypeValue{Known[Type](UndefinedType{})}
 		}
 	case *ast.UpdateExpression:
 		switch e.Operator {
-		case token.Increment, token.Decrement:
+		case ast.UpdateIncrement, ast.UpdateDecrement:
 			return TypeValue{Known[Type](NumberType{})}
 		}
 	case *ast.BooleanLiteral:
@@ -599,7 +606,7 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 		}
 		return false
 	case *ast.UnaryExpression:
-		if e.Operator == token.Delete {
+		if e.Operator == ast.UnaryDelete {
 			return true
 		}
 		return MayHaveSideEffects(e.Operand)
