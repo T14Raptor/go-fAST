@@ -19,6 +19,9 @@ func (n *AwaitExpression) Clone() *AwaitExpression {
 func (n *BadStatement) Clone() *BadStatement {
 	return &BadStatement{From: n.From, To: n.To}
 }
+func (n *BigIntLiteral) Clone() *BigIntLiteral {
+	return &BigIntLiteral{Value: n.Value, Raw: n.Raw, Idx: n.Idx}
+}
 func (n *BinaryExpression) Clone() *BinaryExpression {
 	return &BinaryExpression{Left: n.Left.Clone(), Right: n.Right.Clone(), Operator: n.Operator}
 }
@@ -33,7 +36,7 @@ func (n *BreakStatement) Clone() *BreakStatement {
 	if n.Label != nil {
 		label = n.Label.Clone()
 	}
-	return &BreakStatement{Idx: n.Idx, Label: label}
+	return &BreakStatement{Label: label, Idx: n.Idx}
 }
 func (n *CallExpression) Clone() *CallExpression {
 	return &CallExpression{Callee: n.Callee.Clone(), ArgumentList: *n.ArgumentList.Clone(), LeftParenthesis: n.LeftParenthesis, RightParenthesis: n.RightParenthesis}
@@ -43,7 +46,7 @@ func (n *CaseStatement) Clone() *CaseStatement {
 	if n.Test != nil {
 		test = n.Test.Clone()
 	}
-	return &CaseStatement{Case: n.Case, Test: test, Consequent: *n.Consequent.Clone()}
+	return &CaseStatement{Test: test, Consequent: *n.Consequent.Clone(), Case: n.Case}
 }
 func (n *CaseStatements) Clone() *CaseStatements {
 	ns := make(CaseStatements, len(*n))
@@ -57,7 +60,7 @@ func (n *CatchStatement) Clone() *CatchStatement {
 	if n.Parameter != nil {
 		parameter = n.Parameter.Clone()
 	}
-	return &CatchStatement{Catch: n.Catch, Parameter: parameter, Body: n.Body.Clone()}
+	return &CatchStatement{Parameter: parameter, Body: n.Body.Clone(), Catch: n.Catch}
 }
 func (n *ClassDeclaration) Clone() *ClassDeclaration {
 	return &ClassDeclaration{Class: n.Class.Clone()}
@@ -94,13 +97,13 @@ func (n *ContinueStatement) Clone() *ContinueStatement {
 	if n.Label != nil {
 		label = n.Label.Clone()
 	}
-	return &ContinueStatement{Idx: n.Idx, Label: label}
+	return &ContinueStatement{Label: label, Idx: n.Idx}
 }
 func (n *DebuggerStatement) Clone() *DebuggerStatement {
 	return &DebuggerStatement{Debugger: n.Debugger}
 }
 func (n *DoWhileStatement) Clone() *DoWhileStatement {
-	return &DoWhileStatement{Do: n.Do, Test: n.Test.Clone(), Body: n.Body.Clone()}
+	return &DoWhileStatement{Test: n.Test.Clone(), Body: n.Body.Clone(), Do: n.Do}
 }
 func (n *EmptyStatement) Clone() *EmptyStatement {
 	return &EmptyStatement{Semicolon: n.Semicolon}
@@ -126,7 +129,7 @@ func (n *ForInStatement) Clone() *ForInStatement {
 	return &ForInStatement{Into: n.Into.Clone(), Source: n.Source.Clone(), Body: n.Body.Clone(), For: n.For}
 }
 func (n *ForOfStatement) Clone() *ForOfStatement {
-	return &ForOfStatement{Into: n.Into.Clone(), Source: n.Source.Clone(), Body: n.Body.Clone(), For: n.For}
+	return &ForOfStatement{Into: n.Into.Clone(), Source: n.Source.Clone(), Body: n.Body.Clone(), For: n.For, Await: n.Await}
 }
 func (n *ForStatement) Clone() *ForStatement {
 	var initializer *ForLoopInitializer
@@ -153,13 +156,16 @@ func (n *IfStatement) Clone() *IfStatement {
 	if n.Alternate != nil {
 		alternate = n.Alternate.Clone()
 	}
-	return &IfStatement{If: n.If, Test: n.Test.Clone(), Consequent: n.Consequent.Clone(), Alternate: alternate}
+	return &IfStatement{Test: n.Test.Clone(), Consequent: n.Consequent.Clone(), Alternate: alternate, If: n.If}
 }
 func (n *InvalidExpression) Clone() *InvalidExpression {
 	return &InvalidExpression{From: n.From, To: n.To}
 }
 func (n *LabelledStatement) Clone() *LabelledStatement {
-	return &LabelledStatement{Label: n.Label.Clone(), Colon: n.Colon, Statement: n.Statement.Clone()}
+	return &LabelledStatement{Label: n.Label.Clone(), Statement: n.Statement.Clone(), Colon: n.Colon}
+}
+func (n *LogicalExpression) Clone() *LogicalExpression {
+	return &LogicalExpression{Left: n.Left.Clone(), Right: n.Right.Clone(), Operator: n.Operator}
 }
 func (n *MemberExpression) Clone() *MemberExpression {
 	return &MemberExpression{Object: n.Object.Clone(), Property: n.Property.Clone()}
@@ -232,7 +238,7 @@ func (n *ReturnStatement) Clone() *ReturnStatement {
 	if n.Argument != nil {
 		argument = n.Argument.Clone()
 	}
-	return &ReturnStatement{Return: n.Return, Argument: argument}
+	return &ReturnStatement{Argument: argument, Return: n.Return}
 }
 func (n *SequenceExpression) Clone() *SequenceExpression {
 	return &SequenceExpression{Sequence: *n.Sequence.Clone()}
@@ -254,10 +260,10 @@ func (n *SuperExpression) Clone() *SuperExpression {
 	return &SuperExpression{Idx: n.Idx}
 }
 func (n *SwitchStatement) Clone() *SwitchStatement {
-	return &SwitchStatement{Body: *n.Body.Clone(), Discriminant: n.Discriminant.Clone(), Default: n.Default, Switch: n.Switch}
+	return &SwitchStatement{Discriminant: n.Discriminant.Clone(), Body: *n.Body.Clone(), Default: n.Default, Switch: n.Switch}
 }
 func (n *TemplateElement) Clone() *TemplateElement {
-	return &TemplateElement{Literal: n.Literal, Parsed: n.Parsed, Idx: n.Idx, Valid: n.Valid}
+	return &TemplateElement{Literal: n.Literal, Parsed: n.Parsed, Idx: n.Idx}
 }
 func (n *TemplateElements) Clone() *TemplateElements {
 	ns := make(TemplateElements, len(*n))
@@ -320,7 +326,7 @@ func (n *WithStatement) Clone() *WithStatement {
 	return &WithStatement{Object: n.Object.Clone(), Body: n.Body.Clone(), With: n.With}
 }
 func (n *YieldExpression) Clone() *YieldExpression {
-	return &YieldExpression{Yield: n.Yield, Argument: n.Argument.Clone(), Delegate: n.Delegate}
+	return &YieldExpression{Argument: n.Argument.Clone(), Yield: n.Yield, Delegate: n.Delegate}
 }
 
 func (n *BindingTarget) Clone() *BindingTarget {
