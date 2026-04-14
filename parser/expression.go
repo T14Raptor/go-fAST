@@ -44,7 +44,7 @@ func (p *parser) parsePrimaryExpression() *ast.Expression {
 				p.errorf("%s", err.Error())
 				value = new(big.Int)
 			}
-			return p.alloc.Expression(p.alloc.BigIntLiteral(idx, value, raw))
+			return p.alloc.Expression(ast.NewBigIntLitExpr(p.alloc.BigIntLiteral(idx, value, raw)))
 		}
 		value, err := parseNumberLiteral(parsedLiteral)
 		if err != nil {
@@ -274,7 +274,7 @@ func (p *parser) parseObjectPropertyKey() (string, string, *ast.Expression, toke
 			if err != nil {
 				p.errorf("%s", err.Error())
 			} else {
-				value = p.alloc.Expression(p.alloc.BigIntLiteral(idx, bi, literal))
+				value = p.alloc.Expression(ast.NewBigIntLitExpr(p.alloc.BigIntLiteral(idx, bi, literal)))
 			}
 		} else {
 			num, err := parseNumberLiteral(literal)
@@ -675,13 +675,12 @@ func (p *parser) parseUpdateExpression() *ast.Expression {
 			p.nextStatement()
 			return p.alloc.Expression(ast.NewInvalidExpr(p.alloc.InvalidExpression(idx, p.currentOffset())))
 		}
-		return p.alloc.Expression(p.alloc.UpdateExpression(toUpdateOperator(kind), idx, p.alloc.Expression(operand), false))
+		return p.alloc.Expression(ast.NewUpdateExpr(p.alloc.UpdateExpression(toUpdateOperator(kind), idx, operand, false)))
 	}
 
 	operand := p.parseLeftHandSideExpressionAllowCall()
 	postKind := p.currentKind()
 	if isUpdateOperator(postKind) && !p.scanner.Token.OnNewLine {
-		tkn := p.currentKind()
 		idx := p.currentOffset()
 		p.next()
 		switch operand.Kind() {
@@ -691,7 +690,7 @@ func (p *parser) parseUpdateExpression() *ast.Expression {
 			p.nextStatement()
 			return p.alloc.Expression(ast.NewInvalidExpr(p.alloc.InvalidExpression(idx, p.currentOffset())))
 		}
-		return p.alloc.Expression(ast.NewUpdateExpr(p.alloc.UpdateExpression(tkn, idx, operand, true)))
+		return p.alloc.Expression(ast.NewUpdateExpr(p.alloc.UpdateExpression(toUpdateOperator(postKind), idx, operand, true)))
 	}
 	return operand
 }
@@ -701,7 +700,7 @@ func (p *parser) parseUnaryExpression() *ast.Expression {
 	if isUnaryOperator(kind) {
 		idx := p.currentOffset()
 		p.next()
-		return p.alloc.Expression(ast.NewUnaryExpr(p.alloc.UnaryExpression(toUnaryOperator(kind), idx, p.alloc.Expression(p.parseUnaryExpression()))))
+		return p.alloc.Expression(ast.NewUnaryExpr(p.alloc.UnaryExpression(toUnaryOperator(kind), idx, p.parseUnaryExpression())))
 	}
 
 	if kind == token.Await {
@@ -772,7 +771,7 @@ func (p *parser) parseBinaryExpressionRest(lhs *ast.Expression, lhsParenthesized
 					}
 				}
 			}
-			lhs = p.alloc.LogicalExpression(toLogicalOperator(kind), p.alloc.Expression(lhs), p.alloc.Expression(rhs))
+			lhs = p.alloc.Expression(ast.NewLogicalExpr(p.alloc.LogicalExpression(toLogicalOperator(kind), lhs, rhs)))
 		} else if isBinaryOperator(kind) {
 			// Check for unparenthesized unary/await before **
 			if kind == token.Exponent && !lhsParenthesized {
@@ -781,7 +780,7 @@ func (p *parser) parseBinaryExpressionRest(lhs *ast.Expression, lhsParenthesized
 					p.errorf("Unary operator used immediately before exponentiation expression. Parenthesis must be used to disambiguate operator precedence")
 				}
 			}
-			lhs = p.alloc.Expression(ast.NewBinaryExpr(p.alloc.BinaryExpression(toBinaryOperator(kind), p.alloc.Expression(lhs), p.alloc.Expression(rhs))))
+			lhs = p.alloc.Expression(ast.NewBinaryExpr(p.alloc.BinaryExpression(toBinaryOperator(kind), lhs, rhs)))
 		} else {
 			break
 		}
@@ -925,7 +924,7 @@ func (p *parser) parseAssignmentExpression() *ast.Expression {
 				p.scope.allowAwait = savedAwait
 				return p.alloc.Expression(ast.NewInvalidExpr(p.alloc.InvalidExpression(left.Idx0(), left.Idx1())))
 			}
-			result := p.alloc.Expression(p.parseArrowFunction(start, paramList, async))
+			result := p.parseArrowFunction(start, paramList, async)
 			p.scope.allowAwait = savedAwait
 			return result
 		}

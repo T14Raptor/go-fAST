@@ -4,6 +4,272 @@ package ast
 
 import "unsafe"
 
+// ---- Property tagged union ----
+
+type PropKind uint8
+
+const (
+	PropNone PropKind = iota
+	PropKeyed
+	PropShort
+	PropSpread
+)
+
+func (k PropKind) String() string {
+	switch k {
+	case PropNone:
+		return "PropNone"
+	case PropKeyed:
+		return "PropKeyed"
+	case PropShort:
+		return "PropShort"
+	case PropSpread:
+		return "PropSpread"
+	}
+	return "PropKind(?)"
+}
+
+func (n *Property) Kind() PropKind { return n.kind }
+func (n *Property) IsNone() bool   { return n.kind == PropNone }
+
+func NewKeyedProp(n *PropertyKeyed) Property {
+	return Property{kind: PropKeyed, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Property) Keyed() (*PropertyKeyed, bool) {
+	if n.kind == PropKeyed {
+		return (*PropertyKeyed)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Property) MustKeyed() *PropertyKeyed {
+	if n.kind != PropKeyed {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*PropertyKeyed)(n.ptr)
+}
+
+func (n *Property) IsKeyed() bool {
+	return n.kind == PropKeyed
+}
+
+func NewShortProp(n *PropertyShort) Property {
+	return Property{kind: PropShort, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Property) Short() (*PropertyShort, bool) {
+	if n.kind == PropShort {
+		return (*PropertyShort)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Property) MustShort() *PropertyShort {
+	if n.kind != PropShort {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*PropertyShort)(n.ptr)
+}
+
+func (n *Property) IsShort() bool {
+	return n.kind == PropShort
+}
+
+func NewSpreadProp(n *SpreadElement) Property {
+	return Property{kind: PropSpread, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Property) Spread() (*SpreadElement, bool) {
+	if n.kind == PropSpread {
+		return (*SpreadElement)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Property) MustSpread() *SpreadElement {
+	if n.kind != PropSpread {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*SpreadElement)(n.ptr)
+}
+
+func (n *Property) IsSpread() bool {
+	return n.kind == PropSpread
+}
+
+func (n *Property) Idx0() Idx {
+	switch n.kind {
+	case PropKeyed:
+		return (*PropertyKeyed)(n.ptr).Idx0()
+	case PropShort:
+		return (*PropertyShort)(n.ptr).Idx0()
+	case PropSpread:
+		return (*SpreadElement)(n.ptr).Idx0()
+	}
+	return 0
+}
+
+func (n *Property) Idx1() Idx {
+	switch n.kind {
+	case PropKeyed:
+		return (*PropertyKeyed)(n.ptr).Idx1()
+	case PropShort:
+		return (*PropertyShort)(n.ptr).Idx1()
+	case PropSpread:
+		return (*SpreadElement)(n.ptr).Idx1()
+	}
+	return 0
+}
+
+func (n *Property) Unwrap() VisitableNode {
+	if n == nil {
+		return nil
+	}
+	switch n.kind {
+	case PropKeyed:
+		return (*PropertyKeyed)(n.ptr)
+	case PropShort:
+		return (*PropertyShort)(n.ptr)
+	case PropSpread:
+		return (*SpreadElement)(n.ptr)
+	}
+	return nil
+}
+
+// ---- ClassElement tagged union ----
+
+type ClassElemKind uint8
+
+const (
+	ClassElemNone ClassElemKind = iota
+	ClassElemField
+	ClassElemMethod
+	ClassElemStaticBlock
+)
+
+func (k ClassElemKind) String() string {
+	switch k {
+	case ClassElemNone:
+		return "ClassElemNone"
+	case ClassElemField:
+		return "ClassElemField"
+	case ClassElemMethod:
+		return "ClassElemMethod"
+	case ClassElemStaticBlock:
+		return "ClassElemStaticBlock"
+	}
+	return "ClassElemKind(?)"
+}
+
+func (n *ClassElement) Kind() ClassElemKind { return n.kind }
+func (n *ClassElement) IsNone() bool        { return n.kind == ClassElemNone }
+
+func NewFieldClassElem(n *FieldDefinition) ClassElement {
+	return ClassElement{kind: ClassElemField, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ClassElement) Field() (*FieldDefinition, bool) {
+	if n.kind == ClassElemField {
+		return (*FieldDefinition)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ClassElement) MustField() *FieldDefinition {
+	if n.kind != ClassElemField {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*FieldDefinition)(n.ptr)
+}
+
+func (n *ClassElement) IsField() bool {
+	return n.kind == ClassElemField
+}
+
+func NewMethodClassElem(n *MethodDefinition) ClassElement {
+	return ClassElement{kind: ClassElemMethod, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ClassElement) Method() (*MethodDefinition, bool) {
+	if n.kind == ClassElemMethod {
+		return (*MethodDefinition)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ClassElement) MustMethod() *MethodDefinition {
+	if n.kind != ClassElemMethod {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*MethodDefinition)(n.ptr)
+}
+
+func (n *ClassElement) IsMethod() bool {
+	return n.kind == ClassElemMethod
+}
+
+func NewStaticBlockClassElem(n *ClassStaticBlock) ClassElement {
+	return ClassElement{kind: ClassElemStaticBlock, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ClassElement) StaticBlock() (*ClassStaticBlock, bool) {
+	if n.kind == ClassElemStaticBlock {
+		return (*ClassStaticBlock)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ClassElement) MustStaticBlock() *ClassStaticBlock {
+	if n.kind != ClassElemStaticBlock {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ClassStaticBlock)(n.ptr)
+}
+
+func (n *ClassElement) IsStaticBlock() bool {
+	return n.kind == ClassElemStaticBlock
+}
+
+func (n *ClassElement) Idx0() Idx {
+	switch n.kind {
+	case ClassElemField:
+		return (*FieldDefinition)(n.ptr).Idx0()
+	case ClassElemMethod:
+		return (*MethodDefinition)(n.ptr).Idx0()
+	case ClassElemStaticBlock:
+		return (*ClassStaticBlock)(n.ptr).Idx0()
+	}
+	return 0
+}
+
+func (n *ClassElement) Idx1() Idx {
+	switch n.kind {
+	case ClassElemField:
+		return (*FieldDefinition)(n.ptr).Idx1()
+	case ClassElemMethod:
+		return (*MethodDefinition)(n.ptr).Idx1()
+	case ClassElemStaticBlock:
+		return (*ClassStaticBlock)(n.ptr).Idx1()
+	}
+	return 0
+}
+
+func (n *ClassElement) Unwrap() VisitableNode {
+	if n == nil {
+		return nil
+	}
+	switch n.kind {
+	case ClassElemField:
+		return (*FieldDefinition)(n.ptr)
+	case ClassElemMethod:
+		return (*MethodDefinition)(n.ptr)
+	case ClassElemStaticBlock:
+		return (*ClassStaticBlock)(n.ptr)
+	}
+	return nil
+}
+
 // ---- Expression tagged union ----
 
 type ExprKind uint8
@@ -15,6 +281,7 @@ const (
 	ExprArrowFuncLit
 	ExprAssign
 	ExprAwait
+	ExprBigIntLit
 	ExprBinary
 	ExprBoolLit
 	ExprCall
@@ -24,6 +291,7 @@ const (
 	ExprIdent
 	ExprInvalid
 	ExprKeyed
+	ExprLogical
 	ExprMember
 	ExprMetaProp
 	ExprNew
@@ -63,6 +331,8 @@ func (k ExprKind) String() string {
 		return "ExprAssign"
 	case ExprAwait:
 		return "ExprAwait"
+	case ExprBigIntLit:
+		return "ExprBigIntLit"
 	case ExprBinary:
 		return "ExprBinary"
 	case ExprBoolLit:
@@ -81,6 +351,8 @@ func (k ExprKind) String() string {
 		return "ExprInvalid"
 	case ExprKeyed:
 		return "ExprKeyed"
+	case ExprLogical:
+		return "ExprLogical"
 	case ExprMember:
 		return "ExprMember"
 	case ExprMetaProp:
@@ -242,6 +514,28 @@ func (n *Expression) MustAwait() *AwaitExpression {
 
 func (n *Expression) IsAwait() bool {
 	return n.kind == ExprAwait
+}
+
+func NewBigIntLitExpr(n *BigIntLiteral) Expression {
+	return Expression{kind: ExprBigIntLit, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Expression) BigIntLit() (*BigIntLiteral, bool) {
+	if n.kind == ExprBigIntLit {
+		return (*BigIntLiteral)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Expression) MustBigIntLit() *BigIntLiteral {
+	if n.kind != ExprBigIntLit {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*BigIntLiteral)(n.ptr)
+}
+
+func (n *Expression) IsBigIntLit() bool {
+	return n.kind == ExprBigIntLit
 }
 
 func NewBinaryExpr(n *BinaryExpression) Expression {
@@ -440,6 +734,28 @@ func (n *Expression) MustKeyed() *PropertyKeyed {
 
 func (n *Expression) IsKeyed() bool {
 	return n.kind == ExprKeyed
+}
+
+func NewLogicalExpr(n *LogicalExpression) Expression {
+	return Expression{kind: ExprLogical, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Expression) Logical() (*LogicalExpression, bool) {
+	if n.kind == ExprLogical {
+		return (*LogicalExpression)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Expression) MustLogical() *LogicalExpression {
+	if n.kind != ExprLogical {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*LogicalExpression)(n.ptr)
+}
+
+func (n *Expression) IsLogical() bool {
+	return n.kind == ExprLogical
 }
 
 func NewMemberExpr(n *MemberExpression) Expression {
@@ -960,6 +1276,8 @@ func (n *Expression) Idx0() Idx {
 		return (*AssignExpression)(n.ptr).Idx0()
 	case ExprAwait:
 		return (*AwaitExpression)(n.ptr).Idx0()
+	case ExprBigIntLit:
+		return (*BigIntLiteral)(n.ptr).Idx0()
 	case ExprBinary:
 		return (*BinaryExpression)(n.ptr).Idx0()
 	case ExprBoolLit:
@@ -978,6 +1296,8 @@ func (n *Expression) Idx0() Idx {
 		return (*InvalidExpression)(n.ptr).Idx0()
 	case ExprKeyed:
 		return (*PropertyKeyed)(n.ptr).Idx0()
+	case ExprLogical:
+		return (*LogicalExpression)(n.ptr).Idx0()
 	case ExprMember:
 		return (*MemberExpression)(n.ptr).Idx0()
 	case ExprMetaProp:
@@ -1040,6 +1360,8 @@ func (n *Expression) Idx1() Idx {
 		return (*AssignExpression)(n.ptr).Idx1()
 	case ExprAwait:
 		return (*AwaitExpression)(n.ptr).Idx1()
+	case ExprBigIntLit:
+		return (*BigIntLiteral)(n.ptr).Idx1()
 	case ExprBinary:
 		return (*BinaryExpression)(n.ptr).Idx1()
 	case ExprBoolLit:
@@ -1058,6 +1380,8 @@ func (n *Expression) Idx1() Idx {
 		return (*InvalidExpression)(n.ptr).Idx1()
 	case ExprKeyed:
 		return (*PropertyKeyed)(n.ptr).Idx1()
+	case ExprLogical:
+		return (*LogicalExpression)(n.ptr).Idx1()
 	case ExprMember:
 		return (*MemberExpression)(n.ptr).Idx1()
 	case ExprMetaProp:
@@ -1123,6 +1447,8 @@ func (n *Expression) Unwrap() VisitableNode {
 		return (*AssignExpression)(n.ptr)
 	case ExprAwait:
 		return (*AwaitExpression)(n.ptr)
+	case ExprBigIntLit:
+		return (*BigIntLiteral)(n.ptr)
 	case ExprBinary:
 		return (*BinaryExpression)(n.ptr)
 	case ExprBoolLit:
@@ -1141,6 +1467,8 @@ func (n *Expression) Unwrap() VisitableNode {
 		return (*InvalidExpression)(n.ptr)
 	case ExprKeyed:
 		return (*PropertyKeyed)(n.ptr)
+	case ExprLogical:
+		return (*LogicalExpression)(n.ptr)
 	case ExprMember:
 		return (*MemberExpression)(n.ptr)
 	case ExprMetaProp:
@@ -2574,272 +2902,6 @@ func (n *ForInto) Unwrap() VisitableNode {
 		return (*Expression)(n.ptr)
 	case ForIntoVarDecl:
 		return (*VariableDeclaration)(n.ptr)
-	}
-	return nil
-}
-
-// ---- ClassElement tagged union ----
-
-type ClassElemKind uint8
-
-const (
-	ClassElemNone ClassElemKind = iota
-	ClassElemField
-	ClassElemMethod
-	ClassElemStaticBlock
-)
-
-func (k ClassElemKind) String() string {
-	switch k {
-	case ClassElemNone:
-		return "ClassElemNone"
-	case ClassElemField:
-		return "ClassElemField"
-	case ClassElemMethod:
-		return "ClassElemMethod"
-	case ClassElemStaticBlock:
-		return "ClassElemStaticBlock"
-	}
-	return "ClassElemKind(?)"
-}
-
-func (n *ClassElement) Kind() ClassElemKind { return n.kind }
-func (n *ClassElement) IsNone() bool        { return n.kind == ClassElemNone }
-
-func NewFieldClassElem(n *FieldDefinition) ClassElement {
-	return ClassElement{kind: ClassElemField, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ClassElement) Field() (*FieldDefinition, bool) {
-	if n.kind == ClassElemField {
-		return (*FieldDefinition)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ClassElement) MustField() *FieldDefinition {
-	if n.kind != ClassElemField {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*FieldDefinition)(n.ptr)
-}
-
-func (n *ClassElement) IsField() bool {
-	return n.kind == ClassElemField
-}
-
-func NewMethodClassElem(n *MethodDefinition) ClassElement {
-	return ClassElement{kind: ClassElemMethod, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ClassElement) Method() (*MethodDefinition, bool) {
-	if n.kind == ClassElemMethod {
-		return (*MethodDefinition)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ClassElement) MustMethod() *MethodDefinition {
-	if n.kind != ClassElemMethod {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*MethodDefinition)(n.ptr)
-}
-
-func (n *ClassElement) IsMethod() bool {
-	return n.kind == ClassElemMethod
-}
-
-func NewStaticBlockClassElem(n *ClassStaticBlock) ClassElement {
-	return ClassElement{kind: ClassElemStaticBlock, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ClassElement) StaticBlock() (*ClassStaticBlock, bool) {
-	if n.kind == ClassElemStaticBlock {
-		return (*ClassStaticBlock)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ClassElement) MustStaticBlock() *ClassStaticBlock {
-	if n.kind != ClassElemStaticBlock {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*ClassStaticBlock)(n.ptr)
-}
-
-func (n *ClassElement) IsStaticBlock() bool {
-	return n.kind == ClassElemStaticBlock
-}
-
-func (n *ClassElement) Idx0() Idx {
-	switch n.kind {
-	case ClassElemField:
-		return (*FieldDefinition)(n.ptr).Idx0()
-	case ClassElemMethod:
-		return (*MethodDefinition)(n.ptr).Idx0()
-	case ClassElemStaticBlock:
-		return (*ClassStaticBlock)(n.ptr).Idx0()
-	}
-	return 0
-}
-
-func (n *ClassElement) Idx1() Idx {
-	switch n.kind {
-	case ClassElemField:
-		return (*FieldDefinition)(n.ptr).Idx1()
-	case ClassElemMethod:
-		return (*MethodDefinition)(n.ptr).Idx1()
-	case ClassElemStaticBlock:
-		return (*ClassStaticBlock)(n.ptr).Idx1()
-	}
-	return 0
-}
-
-func (n *ClassElement) Unwrap() VisitableNode {
-	if n == nil {
-		return nil
-	}
-	switch n.kind {
-	case ClassElemField:
-		return (*FieldDefinition)(n.ptr)
-	case ClassElemMethod:
-		return (*MethodDefinition)(n.ptr)
-	case ClassElemStaticBlock:
-		return (*ClassStaticBlock)(n.ptr)
-	}
-	return nil
-}
-
-// ---- Property tagged union ----
-
-type PropKind uint8
-
-const (
-	PropNone PropKind = iota
-	PropKeyed
-	PropShort
-	PropSpread
-)
-
-func (k PropKind) String() string {
-	switch k {
-	case PropNone:
-		return "PropNone"
-	case PropKeyed:
-		return "PropKeyed"
-	case PropShort:
-		return "PropShort"
-	case PropSpread:
-		return "PropSpread"
-	}
-	return "PropKind(?)"
-}
-
-func (n *Property) Kind() PropKind { return n.kind }
-func (n *Property) IsNone() bool   { return n.kind == PropNone }
-
-func NewKeyedProp(n *PropertyKeyed) Property {
-	return Property{kind: PropKeyed, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Property) Keyed() (*PropertyKeyed, bool) {
-	if n.kind == PropKeyed {
-		return (*PropertyKeyed)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Property) MustKeyed() *PropertyKeyed {
-	if n.kind != PropKeyed {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*PropertyKeyed)(n.ptr)
-}
-
-func (n *Property) IsKeyed() bool {
-	return n.kind == PropKeyed
-}
-
-func NewShortProp(n *PropertyShort) Property {
-	return Property{kind: PropShort, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Property) Short() (*PropertyShort, bool) {
-	if n.kind == PropShort {
-		return (*PropertyShort)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Property) MustShort() *PropertyShort {
-	if n.kind != PropShort {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*PropertyShort)(n.ptr)
-}
-
-func (n *Property) IsShort() bool {
-	return n.kind == PropShort
-}
-
-func NewSpreadProp(n *SpreadElement) Property {
-	return Property{kind: PropSpread, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Property) Spread() (*SpreadElement, bool) {
-	if n.kind == PropSpread {
-		return (*SpreadElement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Property) MustSpread() *SpreadElement {
-	if n.kind != PropSpread {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*SpreadElement)(n.ptr)
-}
-
-func (n *Property) IsSpread() bool {
-	return n.kind == PropSpread
-}
-
-func (n *Property) Idx0() Idx {
-	switch n.kind {
-	case PropKeyed:
-		return (*PropertyKeyed)(n.ptr).Idx0()
-	case PropShort:
-		return (*PropertyShort)(n.ptr).Idx0()
-	case PropSpread:
-		return (*SpreadElement)(n.ptr).Idx0()
-	}
-	return 0
-}
-
-func (n *Property) Idx1() Idx {
-	switch n.kind {
-	case PropKeyed:
-		return (*PropertyKeyed)(n.ptr).Idx1()
-	case PropShort:
-		return (*PropertyShort)(n.ptr).Idx1()
-	case PropSpread:
-		return (*SpreadElement)(n.ptr).Idx1()
-	}
-	return 0
-}
-
-func (n *Property) Unwrap() VisitableNode {
-	if n == nil {
-		return nil
-	}
-	switch n.kind {
-	case PropKeyed:
-		return (*PropertyKeyed)(n.ptr)
-	case PropShort:
-		return (*PropertyShort)(n.ptr)
-	case PropSpread:
-		return (*SpreadElement)(n.ptr)
 	}
 	return nil
 }

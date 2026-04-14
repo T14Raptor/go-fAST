@@ -344,7 +344,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			kind = ast.PropertyKindMethod
 		}
 
-		if kind != "" {
+		if kind != 0 {
 			// method
 			if keyName == "constructor" && !computed {
 				if !static {

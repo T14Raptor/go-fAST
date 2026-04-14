@@ -175,7 +175,7 @@ func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
 		parentPrec  ast.Precedence
 		parentRight *ast.Expression
 	)
-	switch g.p {
+	switch pn := g.p.(type) {
 	case *ast.BinaryExpression:
 		parentPrec = pn.Operator.Precedence()
 		parentRight = pn.Right
@@ -185,7 +185,7 @@ func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
 	}
 	if parentPrec > ast.PrecedenceLowest {
 		prec := n.Operator.Precedence()
-		if prec < parentPrec || prec == parentPrec && parentRight.Expr == n {
+		if prec < parentPrec || prec == parentPrec && parentRight.Unwrap() == n {
 			g.out.WriteString("(")
 			defer g.out.WriteString(")")
 		}
@@ -219,7 +219,7 @@ func (g *GenVisitor) VisitLogicalExpression(n *ast.LogicalExpression) {
 	}
 	if parentPrec > ast.PrecedenceLowest {
 		prec := n.Operator.Precedence()
-		if prec < parentPrec || prec == parentPrec && parentRight.Expr == n {
+		if prec < parentPrec || prec == parentPrec && parentRight.Unwrap() == n {
 			g.out.WriteString("(")
 			defer g.out.WriteString(")")
 		}

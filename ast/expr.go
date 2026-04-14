@@ -5,7 +5,7 @@ import "unsafe"
 type (
 	Expressions []Expression
 
-	//union:ArrayLiteral,ArrayPattern,ArrowFunctionLiteral,AssignExpression,AwaitExpression,BinaryExpression,BooleanLiteral,CallExpression,ClassLiteral,ConditionalExpression,FunctionLiteral,Identifier,InvalidExpression,MemberExpression,MetaProperty,NewExpression,NullLiteral,NumberLiteral,ObjectLiteral,ObjectPattern,OptionalChain,Optional,PrivateDotExpression,PrivateIdentifier,PropertyKeyed,PropertyShort,RegExpLiteral,SequenceExpression,SpreadElement,StringLiteral,SuperExpression,ThisExpression,TemplateLiteral,UnaryExpression,UpdateExpression,VariableDeclarator,YieldExpression
+	//union:ArrayLiteral,ArrayPattern,ArrowFunctionLiteral,AssignExpression,AwaitExpression,BigIntLiteral,BinaryExpression,BooleanLiteral,CallExpression,ClassLiteral,ConditionalExpression,FunctionLiteral,Identifier,InvalidExpression,LogicalExpression,MemberExpression,MetaProperty,NewExpression,NullLiteral,NumberLiteral,ObjectLiteral,ObjectPattern,OptionalChain,Optional,PrivateDotExpression,PrivateIdentifier,PropertyKeyed,PropertyShort,RegExpLiteral,SequenceExpression,SpreadElement,StringLiteral,SuperExpression,ThisExpression,TemplateLiteral,UnaryExpression,UpdateExpression,VariableDeclarator,YieldExpression
 	Expression struct {
 		kind ExprKind
 
@@ -169,7 +169,7 @@ type (
 		Literal string
 		Parsed  string
 
-		Idx   Idx
+		Idx Idx
 	}
 
 	TemplateLiteral struct {

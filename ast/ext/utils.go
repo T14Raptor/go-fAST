@@ -229,7 +229,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 		return
 	}
 	switch expr.Kind() {
-	case ast.ExprStrLit, ast.ExprBoolLit, ast.ExprNullLit, ast.ExprNumLit, ast.ExprBigLit, ast.ExprRegExpLit,
+	case ast.ExprStrLit, ast.ExprBoolLit, ast.ExprNullLit, ast.ExprNumLit, ast.ExprBigIntLit, ast.ExprRegExpLit,
 		ast.ExprThis, ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprPrivIdent:
 	case ast.ExprIdent:
 		if MayHaveSideEffects(expr) {
@@ -264,6 +264,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 		ExtractSideEffectsTo(to, e.Left)
 		ExtractSideEffectsTo(to, e.Right)
 	case ast.ExprLogical:
+		e := expr.MustLogical()
 		switch e.Operator {
 		case ast.LogicalCoalesce, ast.LogicalOr, ast.LogicalAnd:
 			*to = append(*to, *expr)

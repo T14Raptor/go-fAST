@@ -314,6 +314,12 @@ func (a *nodeAllocator) NumberLiteral(idx ast.Idx, value float64, raw string) *a
 	return n
 }
 
+func (a *nodeAllocator) RegExpLiteral(idx ast.Idx, literal, pattern, flags string) *ast.RegExpLiteral {
+	n := a.regexpLit.make()
+	*n = ast.RegExpLiteral{Idx: idx, Literal: literal, Pattern: pattern, Flags: flags}
+	return n
+}
+
 func (a *nodeAllocator) BigIntLiteral(idx ast.Idx, value *big.Int, raw string) *ast.BigIntLiteral {
 	n := a.bigIntLit.make()
 	*n = ast.BigIntLiteral{Idx: idx, Value: value, Raw: a.stringPtr(raw)}

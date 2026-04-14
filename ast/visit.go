@@ -785,8 +785,8 @@ func (n *SwitchStatement) VisitWith(v Visitor) {
 	v.VisitSwitchStatement(n)
 }
 func (n *SwitchStatement) VisitChildrenWith(v Visitor) {
-	n.Body.VisitWith(v)
 	n.Discriminant.VisitWith(v)
+	n.Body.VisitWith(v)
 }
 func (n *TemplateElement) VisitWith(v Visitor) {
 	v.VisitTemplateElement(n)
@@ -977,6 +977,8 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*AssignExpression)(n.ptr).VisitWith(v)
 	case ExprAwait:
 		(*AwaitExpression)(n.ptr).VisitWith(v)
+	case ExprBigIntLit:
+		(*BigIntLiteral)(n.ptr).VisitWith(v)
 	case ExprBinary:
 		(*BinaryExpression)(n.ptr).VisitWith(v)
 	case ExprBoolLit:
@@ -995,6 +997,8 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*InvalidExpression)(n.ptr).VisitWith(v)
 	case ExprKeyed:
 		(*PropertyKeyed)(n.ptr).VisitWith(v)
+	case ExprLogical:
+		(*LogicalExpression)(n.ptr).VisitWith(v)
 	case ExprMember:
 		(*MemberExpression)(n.ptr).VisitWith(v)
 	case ExprMetaProp:

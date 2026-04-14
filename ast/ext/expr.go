@@ -172,7 +172,8 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 		default:
 			value = BoolValue{Unknown[bool]()}
 		}
-	case *ast.LogicalExpression:
+	case ast.ExprLogical:
+		e := expr.MustLogical()
 		switch e.Operator {
 		case ast.LogicalOr:
 			lv, lp := CastToBool(e.Left)
@@ -195,7 +196,7 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 			}
 			value = BoolValue{Unknown[bool]()}
 		}
-	case *ast.FunctionLiteral, *ast.ClassLiteral, *ast.NewExpression, *ast.ArrayLiteral, *ast.ObjectLiteral:
+	case ast.ExprFuncLit, ast.ExprClassLit, ast.ExprNew, ast.ExprArrLit, ast.ExprObjLit:
 		value = BoolValue{Known(true)}
 	case ast.ExprNumLit:
 		e := expr.MustNumLit()
@@ -203,7 +204,8 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 			return BoolValue{}, true
 		}
 		return BoolValue{Known(true)}, true
-	case ast.ExprBigLit:
+	case ast.ExprBigIntLit:
+		e := expr.MustBigIntLit()
 		if e.Value == nil || e.Value.Sign() == 0 {
 			return BoolValue{}, true
 		}
@@ -509,6 +511,7 @@ func GetType(expr *ast.Expression) TypeValue {
 			return TypeValue{Known[Type](BoolType{})}
 		}
 	case ast.ExprLogical:
+		e := expr.MustLogical()
 		switch e.Operator {
 		case ast.LogicalAnd, ast.LogicalOr:
 			if lt, rt := GetType(e.Left), GetType(e.Right); !lt.Unknown() && !rt.Unknown() && lt == rt {
@@ -624,7 +627,7 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 			return true
 		}
 		return false
-	case ast.ExprStrLit, ast.ExprNumLit, ast.ExprBigLit, ast.ExprBoolLit, ast.ExprNullLit, ast.ExprRegExpLit:
+	case ast.ExprStrLit, ast.ExprNumLit, ast.ExprBigIntLit, ast.ExprBoolLit, ast.ExprNullLit, ast.ExprRegExpLit:
 		return false
 	// Function expression does not have any side effect if it's not used.
 	case ast.ExprFuncLit, ast.ExprArrowFuncLit:

@@ -412,6 +412,10 @@ func (n *Expression) Clone() *Expression {
 		c := (*AwaitExpression)(n.ptr).Clone()
 		r := NewAwaitExpr(c)
 		return &r
+	case ExprBigIntLit:
+		c := (*BigIntLiteral)(n.ptr).Clone()
+		r := NewBigIntLitExpr(c)
+		return &r
 	case ExprBinary:
 		c := (*BinaryExpression)(n.ptr).Clone()
 		r := NewBinaryExpr(c)
@@ -447,6 +451,10 @@ func (n *Expression) Clone() *Expression {
 	case ExprKeyed:
 		c := (*PropertyKeyed)(n.ptr).Clone()
 		r := NewKeyedExpr(c)
+		return &r
+	case ExprLogical:
+		c := (*LogicalExpression)(n.ptr).Clone()
+		r := NewLogicalExpr(c)
 		return &r
 	case ExprMember:
 		c := (*MemberExpression)(n.ptr).Clone()
