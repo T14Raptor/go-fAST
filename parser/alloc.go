@@ -99,8 +99,6 @@ type nodeAllocator struct {
 	fieldDef miniArena[ast.FieldDefinition]
 	staticBl miniArena[ast.ClassStaticBlock]
 
-	paramList miniArena[ast.ParameterList]
-
 	// Wrapper/helper types.
 	bindTgt   miniArena[ast.BindingTarget]
 	concBody  miniArena[ast.ConciseBody]
@@ -191,7 +189,7 @@ func newNodeAllocator() nodeAllocator {
 		whileStmt: newArena[ast.WhileStatement](32),
 		doWhile:   newArena[ast.DoWhileStatement](16),
 		debugStmt: newArena[ast.DebuggerStatement](8),
-		emptyStmt: newArena[ast.EmptyStatement](16),
+		emptyStmt: newArena[ast.EmptyStatement](32),
 		badStmt:   newArena[ast.BadStatement](8),
 		labelStmt: newArena[ast.LabelledStatement](16),
 		breakStmt: newArena[ast.BreakStatement](16),
@@ -200,14 +198,12 @@ func newNodeAllocator() nodeAllocator {
 		// Declarations.
 		varDecl:  newArena[ast.VariableDeclaration](64),
 		varDeclr: newArena[ast.VariableDeclarator](128),
-		funcDecl: newArena[ast.FunctionDeclaration](64),
+		funcDecl: newArena[ast.FunctionDeclaration](32),
 		classLit: newArena[ast.ClassLiteral](16),
 		classDcl: newArena[ast.ClassDeclaration](16),
 		methDef:  newArena[ast.MethodDefinition](32),
 		fieldDef: newArena[ast.FieldDefinition](32),
 		staticBl: newArena[ast.ClassStaticBlock](8),
-
-		paramList: newArena[ast.ParameterList](64),
 
 		// Wrappers.
 		bindTgt:   newArena[ast.BindingTarget](128),
@@ -321,24 +317,6 @@ func (a *nodeAllocator) NumberLiteral(idx ast.Idx, value float64, raw string) *a
 func (a *nodeAllocator) BigIntLiteral(idx ast.Idx, value *big.Int, raw string) *ast.BigIntLiteral {
 	n := a.bigIntLit.make()
 	*n = ast.BigIntLiteral{Idx: idx, Value: value, Raw: a.stringPtr(raw)}
-	return n
-}
-
-func (a *nodeAllocator) BooleanLiteral(idx ast.Idx, value bool) *ast.BooleanLiteral {
-	n := a.boolLit.make()
-	*n = ast.BooleanLiteral{Idx: idx, Value: value}
-	return n
-}
-
-func (a *nodeAllocator) NullLiteral(idx ast.Idx) *ast.NullLiteral {
-	n := a.nullLit.make()
-	*n = ast.NullLiteral{Idx: idx}
-	return n
-}
-
-func (a *nodeAllocator) RegExpLiteral(idx ast.Idx, literal, pattern, flags string) *ast.RegExpLiteral {
-	n := a.regexpLit.make()
-	*n = ast.RegExpLiteral{Idx: idx, Literal: literal, Pattern: pattern, Flags: flags}
 	return n
 }
 
@@ -737,11 +715,5 @@ func (a *nodeAllocator) ForLoopInitializer(fli ast.ForLoopInitializer) *ast.ForL
 func (a *nodeAllocator) ForIntoPtr(fi ast.ForInto) *ast.ForInto {
 	n := a.forInto.make()
 	*n = fi
-	return n
-}
-
-func (a *nodeAllocator) ParameterList(list ast.VariableDeclarators, rest ast.Expr, opening, closing ast.Idx) *ast.ParameterList {
-	n := a.paramList.make()
-	*n = ast.ParameterList{List: list, Rest: rest, Opening: opening, Closing: closing}
 	return n
 }

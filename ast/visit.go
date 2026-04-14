@@ -785,8 +785,8 @@ func (n *SwitchStatement) VisitWith(v Visitor) {
 	v.VisitSwitchStatement(n)
 }
 func (n *SwitchStatement) VisitChildrenWith(v Visitor) {
-	n.Discriminant.VisitWith(v)
 	n.Body.VisitWith(v)
+	n.Discriminant.VisitWith(v)
 }
 func (n *TemplateElement) VisitWith(v Visitor) {
 	v.VisitTemplateElement(n)
