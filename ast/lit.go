@@ -48,10 +48,3 @@ type (
 		Idx Idx
 	}
 )
-
-func (*BooleanLiteral) _expr() {}
-func (*NullLiteral) _expr()    {}
-func (*NumberLiteral) _expr()  {}
-func (*BigIntLiteral) _expr()  {}
-func (*RegExpLiteral) _expr()  {}
-func (*StringLiteral) _expr()  {}

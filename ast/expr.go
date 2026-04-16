@@ -1,32 +1,21 @@
 package ast
 
+import "unsafe"
+
 type (
 	Expressions []Expression
 
-	// Expression is a struct to allow defining methods on it.
+	//union:ArrayLiteral,ArrayPattern,ArrowFunctionLiteral,AssignExpression,AwaitExpression,BigIntLiteral,BinaryExpression,BooleanLiteral,CallExpression,ClassLiteral,ConditionalExpression,FunctionLiteral,Identifier,InvalidExpression,LogicalExpression,MemberExpression,MetaProperty,NewExpression,NullLiteral,NumberLiteral,ObjectLiteral,ObjectPattern,OptionalChain,Optional,PrivateDotExpression,PrivateIdentifier,PropertyKeyed,PropertyShort,RegExpLiteral,SequenceExpression,SpreadElement,StringLiteral,SuperExpression,ThisExpression,TemplateLiteral,UnaryExpression,UpdateExpression,VariableDeclarator,YieldExpression
 	Expression struct {
-		Expr Expr `optional:"true"`
+		kind ExprKind
+
+		ptr unsafe.Pointer
 	}
 
-	// All expression nodes implement the Expr interface.
-	Expr interface {
-		Node
-		VisitableNode
-		_expr()
-	}
-
+	//union:ArrayPattern,Identifier,InvalidExpression,MemberExpression,ObjectPattern
 	BindingTarget struct {
-		Target
-	}
-
-	Target interface {
-		Expr
-		_bindingTarget()
-	}
-
-	Pattern interface {
-		Target
-		_pattern()
+		ptr  unsafe.Pointer
+		kind BindingTargetKind
 	}
 
 	YieldExpression struct {
@@ -89,13 +78,10 @@ type (
 		Property *MemberProperty
 	}
 
+	//union:ComputedProperty,Identifier
 	MemberProperty struct {
-		Prop MemberProp
-	}
-
-	MemberProp interface {
-		VisitableNode
-		_memberProperty()
+		ptr  unsafe.Pointer
+		kind MemPropKind
 	}
 
 	CallExpression struct {
@@ -125,14 +111,10 @@ type (
 		Expr *Expression
 	}
 
+	//union:BlockStatement,Expression
 	ConciseBody struct {
-		Body Body
-	}
-
-	Body interface {
-		Node
-		VisitableNode
-		_conciseBody()
+		kind ConciseBodyKind
+		ptr  unsafe.Pointer
 	}
 
 	ArrowFunctionLiteral struct {
@@ -150,8 +132,8 @@ type (
 	}
 
 	NewExpression struct {
-		Callee       *Expression
 		ArgumentList Expressions
+		Callee       *Expression
 
 		New              Idx
 		LeftParenthesis  Idx
@@ -167,7 +149,7 @@ type (
 
 	ObjectPattern struct {
 		Properties Properties
-		Rest       Expr `optional:"true"`
+		Rest       *Expression `optional:"true"`
 
 		LeftBrace  Idx
 		RightBrace Idx
@@ -210,18 +192,18 @@ type (
 	UnaryExpression struct {
 		Operand *Expression
 
-		Operator UnaryOperator
-
 		Idx Idx
+
+		Operator UnaryOperator
 	}
 
 	UpdateExpression struct {
 		Operand *Expression
 
+		Idx Idx // If a prefix operation
+
 		Operator UpdateOperator
 		Postfix  bool
-
-		Idx Idx // If a prefix operation
 	}
 
 	MetaProperty struct {
@@ -230,43 +212,38 @@ type (
 	}
 )
 
-func (*BlockStatement) _conciseBody() {}
-func (*Expression) _conciseBody()     {}
+func BindingTargetFromExpression(expr *Expression) BindingTarget {
+	switch expr.Kind() {
+	case ExprArrPat:
+		return NewArrPatBindingTarget((*ArrayPattern)(expr.ptr))
+	case ExprMember:
+		return NewMemberBindingTarget((*MemberExpression)(expr.ptr))
+	case ExprObjPat:
+		return NewObjPatBindingTarget((*ObjectPattern)(expr.ptr))
+	case ExprIdent:
+		return NewIdentBindingTarget((*Identifier)(expr.ptr))
+	case ExprInvalid:
+		return NewInvalidBindingTarget((*InvalidExpression)(expr.ptr))
+	}
+	return BindingTarget{}
+}
 
-func (*ArrayPattern) _pattern()  {}
-func (*ObjectPattern) _pattern() {}
+func ExpressionFromBindingTarget(target *BindingTarget) Expression {
+	switch target.Kind() {
+	case BindingTargetArrPat:
+		return NewArrPatExpr((*ArrayPattern)(target.ptr))
+	case BindingTargetMember:
+		return NewMemberExpr((*MemberExpression)(target.ptr))
+	case BindingTargetObjPat:
+		return NewObjPatExpr((*ObjectPattern)(target.ptr))
+	case BindingTargetIdent:
+		return NewIdentExpr((*Identifier)(target.ptr))
+	case BindingTargetInvalid:
+		return NewInvalidExpr((*InvalidExpression)(target.ptr))
+	}
+	return Expression{}
+}
 
-func (*ArrayPattern) _bindingTarget()      {}
-func (*MemberExpression) _bindingTarget()  {}
-func (*ObjectPattern) _bindingTarget()     {}
-func (*Identifier) _bindingTarget()        {}
-func (*InvalidExpression) _bindingTarget() {}
-
-func (*ArrayLiteral) _expr()          {}
-func (*AssignExpression) _expr()      {}
-func (*YieldExpression) _expr()       {}
-func (*AwaitExpression) _expr()       {}
-func (*InvalidExpression) _expr()     {}
-func (*BinaryExpression) _expr()      {}
-func (*LogicalExpression) _expr()     {}
-func (*CallExpression) _expr()        {}
-func (*ConditionalExpression) _expr() {}
-func (*MemberExpression) _expr()      {}
-func (*PrivateDotExpression) _expr()  {}
-func (*ArrowFunctionLiteral) _expr()  {}
-func (*NewExpression) _expr()         {}
-func (*ObjectLiteral) _expr()         {}
-func (*SequenceExpression) _expr()    {}
-func (*TemplateLiteral) _expr()       {}
-func (*ThisExpression) _expr()        {}
-func (*SuperExpression) _expr()       {}
-func (*UnaryExpression) _expr()       {}
-func (*UpdateExpression) _expr()      {}
-func (*MetaProperty) _expr()          {}
-func (*ObjectPattern) _expr()         {}
-func (*ArrayPattern) _expr()          {}
-func (*VariableDeclarator) _expr()    {}
-func (*OptionalChain) _expr()         {}
-func (*Optional) _expr()              {}
-func (*SpreadElement) _expr()         {}
-func (*PrivateIdentifier) _expr()     {}
+func (bt *BindingTarget) IsPattern() bool {
+	return bt.kind == BindingTargetArrPat || bt.kind == BindingTargetObjPat
+}

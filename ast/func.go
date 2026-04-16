@@ -15,11 +15,9 @@ type (
 
 	ParameterList struct {
 		List VariableDeclarators
-		Rest Expr `optional:"true"`
+		Rest *Expression `optional:"true"`
 
 		Opening Idx
 		Closing Idx
 	}
 )
-
-func (*FunctionLiteral) _expr() {}

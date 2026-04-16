@@ -1,5 +1,7 @@
 package ast
 
+import "unsafe"
+
 type (
 	ClassLiteral struct {
 		Name       *Identifier `optional:"true"`
@@ -12,13 +14,10 @@ type (
 
 	ClassElements []ClassElement
 
+	//union:ClassStaticBlock,FieldDefinition,MethodDefinition
 	ClassElement struct {
-		Element Element
-	}
-
-	Element interface {
-		VisitableNode
-		_classElement()
+		ptr  unsafe.Pointer
+		kind ClassElemKind
 	}
 
 	FieldDefinition struct {
@@ -33,7 +32,7 @@ type (
 
 	MethodDefinition struct {
 		Key  *Expression
-		Kind PropertyKind // "method", "get" or "set"
+		Kind PropertyKind
 		Body *FunctionLiteral
 
 		Idx      Idx
@@ -47,11 +46,3 @@ type (
 		Static Idx
 	}
 )
-
-func (*ClassLiteral) _expr()  {}
-func (*PropertyShort) _expr() {}
-func (*PropertyKeyed) _expr() {}
-
-func (*FieldDefinition) _classElement()  {}
-func (*MethodDefinition) _classElement() {}
-func (*ClassStaticBlock) _classElement() {}
