@@ -5,25 +5,27 @@ import "github.com/t14raptor/go-fast/ast"
 type binaryExprEntry struct {
 	op        string
 	rightPrec ast.Precedence
-	right     ast.Expr
+	right     *ast.Expression
 	wrap      bool
 }
 
 // genBinaryExpr linearizes nested binary/logical trees into an iterative
 // loop instead of recursing down the left spine.
-func (g *GenVisitor) genBinaryExpr(expr ast.Expr, minPrec ast.Precedence, ctx context) {
+func (g *GenVisitor) genBinaryExpr(expr *ast.Expression, minPrec ast.Precedence, ctx context) {
 	stack := g.binaryStack[:0]
 
 descend:
 	for {
 		var opStr string
 		var opPrec, leftPrec, rightPrec ast.Precedence
-		var left, right ast.Expr
+		var left, right *ast.Expression
 
-		switch n := expr.(type) {
-		case *ast.BinaryExpression:
+		switch expr.Kind() {
+		case ast.ExprBinary:
+			n := expr.MustBinary()
+
 			opStr, opPrec = n.Operator.String(), n.Operator.Precedence()
-			left, right = n.Left.Expr, n.Right.Expr
+			left, right = n.Left, n.Right
 
 			leftPrec, rightPrec = opPrec, opPrec+1
 			if opPrec.IsRightAssociative() {
@@ -32,7 +34,7 @@ descend:
 
 			// -x ** y is a syntax error; force parens on unary left of **.
 			if n.Operator == ast.BinaryExponential {
-				if _, ok := left.(*ast.UnaryExpression); ok {
+				if left.IsUnary() {
 					leftPrec = ast.PrecedenceCall
 				}
 			}
@@ -41,9 +43,11 @@ descend:
 			if n.Operator == ast.BinaryIn && ctx&ctxForbidIn != 0 {
 				minPrec = opPrec + 1
 			}
-		case *ast.LogicalExpression:
+		case ast.ExprLogical:
+			n := expr.MustLogical()
+
 			opStr, opPrec = n.Operator.String(), n.Operator.Precedence()
-			left, right = n.Left.Expr, n.Right.Expr
+			left, right = n.Left, n.Right
 
 			leftPrec, rightPrec = opPrec, opPrec+1
 

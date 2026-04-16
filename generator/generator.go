@@ -68,7 +68,7 @@ func (g *GenVisitor) gen(node ast.VisitableNode) {
 func (g *GenVisitor) genExpr(expr *ast.Expression, prec ast.Precedence, ctx context) {
 	savedPrec, savedCtx := g.prec, g.ctx
 	g.prec, g.ctx = prec, ctx
-	expr.VisitWith(g)
+	expr.VisitChildrenWith(g)
 	g.prec, g.ctx = savedPrec, savedCtx
 }
 
@@ -94,14 +94,6 @@ func (g *GenVisitor) space() {
 		return
 	}
 	g.writeByte(' ')
-}
-
-func (g *GenVisitor) VisitBinaryExpression(n *ast.BinaryExpression) {
-	g.genBinaryExpr(n, g.prec, g.ctx)
-}
-
-func (g *GenVisitor) VisitLogicalExpression(n *ast.LogicalExpression) {
-	g.genBinaryExpr(n, g.prec, g.ctx)
 }
 
 func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
@@ -562,18 +554,24 @@ func (g *GenVisitor) VisitMetaProperty(n *ast.MetaProperty) {
 }
 
 func (g *GenVisitor) VisitBindingTarget(n *ast.BindingTarget) {
-	g.genExpr(n.Unwrap(), ast.PrecedenceLowest, 0)
+	expr := ast.ExpressionFromBindingTarget(n)
+	g.genExpr(&expr, ast.PrecedenceLowest, 0)
 }
 
 func (g *GenVisitor) VisitExpression(n *ast.Expression) {
-	if n != nil {
+	switch n.Kind() {
+	case ast.ExprBinary:
+		g.genBinaryExpr(n, g.prec, g.ctx)
+	case ast.ExprLogical:
+		g.genBinaryExpr(n, g.prec, g.ctx)
+	default:
 		g.genExpr(n, ast.PrecedenceLowest, 0)
 	}
 }
 
 func (g *GenVisitor) VisitProgram(n *ast.Program) {
-	for _, b := range n.Body {
-		g.gen(b)
+	for i := range n.Body {
+		g.gen(&n.Body[i])
 		g.line()
 	}
 }

@@ -228,6 +228,22 @@ func BindingTargetFromExpression(expr *Expression) BindingTarget {
 	return BindingTarget{}
 }
 
+func ExpressionFromBindingTarget(target *BindingTarget) Expression {
+	switch target.Kind() {
+	case BindingTargetArrPat:
+		return NewArrPatExpr((*ArrayPattern)(target.ptr))
+	case BindingTargetMember:
+		return NewMemberExpr((*MemberExpression)(target.ptr))
+	case BindingTargetObjPat:
+		return NewObjPatExpr((*ObjectPattern)(target.ptr))
+	case BindingTargetIdent:
+		return NewIdentExpr((*Identifier)(target.ptr))
+	case BindingTargetInvalid:
+		return NewInvalidExpr((*InvalidExpression)(target.ptr))
+	}
+	return Expression{}
+}
+
 func (bt *BindingTarget) IsPattern() bool {
 	return bt.kind == BindingTargetArrPat || bt.kind == BindingTargetObjPat
 }
