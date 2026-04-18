@@ -7,24 +7,21 @@ type binaryExprEntry struct {
 	rightPrec ast.Precedence
 	right     ast.Expr
 	wrap      bool
+	innerCtx  context
 }
 
 // genBinaryExpr linearizes nested binary/logical trees into an iterative
 // loop instead of recursing down the left spine.
 //
-// Note: stack must be a fresh slice per call, not a shared scratch buffer
-// off the receiver. The unwind loop calls g.genExpr(e.right, ...) which can
-// recursively enter genBinaryExpr for the right subtree; if both calls
-// aliased g.binaryStack, the inner's `[:0]` + appends would clobber the
-// outer's entries in place and the outer's unwind would then read corrupted
-// entries (observed: malformed output with a stray `)` on patterns like
+// Note: stack must be a fresh slice per call, not a shared scratch buffer.
+// The unwind loop calls g.genExpr(e.right, ...) which can recursively enter
+// genBinaryExpr for the right subtree; if both calls aliased the same backing
+// store, the inner's `[:0]` + appends would clobber the outer's entries in
+// place and the outer's unwind would then read corrupted entries (observed:
+// malformed output with a stray `)` on patterns like
 // `a && b ? c >> (d & e) : f` where the right subtree is itself binary).
 func (g *GenVisitor) genBinaryExpr(expr ast.Expr, minPrec ast.Precedence, ctx context) {
-	type stackEntry struct {
-		binaryExprEntry
-		innerCtx context // ctx to carry into the right subtree
-	}
-	var stack []stackEntry
+	var stack []binaryExprEntry
 
 descend:
 	for {
@@ -85,14 +82,12 @@ descend:
 			innerCtx = ctx & ctxForbidIn
 		}
 
-		stack = append(stack, stackEntry{
-			binaryExprEntry: binaryExprEntry{
-				op:        opStr,
-				rightPrec: rightPrec,
-				right:     right,
-				wrap:      wrap,
-			},
-			innerCtx: innerCtx,
+		stack = append(stack, binaryExprEntry{
+			op:        opStr,
+			rightPrec: rightPrec,
+			right:     right,
+			wrap:      wrap,
+			innerCtx:  innerCtx,
 		})
 
 		expr, minPrec, ctx = left, leftPrec, innerCtx
