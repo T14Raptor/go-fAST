@@ -7,12 +7,18 @@ type binaryExprEntry struct {
 	rightPrec ast.Precedence
 	right     ast.Expr
 	wrap      bool
+	innerCtx  context
 }
 
 // genBinaryExpr linearizes nested binary/logical trees into an iterative
 // loop instead of recursing down the left spine.
+//
+// Note: calls share g.binaryStack as scratch storage. Each call reserves the
+// suffix starting at base and truncates back to base after unwind, so nested
+// right-subtree generation can reuse the backing array without clobbering
+// outer entries.
 func (g *GenVisitor) genBinaryExpr(expr ast.Expr, minPrec ast.Precedence, ctx context) {
-	stack := g.binaryStack[:0]
+	base := len(g.binaryStack)
 
 descend:
 	for {
@@ -63,20 +69,31 @@ descend:
 			g.writeByte('(')
 		}
 
-		stack = append(stack, binaryExprEntry{
+		// ctxForbidIn must carry into both subtrees unless this node is
+		// wrapped in parens, which delimits the subexpression and makes
+		// any inner `in` unambiguous. Non-forbidden context bits are
+		// reset at each descent (they're position-specific and don't
+		// transit through operators).
+		innerCtx := context(0)
+		if !wrap {
+			innerCtx = ctx & ctxForbidIn
+		}
+
+		g.binaryStack = append(g.binaryStack, binaryExprEntry{
 			op:        opStr,
 			rightPrec: rightPrec,
 			right:     right,
 			wrap:      wrap,
+			innerCtx:  innerCtx,
 		})
 
-		expr, minPrec, ctx = left, leftPrec, 0
+		expr, minPrec, ctx = left, leftPrec, innerCtx
 	}
 
-	for i := len(stack) - 1; i >= 0; i-- {
-		e := &stack[i]
+	for i := len(g.binaryStack) - 1; i >= base; i-- {
+		e := g.binaryStack[i]
 
-		if len(e.op) > 2 {
+		if e.op == "in" || len(e.op) > 2 {
 			// Keyword operators (in, instanceof) always need spaces.
 			g.writeByte(' ')
 			g.writeString(e.op)
@@ -87,12 +104,12 @@ descend:
 			g.space()
 		}
 
-		g.genExpr(e.right, e.rightPrec, 0)
+		g.genExpr(e.right, e.rightPrec, e.innerCtx)
 
 		if e.wrap {
 			g.writeByte(')')
 		}
 	}
 
-	g.binaryStack = stack[:0]
+	g.binaryStack = g.binaryStack[:base]
 }
