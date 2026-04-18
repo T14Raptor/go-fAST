@@ -13,15 +13,12 @@ type binaryExprEntry struct {
 // genBinaryExpr linearizes nested binary/logical trees into an iterative
 // loop instead of recursing down the left spine.
 //
-// Note: stack must be a fresh slice per call, not a shared scratch buffer.
-// The unwind loop calls g.genExpr(e.right, ...) which can recursively enter
-// genBinaryExpr for the right subtree; if both calls aliased the same backing
-// store, the inner's `[:0]` + appends would clobber the outer's entries in
-// place and the outer's unwind would then read corrupted entries (observed:
-// malformed output with a stray `)` on patterns like
-// `a && b ? c >> (d & e) : f` where the right subtree is itself binary).
+// Note: calls share g.binaryStack as scratch storage. Each call reserves the
+// suffix starting at base and truncates back to base after unwind, so nested
+// right-subtree generation can reuse the backing array without clobbering
+// outer entries.
 func (g *GenVisitor) genBinaryExpr(expr ast.Expr, minPrec ast.Precedence, ctx context) {
-	var stack []binaryExprEntry
+	base := len(g.binaryStack)
 
 descend:
 	for {
@@ -82,7 +79,7 @@ descend:
 			innerCtx = ctx & ctxForbidIn
 		}
 
-		stack = append(stack, binaryExprEntry{
+		g.binaryStack = append(g.binaryStack, binaryExprEntry{
 			op:        opStr,
 			rightPrec: rightPrec,
 			right:     right,
@@ -93,10 +90,10 @@ descend:
 		expr, minPrec, ctx = left, leftPrec, innerCtx
 	}
 
-	for i := len(stack) - 1; i >= 0; i-- {
-		e := &stack[i]
+	for i := len(g.binaryStack) - 1; i >= base; i-- {
+		e := g.binaryStack[i]
 
-		if len(e.op) > 2 {
+		if e.op == "in" || len(e.op) > 2 {
 			// Keyword operators (in, instanceof) always need spaces.
 			g.writeByte(' ')
 			g.writeString(e.op)
@@ -113,4 +110,6 @@ descend:
 			g.writeByte(')')
 		}
 	}
+
+	g.binaryStack = g.binaryStack[:base]
 }

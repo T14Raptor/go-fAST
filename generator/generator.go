@@ -46,6 +46,8 @@ type GenVisitor struct {
 	// Set by genExpr before calling VisitWith; read by each expression visitor.
 	prec ast.Precedence
 	ctx  context
+
+	binaryStack []binaryExprEntry
 }
 
 func (g *GenVisitor) writeByte(c byte) {

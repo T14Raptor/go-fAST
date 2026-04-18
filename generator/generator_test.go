@@ -6,6 +6,20 @@ import (
 	"github.com/t14raptor/go-fast/parser"
 )
 
+func assertMinified(t *testing.T, input, want string) {
+	t.Helper()
+
+	p, err := parser.ParseFile(input)
+	if err != nil {
+		t.Fatalf("Failed to parse input: %v", err)
+	}
+
+	got := GenerateMinified(p)
+	if got != want {
+		t.Fatalf("gen(%q) = %q; want %q", input, got, want)
+	}
+}
+
 func TestMetaProperty(t *testing.T) {
 	tests := []struct {
 		in, want string
@@ -24,6 +38,76 @@ func TestMetaProperty(t *testing.T) {
 		if got != tt.want {
 			t.Errorf("gen(%q) = %q; want %q", tt.in, got, tt.want)
 		}
+	}
+}
+
+func TestForInitializerForbidInRegressions(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "assignment rhs",
+			input: "for (x = (a in b);;) {}",
+			want:  "for(x=(a in b);;){}",
+		},
+		{
+			name:  "sequence element",
+			input: "for (x, (a in b);;) {}",
+			want:  "for(x,(a in b);;){}",
+		},
+		{
+			name:  "conditional test",
+			input: "for (((a in b) ? c : d);;) {}",
+			want:  "for((a in b)?c:d;;){}",
+		},
+		{
+			name:  "conditional alternate",
+			input: "for ((a ? b : (c in d));;) {}",
+			want:  "for(a?b:(c in d);;){}",
+		},
+		{
+			name:  "binary left subtree",
+			input: "for (((a in b) && c);;) {}",
+			want:  "for((a in b)&&c;;){}",
+		},
+		{
+			name:  "binary right subtree",
+			input: "for (a && (b in c);;) {}",
+			want:  "for(a&&(b in c);;){}",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertMinified(t, tt.input, tt.want)
+		})
+	}
+}
+
+func TestBinaryExprNestedRightRegressions(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{
+			name:  "binary right subtree",
+			input: "c >> (d & e);",
+			want:  "c>>(d&e);",
+		},
+		{
+			name:  "conditional consequent binary right subtree",
+			input: "a && b ? c >> (d & e) : f;",
+			want:  "a&&b?c>>(d&e):f;",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assertMinified(t, tt.input, tt.want)
+		})
 	}
 }
 
