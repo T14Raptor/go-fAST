@@ -11,8 +11,20 @@ type binaryExprEntry struct {
 
 // genBinaryExpr linearizes nested binary/logical trees into an iterative
 // loop instead of recursing down the left spine.
+//
+// Note: stack must be a fresh slice per call, not a shared scratch buffer
+// off the receiver. The unwind loop calls g.genExpr(e.right, ...) which can
+// recursively enter genBinaryExpr for the right subtree; if both calls
+// aliased g.binaryStack, the inner's `[:0]` + appends would clobber the
+// outer's entries in place and the outer's unwind would then read corrupted
+// entries (observed: malformed output with a stray `)` on patterns like
+// `a && b ? c >> (d & e) : f` where the right subtree is itself binary).
 func (g *GenVisitor) genBinaryExpr(expr ast.Expr, minPrec ast.Precedence, ctx context) {
-	stack := g.binaryStack[:0]
+	type stackEntry struct {
+		binaryExprEntry
+		innerCtx context // ctx to carry into the right subtree
+	}
+	var stack []stackEntry
 
 descend:
 	for {
@@ -63,14 +75,27 @@ descend:
 			g.writeByte('(')
 		}
 
-		stack = append(stack, binaryExprEntry{
-			op:        opStr,
-			rightPrec: rightPrec,
-			right:     right,
-			wrap:      wrap,
+		// ctxForbidIn must carry into both subtrees unless this node is
+		// wrapped in parens, which delimits the subexpression and makes
+		// any inner `in` unambiguous. Non-forbidden context bits are
+		// reset at each descent (they're position-specific and don't
+		// transit through operators).
+		innerCtx := context(0)
+		if !wrap {
+			innerCtx = ctx & ctxForbidIn
+		}
+
+		stack = append(stack, stackEntry{
+			binaryExprEntry: binaryExprEntry{
+				op:        opStr,
+				rightPrec: rightPrec,
+				right:     right,
+				wrap:      wrap,
+			},
+			innerCtx: innerCtx,
 		})
 
-		expr, minPrec, ctx = left, leftPrec, 0
+		expr, minPrec, ctx = left, leftPrec, innerCtx
 	}
 
 	for i := len(stack) - 1; i >= 0; i-- {
@@ -87,12 +112,10 @@ descend:
 			g.space()
 		}
 
-		g.genExpr(e.right, e.rightPrec, 0)
+		g.genExpr(e.right, e.rightPrec, e.innerCtx)
 
 		if e.wrap {
 			g.writeByte(')')
 		}
 	}
-
-	g.binaryStack = stack[:0]
 }
