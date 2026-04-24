@@ -1523,7 +1523,7 @@ func TestPrecedenceOrOverAnd(t *testing.T) {
 	if bin.Operator != ast.LogicalOr {
 		t.Fatalf("top operator = %v; want ||", bin.Operator)
 	}
-	right := bin.Right.MustBinary()
+	right := bin.Right.MustLogical()
 	if right.Operator != ast.LogicalAnd {
 		t.Errorf("right operator = %v; want &&", right.Operator)
 	}
@@ -1591,7 +1591,7 @@ func TestPrecedenceNullishCoalescing(t *testing.T) {
 	if outer.Operator != ast.LogicalCoalesce {
 		t.Fatalf("top = %v; want ??", outer.Operator)
 	}
-	inner := outer.Left.MustBinary()
+	inner := outer.Left.MustLogical()
 	if inner.Operator != ast.LogicalCoalesce {
 		t.Errorf("left = %v; want ??", inner.Operator)
 	}
