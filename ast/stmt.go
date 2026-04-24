@@ -1,17 +1,17 @@
 package ast
 
+import (
+	"unsafe"
+)
+
 type (
 	Statements []Statement
 
+	//union:BadStatement,BlockStatement,BreakStatement,CaseStatement,CatchStatement,ClassDeclaration,ContinueStatement,DebuggerStatement,DoWhileStatement,EmptyStatement,ExpressionStatement,ForStatement,ForInStatement,ForOfStatement,FunctionDeclaration,IfStatement,LabelledStatement,ReturnStatement,SwitchStatement,ThrowStatement,TryStatement,VariableDeclaration,WhileStatement,WithStatement
 	Statement struct {
-		Stmt Stmt `optional:"true"`
-	}
+		kind StmtKind
 
-	// All statement nodes implement the Stmt interface.
-	Stmt interface {
-		Node
-		VisitableNode
-		_stmt()
+		ptr unsafe.Pointer
 	}
 
 	BadStatement struct {
@@ -99,8 +99,8 @@ type (
 
 	SwitchStatement struct {
 		Discriminant *Expression
-		Default      int
 		Body         CaseStatements
+		Default      int
 
 		Switch Idx
 	}
@@ -142,13 +142,10 @@ type (
 		For Idx
 	}
 
+	//union:Expression,VariableDeclaration
 	ForLoopInitializer struct {
-		Initializer ForLoopInit
-	}
-
-	ForLoopInit interface {
-		VisitableNode
-		_forLoopInitializer()
+		ptr  unsafe.Pointer
+		kind ForInitKind
 	}
 
 	ForInStatement struct {
@@ -168,40 +165,9 @@ type (
 		Await bool
 	}
 
+	//union:Expression,VariableDeclaration
 	ForInto struct {
-		Into
-	}
-
-	Into interface {
-		VisitableNode
-		_forInto()
+		ptr  unsafe.Pointer
+		kind ForIntoKind
 	}
 )
-
-func (*VariableDeclaration) _forLoopInitializer() {}
-func (*Expression) _forLoopInitializer()          {}
-
-func (*VariableDeclaration) _forInto() {}
-func (*Expression) _forInto()          {}
-
-func (*BadStatement) _stmt()        {}
-func (*BlockStatement) _stmt()      {}
-func (*BreakStatement) _stmt()      {}
-func (*CaseStatement) _stmt()       {}
-func (*ContinueStatement) _stmt()   {}
-func (*CatchStatement) _stmt()      {}
-func (*DebuggerStatement) _stmt()   {}
-func (*DoWhileStatement) _stmt()    {}
-func (*EmptyStatement) _stmt()      {}
-func (*ExpressionStatement) _stmt() {}
-func (*ForInStatement) _stmt()      {}
-func (*ForOfStatement) _stmt()      {}
-func (*ForStatement) _stmt()        {}
-func (*IfStatement) _stmt()         {}
-func (*LabelledStatement) _stmt()   {}
-func (*ReturnStatement) _stmt()     {}
-func (*SwitchStatement) _stmt()     {}
-func (*ThrowStatement) _stmt()      {}
-func (*TryStatement) _stmt()        {}
-func (*WhileStatement) _stmt()      {}
-func (*WithStatement) _stmt()       {}
