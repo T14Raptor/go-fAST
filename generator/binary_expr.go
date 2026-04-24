@@ -7,23 +7,26 @@ type binaryExprEntry struct {
 	rightPrec ast.Precedence
 	right     ast.Expr
 	wrap      bool
+	ctx       context
 }
 
 // genBinaryExpr linearizes nested binary/logical trees into an iterative
 // loop instead of recursing down the left spine.
 func (g *GenVisitor) genBinaryExpr(expr ast.Expr, minPrec ast.Precedence, ctx context) {
-	stack := g.binaryStack[:0]
+	base := len(g.binaryStack)
 
 descend:
 	for {
 		var opStr string
 		var opPrec, leftPrec, rightPrec ast.Precedence
 		var left, right ast.Expr
+		var isIn bool
 
 		switch n := expr.(type) {
 		case *ast.BinaryExpression:
 			opStr, opPrec = n.Operator.String(), n.Operator.Precedence()
 			left, right = n.Left.Expr, n.Right.Expr
+			isIn = n.Operator == ast.BinaryIn
 
 			leftPrec, rightPrec = opPrec, opPrec+1
 			if opPrec.IsRightAssociative() {
@@ -35,11 +38,6 @@ descend:
 				if _, ok := left.(*ast.UnaryExpression); ok {
 					leftPrec = ast.PrecedenceCall
 				}
-			}
-
-			// for-init: bare `in` is ambiguous with for-in.
-			if n.Operator == ast.BinaryIn && ctx&ctxForbidIn != 0 {
-				minPrec = opPrec + 1
 			}
 		case *ast.LogicalExpression:
 			opStr, opPrec = n.Operator.String(), n.Operator.Precedence()
@@ -58,25 +56,42 @@ descend:
 			break descend
 		}
 
-		wrap := opPrec < minPrec
+		// Wrap when precedence demands it, or when this is a bare `in`
+		// in a for-init context (ambiguous with for-in).
+		wrap := opPrec < minPrec || (isIn && ctx&ctxForbidIn != 0)
 		if wrap {
 			g.writeByte('(')
 		}
 
-		stack = append(stack, binaryExprEntry{
+		// Children inherit forbid-in unless our parens already delimit
+		// the for-init subexpression. Other context bits don't cross
+		// operators, so they're dropped here.
+		if wrap {
+			ctx = 0
+		} else {
+			ctx &= ctxForbidIn
+		}
+
+		g.binaryStack = append(g.binaryStack, binaryExprEntry{
 			op:        opStr,
 			rightPrec: rightPrec,
 			right:     right,
 			wrap:      wrap,
+			ctx:       ctx,
 		})
 
-		expr, minPrec, ctx = left, leftPrec, 0
+		expr, minPrec = left, leftPrec
 	}
 
-	for i := len(stack) - 1; i >= 0; i-- {
-		e := &stack[i]
+	for {
+		length := len(g.binaryStack)
+		if length == 0 || length-1 < base {
+			break
+		}
+		e := g.binaryStack[length-1]
+		g.binaryStack = g.binaryStack[:length-1]
 
-		if len(e.op) > 2 {
+		if e.op == "in" || e.op == "instanceof" {
 			// Keyword operators (in, instanceof) always need spaces.
 			g.writeByte(' ')
 			g.writeString(e.op)
@@ -87,12 +102,10 @@ descend:
 			g.space()
 		}
 
-		g.genExpr(e.right, e.rightPrec, 0)
+		g.genExpr(e.right, e.rightPrec, e.ctx)
 
 		if e.wrap {
 			g.writeByte(')')
 		}
 	}
-
-	g.binaryStack = stack[:0]
 }

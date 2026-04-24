@@ -105,16 +105,18 @@ func (g *GenVisitor) VisitLogicalExpression(n *ast.LogicalExpression) {
 }
 
 func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
+	ctx := g.ctx
 	wrap := g.prec > ast.PrecedenceAssign
 	if wrap {
 		g.writeByte('(')
+		ctx &^= ctxForbidIn
 	}
 
-	g.genExpr(n.Left.Expr, ast.PrecedenceAssign, g.ctx)
+	g.genExpr(n.Left.Expr, ast.PrecedenceAssign, ctx)
 	g.space()
 	g.writeString(n.Operator.String())
 	g.space()
-	g.genExpr(n.Right.Expr, ast.PrecedenceAssign, 0)
+	g.genExpr(n.Right.Expr, ast.PrecedenceAssign, ctx&ctxForbidIn)
 
 	if wrap {
 		g.writeByte(')')
@@ -126,6 +128,7 @@ func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
 	wrap := g.prec > ast.PrecedenceConditional
 	if wrap {
 		g.writeByte('(')
+		ctx &^= ctxForbidIn
 	}
 
 	g.genExpr(n.Test.Expr, ast.PrecedenceConditional+1, ctx&ctxForbidIn)
@@ -189,13 +192,15 @@ func (g *GenVisitor) VisitUpdateExpression(n *ast.UpdateExpression) {
 }
 
 func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
+	ctx := g.ctx
 	wrap := g.prec > ast.PrecedenceComma
 	if wrap {
 		g.writeByte('(')
+		ctx &^= ctxForbidIn
 	}
 
 	for i, e := range n.Sequence {
-		g.genExpr(e.Expr, ast.PrecedenceAssign, 0)
+		g.genExpr(e.Expr, ast.PrecedenceAssign, ctx&ctxForbidIn)
 		if i < len(n.Sequence)-1 {
 			g.writeByte(',')
 			g.space()
