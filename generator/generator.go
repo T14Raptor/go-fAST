@@ -68,7 +68,12 @@ func (g *GenVisitor) gen(node ast.VisitableNode) {
 func (g *GenVisitor) genExpr(expr *ast.Expression, prec ast.Precedence, ctx context) {
 	savedPrec, savedCtx := g.prec, g.ctx
 	g.prec, g.ctx = prec, ctx
-	expr.VisitChildrenWith(g)
+	switch expr.Kind() {
+	case ast.ExprBinary, ast.ExprLogical:
+		g.genBinaryExpr(expr, g.prec, g.ctx)
+	default:
+		expr.VisitChildrenWith(g)
+	}
 	g.prec, g.ctx = savedPrec, savedCtx
 }
 
@@ -561,17 +566,6 @@ func (g *GenVisitor) VisitMetaProperty(n *ast.MetaProperty) {
 func (g *GenVisitor) VisitBindingTarget(n *ast.BindingTarget) {
 	expr := ast.ExpressionFromBindingTarget(n)
 	g.genExpr(&expr, ast.PrecedenceLowest, 0)
-}
-
-func (g *GenVisitor) VisitExpression(n *ast.Expression) {
-	switch n.Kind() {
-	case ast.ExprBinary:
-		g.genBinaryExpr(n, g.prec, g.ctx)
-	case ast.ExprLogical:
-		g.genBinaryExpr(n, g.prec, g.ctx)
-	default:
-		g.genExpr(n, ast.PrecedenceLowest, 0)
-	}
 }
 
 func (g *GenVisitor) VisitProgram(n *ast.Program) {
