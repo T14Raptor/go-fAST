@@ -109,14 +109,13 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 	wrap := g.prec > ast.PrecedenceAssign
 	if wrap {
 		g.writeByte('(')
+		ctx &^= ctxForbidIn
 	}
 
 	g.genExpr(n.Left.Expr, ast.PrecedenceAssign, ctx)
 	g.space()
 	g.writeString(n.Operator.String())
 	g.space()
-	// Propagate ctxForbidIn into the RHS: `for (x = a in b; ...)` is
-	// ambiguous with for-in and must render as `for (x = (a in b); ...)`.
 	g.genExpr(n.Right.Expr, ast.PrecedenceAssign, ctx&ctxForbidIn)
 
 	if wrap {
@@ -129,6 +128,7 @@ func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
 	wrap := g.prec > ast.PrecedenceConditional
 	if wrap {
 		g.writeByte('(')
+		ctx &^= ctxForbidIn
 	}
 
 	g.genExpr(n.Test.Expr, ast.PrecedenceConditional+1, ctx&ctxForbidIn)
@@ -196,9 +196,6 @@ func (g *GenVisitor) VisitSequenceExpression(n *ast.SequenceExpression) {
 	wrap := g.prec > ast.PrecedenceComma
 	if wrap {
 		g.writeByte('(')
-		// Wrapping this sequence in parens means any inner `in` is no
-		// longer at for-init top-level, so the forbid-in guard doesn't
-		// need to carry further.
 		ctx &^= ctxForbidIn
 	}
 

@@ -77,6 +77,26 @@ func TestForInitializerForbidInRegressions(t *testing.T) {
 			input: "for (a && (b in c);;) {}",
 			want:  "for(a&&(b in c);;){}",
 		},
+		{
+			name:  "wrapped conditional test clears forbid-in",
+			input: "for (((a in b) ? c : d) * e;;) {}",
+			want:  "for((a in b?c:d)*e;;){}",
+		},
+		{
+			name:  "wrapped conditional alternate clears forbid-in",
+			input: "for ((a ? b : (c in d)) * e;;) {}",
+			want:  "for((a?b:c in d)*e;;){}",
+		},
+		{
+			name:  "wrapped assignment clears forbid-in",
+			input: "for (1 * (x = (a in b));;) {}",
+			want:  "for(1*(x=a in b);;){}",
+		},
+		{
+			name:  "nested wrapped sequence clears forbid-in",
+			input: "for ((x, (a in b)) * c;;) {}",
+			want:  "for((x,a in b)*c;;){}",
+		},
 	}
 
 	for _, tt := range tests {

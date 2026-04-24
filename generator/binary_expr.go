@@ -7,16 +7,11 @@ type binaryExprEntry struct {
 	rightPrec ast.Precedence
 	right     ast.Expr
 	wrap      bool
-	innerCtx  context
+	ctx       context
 }
 
 // genBinaryExpr linearizes nested binary/logical trees into an iterative
 // loop instead of recursing down the left spine.
-//
-// Note: calls share g.binaryStack as scratch storage. Each call reserves the
-// suffix starting at base and truncates back to base after unwind, so nested
-// right-subtree generation can reuse the backing array without clobbering
-// outer entries.
 func (g *GenVisitor) genBinaryExpr(expr ast.Expr, minPrec ast.Precedence, ctx context) {
 	base := len(g.binaryStack)
 
@@ -25,11 +20,13 @@ descend:
 		var opStr string
 		var opPrec, leftPrec, rightPrec ast.Precedence
 		var left, right ast.Expr
+		var isIn bool
 
 		switch n := expr.(type) {
 		case *ast.BinaryExpression:
 			opStr, opPrec = n.Operator.String(), n.Operator.Precedence()
 			left, right = n.Left.Expr, n.Right.Expr
+			isIn = n.Operator == ast.BinaryIn
 
 			leftPrec, rightPrec = opPrec, opPrec+1
 			if opPrec.IsRightAssociative() {
@@ -41,11 +38,6 @@ descend:
 				if _, ok := left.(*ast.UnaryExpression); ok {
 					leftPrec = ast.PrecedenceCall
 				}
-			}
-
-			// for-init: bare `in` is ambiguous with for-in.
-			if n.Operator == ast.BinaryIn && ctx&ctxForbidIn != 0 {
-				minPrec = opPrec + 1
 			}
 		case *ast.LogicalExpression:
 			opStr, opPrec = n.Operator.String(), n.Operator.Precedence()
@@ -64,19 +56,20 @@ descend:
 			break descend
 		}
 
-		wrap := opPrec < minPrec
+		// Wrap when precedence demands it, or when this is a bare `in`
+		// in a for-init context (ambiguous with for-in).
+		wrap := opPrec < minPrec || (isIn && ctx&ctxForbidIn != 0)
 		if wrap {
 			g.writeByte('(')
 		}
 
-		// ctxForbidIn must carry into both subtrees unless this node is
-		// wrapped in parens, which delimits the subexpression and makes
-		// any inner `in` unambiguous. Non-forbidden context bits are
-		// reset at each descent (they're position-specific and don't
-		// transit through operators).
-		innerCtx := context(0)
-		if !wrap {
-			innerCtx = ctx & ctxForbidIn
+		// Children inherit forbid-in unless our parens already delimit
+		// the for-init subexpression. Other context bits don't cross
+		// operators, so they're dropped here.
+		if wrap {
+			ctx = 0
+		} else {
+			ctx &= ctxForbidIn
 		}
 
 		g.binaryStack = append(g.binaryStack, binaryExprEntry{
@@ -84,16 +77,21 @@ descend:
 			rightPrec: rightPrec,
 			right:     right,
 			wrap:      wrap,
-			innerCtx:  innerCtx,
+			ctx:       ctx,
 		})
 
-		expr, minPrec, ctx = left, leftPrec, innerCtx
+		expr, minPrec = left, leftPrec
 	}
 
-	for i := len(g.binaryStack) - 1; i >= base; i-- {
-		e := g.binaryStack[i]
+	for {
+		length := len(g.binaryStack)
+		if length == 0 || length-1 < base {
+			break
+		}
+		e := g.binaryStack[length-1]
+		g.binaryStack = g.binaryStack[:length-1]
 
-		if e.op == "in" || len(e.op) > 2 {
+		if e.op == "in" || e.op == "instanceof" {
 			// Keyword operators (in, instanceof) always need spaces.
 			g.writeByte(' ')
 			g.writeString(e.op)
@@ -104,12 +102,10 @@ descend:
 			g.space()
 		}
 
-		g.genExpr(e.right, e.rightPrec, e.innerCtx)
+		g.genExpr(e.right, e.rightPrec, e.ctx)
 
 		if e.wrap {
 			g.writeByte(')')
 		}
 	}
-
-	g.binaryStack = g.binaryStack[:base]
 }
