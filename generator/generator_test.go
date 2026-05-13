@@ -41,6 +41,13 @@ func TestMetaProperty(t *testing.T) {
 	}
 }
 
+func TestPropertyKindGetSetKeywords(t *testing.T) {
+	assertMinified(t,
+		`({get value(){return 1;},set value(next){this.next=next;}});`,
+		`({get value(){return 1;},set value(next){this.next=next;}});`,
+	)
+}
+
 func TestForInitializerForbidInRegressions(t *testing.T) {
 	tests := []struct {
 		name  string

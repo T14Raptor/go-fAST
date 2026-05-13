@@ -948,7 +948,12 @@ func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
 
 func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 	if n.Kind == ast.PropertyKindGet || n.Kind == ast.PropertyKindSet {
-		g.writeString(string(n.Kind))
+		switch n.Kind {
+		case ast.PropertyKindGet:
+			g.writeString("get")
+		case ast.PropertyKindSet:
+			g.writeString("set")
+		}
 		g.writeByte(' ')
 		if n.Computed {
 			g.writeByte('[')
