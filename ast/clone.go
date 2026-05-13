@@ -698,5 +698,9 @@ func (n *WithStatement) Clone() *WithStatement {
 	return &WithStatement{Object: n.Object.Clone(), Body: n.Body.Clone(), With: n.With}
 }
 func (n *YieldExpression) Clone() *YieldExpression {
-	return &YieldExpression{Argument: n.Argument.Clone(), Yield: n.Yield, Delegate: n.Delegate}
+	var argument *Expression
+	if n.Argument != nil {
+		argument = n.Argument.Clone()
+	}
+	return &YieldExpression{Argument: argument, Yield: n.Yield, Delegate: n.Delegate}
 }

@@ -30,7 +30,7 @@ type (
 	}
 
 	YieldExpression struct {
-		Argument *Expression
+		Argument *Expression `optional:"true"`
 
 		Yield Idx
 

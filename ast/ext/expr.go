@@ -66,7 +66,7 @@ func IsVoid(expr *ast.Expression) bool {
 // IsGlobalRefTo returns true if id references a global object.
 func IsGlobalRefTo(expr *ast.Expression, id string) bool {
 	if ident, ok := expr.Expr.(*ast.Identifier); ok {
-		return ident.Name == id && ident.ScopeContext == resolver.TopLevelMark
+		return ident.Name == id && ident.ScopeContext == resolver.UnresolvedMark
 	}
 	return false
 }
@@ -248,10 +248,10 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 		}
 		return numFromStr(s.Val()), true
 	case *ast.Identifier:
-		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == resolver.TopLevelMark {
+		if IsGlobalRefTo(expr, "undefined") || IsGlobalRefTo(expr, "NaN") {
 			return Known(math.NaN()), true
 		}
-		if e.Name == "Infinity" && e.ScopeContext == resolver.TopLevelMark {
+		if IsGlobalRefTo(expr, "Infinity") {
 			return Known(math.Inf(1)), true
 		}
 		return Unknown[float64](), true
@@ -318,11 +318,17 @@ func AsPureString(expr *ast.Expression) Value[string] {
 	case *ast.Identifier:
 		switch e.Name {
 		case "undefined", "Infinity", "NaN":
-			return Known(e.Name)
+			if IsGlobalRefTo(expr, e.Name) {
+				return Known(e.Name)
+			}
 		case "Math", "JSON":
-			return Known(objectToStr(e.Name))
+			if IsGlobalRefTo(expr, e.Name) {
+				return Known(objectToStr(e.Name))
+			}
 		case "Date":
-			return Known(funcToStr(e.Name))
+			if IsGlobalRefTo(expr, e.Name) {
+				return Known(funcToStr(e.Name))
+			}
 		}
 	case *ast.UnaryExpression:
 		switch e.Operator {
@@ -351,7 +357,7 @@ func AsPureString(expr *ast.Expression) Value[string] {
 					sb.WriteString("")
 				}
 			case *ast.Identifier:
-				if e.Name == "undefined" {
+				if e.Name == "undefined" && e.ScopeContext == resolver.UnresolvedMark {
 					sb.WriteString("")
 				}
 			case nil:
@@ -500,14 +506,13 @@ func GetType(expr *ast.Expression) TypeValue {
 		}
 		return TypeValue{Unknown[Type]()}
 	case *ast.Identifier:
-		switch e.Name {
-		case "undefined":
+		switch {
+		case IsGlobalRefTo(expr, "undefined"):
 			return TypeValue{Known[Type](UndefinedType{})}
-		case "Infinity", "NaN":
+		case IsGlobalRefTo(expr, "Infinity"), IsGlobalRefTo(expr, "NaN"):
 			return TypeValue{Known[Type](NumberType{})}
-		default:
-			return TypeValue{Unknown[Type]()}
 		}
+		return TypeValue{Unknown[Type]()}
 	case *ast.NumberLiteral:
 		return TypeValue{Known[Type](NumberType{})}
 	case *ast.UnaryExpression:

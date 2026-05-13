@@ -945,5 +945,7 @@ func (n *YieldExpression) VisitWith(v Visitor) {
 	v.VisitYieldExpression(n)
 }
 func (n *YieldExpression) VisitChildrenWith(v Visitor) {
-	n.Argument.VisitWith(v)
+	if n.Argument != nil {
+		n.Argument.VisitWith(v)
+	}
 }
