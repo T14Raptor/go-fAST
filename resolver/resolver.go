@@ -182,14 +182,6 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	r.identType = IdentTypeBinding
 	n.ParameterList.VisitWith(r)
 
-	if n.ParameterList.Rest != nil {
-		if ident, ok := n.ParameterList.Rest.Ident(); ok {
-			ident.VisitWith(r)
-		} else {
-			panic(fmt.Sprintf("Unexpected rest kind: %s\n", n.ParameterList.Rest.Kind()))
-		}
-	}
-
 	r.identType = IdentTypeRef
 	// Prevent creating new scope.
 	n.Body.ScopeContext = r.current.ctx
@@ -198,6 +190,17 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	r.identType = oldIdentType
 
 	r.popScope()
+}
+
+func (r *Resolver) VisitParameterList(n *ast.ParameterList) {
+	n.List.VisitWith(r)
+	if n.Rest != nil {
+		if ident, ok := n.Rest.Ident(); ok {
+			ident.VisitWith(r)
+		} else {
+			panic(fmt.Sprintf("Unexpected rest kind: %s\n", n.Rest.Kind()))
+		}
+	}
 }
 
 func (r *Resolver) VisitProgram(n *ast.Program) {
