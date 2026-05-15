@@ -352,6 +352,11 @@ func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 }
 
 func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
+	wrap := g.prec > ast.PrecedenceAssign
+	if wrap {
+		g.writeByte('(')
+	}
+
 	if n.Async {
 		g.writeString("async ")
 	}
@@ -364,6 +369,10 @@ func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	g.gen(n.ParameterList)
 	g.space()
 	g.gen(n.Body)
+
+	if wrap {
+		g.writeByte(')')
+	}
 }
 
 func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
