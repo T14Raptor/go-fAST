@@ -1,10 +1,6 @@
 package resolver
 
-import (
-	"fmt"
-
-	"github.com/t14raptor/go-fast/ast"
-)
+import "github.com/t14raptor/go-fast/ast"
 
 type IdentType int
 
@@ -182,14 +178,6 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	r.identType = IdentTypeBinding
 	n.ParameterList.VisitWith(r)
 
-	if n.ParameterList.Rest != nil {
-		if ident, ok := n.ParameterList.Rest.Ident(); ok {
-			ident.VisitWith(r)
-		} else {
-			panic(fmt.Sprintf("Unexpected rest kind: %s\n", n.ParameterList.Rest.Kind()))
-		}
-	}
-
 	r.identType = IdentTypeRef
 	// Prevent creating new scope.
 	n.Body.ScopeContext = r.current.ctx
@@ -197,6 +185,32 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 
 	r.identType = oldIdentType
 
+	r.popScope()
+}
+
+func (r *Resolver) VisitParameterList(n *ast.ParameterList) {
+	for i := range n.List {
+		r.declareBindingTarget(n.List[i].Target)
+	}
+	r.declareBindingExpression(n.Rest)
+
+	for i := range n.List {
+		r.resolveBindingTargetReferences(n.List[i].Target)
+		if n.List[i].Initializer != nil {
+			n.List[i].Initializer.VisitWith(r)
+		}
+	}
+	r.resolveBindingExpressionReferences(n.Rest)
+}
+
+func (r *Resolver) VisitCatchStatement(n *ast.CatchStatement) {
+	r.pushScope(ScopeKindBlock)
+	if n.Parameter != nil {
+		r.declareBindingTarget(n.Parameter)
+		r.resolveBindingTargetReferences(n.Parameter)
+	}
+	n.Body.ScopeContext = r.current.ctx
+	n.Body.VisitChildrenWith(r)
 	r.popScope()
 }
 
@@ -221,17 +235,19 @@ func (r *Resolver) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	r.declKind = DeclKindVar
 
 	for _, decl := range n.List {
-		oldIdentType := r.identType
-		r.identType = IdentTypeBinding
-		decl.Target.VisitWith(r)
-		r.identType = oldIdentType
-
-		if decl.Initializer != nil {
-			decl.Initializer.VisitWith(r)
-		}
+		r.bindDeclarator(decl)
 	}
 
 	r.declKind = oldDeclKind
+}
+
+func (r *Resolver) VisitBindingTarget(n *ast.BindingTarget) {
+	if r.identType == IdentTypeBinding {
+		r.declareBindingTarget(n)
+		r.resolveBindingTargetReferences(n)
+		return
+	}
+	n.VisitChildrenWith(r)
 }
 
 func (r *Resolver) VisitExpression(expr *ast.Expression) {
