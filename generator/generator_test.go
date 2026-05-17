@@ -205,3 +205,12 @@ func TestSequenceExpressionInNewExpression(t *testing.T) {
 		})
 	}
 }
+
+func TestMinifiedOperatorTokenBoundaries(t *testing.T) {
+	assertMinified(t, `a + ++b;`, `a+ ++b;`)
+	assertMinified(t, `a - --b;`, `a- --b;`)
+	assertMinified(t, `a + +b;`, `a+ +b;`)
+	assertMinified(t, `a - -b;`, `a- -b;`)
+	assertMinified(t, `x = a / /b/.source;`, `x=a/ /b/.source;`)
+	assertMinified(t, `x = a / /b/();`, `x=a/ /b/();`)
+}

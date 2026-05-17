@@ -103,7 +103,11 @@ descend:
 		} else {
 			g.space()
 			g.writeString(e.op)
-			g.space()
+			if g.opts.Minified && needsBinaryOperatorSeparator(e.op, e.right) {
+				g.writeByte(' ')
+			} else {
+				g.space()
+			}
 		}
 
 		g.genExpr(e.right, e.rightPrec, e.ctx)
@@ -112,4 +116,57 @@ descend:
 			g.writeByte(')')
 		}
 	}
+}
+
+func needsBinaryOperatorSeparator(op string, right *ast.Expression) bool {
+	switch op {
+	case "+":
+		if unary, ok := right.Unary(); ok && unary.Operator == ast.UnaryPlus {
+			return true
+		}
+		if update, ok := right.Update(); ok && !update.Postfix && update.Operator == ast.UpdateIncrement {
+			return true
+		}
+	case "-":
+		if unary, ok := right.Unary(); ok && unary.Operator == ast.UnaryNegation {
+			return true
+		}
+		if update, ok := right.Update(); ok && !update.Postfix && update.Operator == ast.UpdateDecrement {
+			return true
+		}
+	case "/":
+		return startsWithRegExpLiteral(right)
+	}
+	return false
+}
+
+func startsWithRegExpLiteral(expr *ast.Expression) bool {
+	if expr == nil {
+		return false
+	}
+	if expr.IsRegExpLit() {
+		return true
+	}
+	if member, ok := expr.Member(); ok {
+		return startsWithRegExpLiteral(member.Object)
+	}
+	if call, ok := expr.Call(); ok {
+		return startsWithRegExpLiteral(call.Callee)
+	}
+	if newExpr, ok := expr.New(); ok {
+		return startsWithRegExpLiteral(newExpr.Callee)
+	}
+	if tmpl, ok := expr.TmplLit(); ok && tmpl.Tag != nil {
+		return startsWithRegExpLiteral(tmpl.Tag)
+	}
+	if priv, ok := expr.PrivDot(); ok {
+		return startsWithRegExpLiteral(priv.Left)
+	}
+	if opt, ok := expr.Optional(); ok {
+		return startsWithRegExpLiteral(opt.Expr)
+	}
+	if chain, ok := expr.OptChain(); ok {
+		return startsWithRegExpLiteral(chain.Base)
+	}
+	return false
 }
