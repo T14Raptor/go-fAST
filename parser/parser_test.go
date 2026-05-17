@@ -1308,6 +1308,40 @@ func TestASIReturnNewline(t *testing.T) {
 	}
 }
 
+func TestMissingRequiredSemicolonErrors(t *testing.T) {
+	for _, code := range []string{
+		`a b`,
+		`function f(){ a b }`,
+		`function f(){ x++y }`,
+		`function f(){ return 1 2 }`,
+		`function f(){ throw 1 2 }`,
+		`let a let b`,
+		`debugger debugger`,
+	} {
+		mustFail(t, code)
+	}
+}
+
+func TestUnicodeLineSeparatorsAffectASI(t *testing.T) {
+	mustFail(t, "throw\u2028x;")
+
+	p := mustParse(t, "function f(){ return\u20281; }")
+	body := bodyOf(firstStmt(p, 0))
+	if got := len(body.List); got != 2 {
+		t.Fatalf("body statements = %d; want 2 (return + expression)", got)
+	}
+	ret, ok := body.List[0].Return()
+	if !ok {
+		t.Fatalf("stmt[0] kind = %v; want Return", body.List[0].Kind())
+	}
+	if ret.Argument != nil {
+		t.Fatalf("return argument = %v; want nil", ret.Argument.Kind())
+	}
+	if !body.List[1].IsExpression() {
+		t.Fatalf("stmt[1] kind = %v; want Expression", body.List[1].Kind())
+	}
+}
+
 func TestASIReturnSameLine(t *testing.T) {
 	p := mustParse(t, "function f() { return 42 }")
 	body := bodyOf(firstStmt(p, 0))
