@@ -254,13 +254,16 @@ func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
 		g.writeByte('(')
 	}
 
-	switch n.Callee.Kind() {
-	case ast.ExprFuncLit, ast.ExprArrowFuncLit:
-		g.writeByte('(')
-		g.genExpr(n.Callee, ast.PrecedenceLowest, 0)
-		g.writeByte(')')
-	default:
-		g.genExpr(n.Callee, ast.PrecedenceCall, 0)
+	if opt, ok := n.Callee.Optional(); ok {
+		g.genOptionalBase(opt.Expr, ast.PrecedenceCall)
+		g.writeString("?.")
+	} else {
+		switch n.Callee.Kind() {
+		case ast.ExprArrowFuncLit, ast.ExprClassLit, ast.ExprFuncLit, ast.ExprObjLit:
+			g.genParenthesizedExpr(n.Callee)
+		default:
+			g.genExpr(n.Callee, ast.PrecedenceCall, 0)
+		}
 	}
 	g.writeByte('(')
 	for i := range n.ArgumentList {
@@ -292,15 +295,46 @@ func (g *GenVisitor) VisitNewExpression(n *ast.NewExpression) {
 }
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
+	if opt, ok := n.Object.Optional(); ok {
+		g.genOptionalBase(opt.Expr, ast.PrecedenceMember)
+		g.genOptionalMemberProperty(n.Property)
+		return
+	}
+
 	switch n.Object.Kind() {
-	case ast.ExprNumLit:
-		g.writeByte('(')
-		g.genExpr(n.Object, ast.PrecedenceLowest, 0)
-		g.writeByte(')')
+	case ast.ExprNumLit, ast.ExprArrowFuncLit, ast.ExprClassLit, ast.ExprFuncLit, ast.ExprObjLit:
+		g.genParenthesizedExpr(n.Object)
 	default:
 		g.genExpr(n.Object, ast.PrecedenceMember, 0)
 	}
 	g.gen(n.Property)
+}
+
+func (g *GenVisitor) genOptionalBase(expr *ast.Expression, prec ast.Precedence) {
+	switch expr.Kind() {
+	case ast.ExprArrowFuncLit, ast.ExprClassLit, ast.ExprFuncLit, ast.ExprObjLit:
+		g.genParenthesizedExpr(expr)
+	default:
+		g.genExpr(expr, prec, 0)
+	}
+}
+
+func (g *GenVisitor) genParenthesizedExpr(expr *ast.Expression) {
+	g.writeByte('(')
+	g.genExpr(expr, ast.PrecedenceLowest, 0)
+	g.writeByte(')')
+}
+
+func (g *GenVisitor) genOptionalMemberProperty(n *ast.MemberProperty) {
+	switch n.Kind() {
+	case ast.MemPropIdent:
+		g.writeString("?.")
+		g.gen(n.MustIdent())
+	case ast.MemPropComputed:
+		g.writeString("?.[")
+		g.genExpr(n.MustComputed().Expr, ast.PrecedenceAssign, 0)
+		g.writeByte(']')
+	}
 }
 
 func (g *GenVisitor) VisitPrivateDotExpression(n *ast.PrivateDotExpression) {
@@ -941,7 +975,7 @@ func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
 		g.gen(n.MustIdent())
 	case ast.MemPropComputed:
 		g.writeByte('[')
-		g.genExpr(n.MustComputed().Expr, ast.PrecedenceLowest, 0)
+		g.genExpr(n.MustComputed().Expr, ast.PrecedenceAssign, 0)
 		g.writeByte(']')
 	}
 }
@@ -970,7 +1004,7 @@ func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
 	}
 	if n.Computed {
 		g.writeByte('[')
-		g.genExpr(n.Key, ast.PrecedenceLowest, 0)
+		g.genExpr(n.Key, ast.PrecedenceAssign, 0)
 		g.writeByte(']')
 	} else {
 		g.genExpr(n.Key, ast.PrecedenceLowest, 0)

@@ -20,6 +20,19 @@ func assertMinified(t *testing.T, input, want string) {
 	}
 }
 
+func TestOptionalChainingMinified(t *testing.T) {
+	assertMinified(t, `a?.b; a?.(b); a?.[b];`, `a?.b;a?.(b);a?.[b];`)
+	assertMinified(t, `(function(){})?.();`, `(function(){})?.();`)
+	assertMinified(t, `(function(){})?.x;`, `(function(){})?.x;`)
+}
+
+func TestLiteralMemberAndCallBasesMinified(t *testing.T) {
+	assertMinified(t, `(function(){}).x;`, `(function(){}).x;`)
+	assertMinified(t, `(class {}).x;`, `(class {}).x;`)
+	assertMinified(t, `(class {})();`, `(class {})();`)
+	assertMinified(t, `({[(a,b)]:1});`, `({[(a,b)]:1});`)
+}
+
 func TestMetaProperty(t *testing.T) {
 	tests := []struct {
 		in, want string
