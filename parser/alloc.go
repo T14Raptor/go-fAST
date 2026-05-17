@@ -410,9 +410,9 @@ func (a *nodeAllocator) MemberProperty(mp ast.MemberProperty) *ast.MemberPropert
 	return n
 }
 
-func (a *nodeAllocator) ComputedProperty(expr *ast.Expression) *ast.ComputedProperty {
+func (a *nodeAllocator) ComputedProperty(left ast.Idx, expr *ast.Expression, right ast.Idx) *ast.ComputedProperty {
 	n := a.compProp.make()
-	*n = ast.ComputedProperty{Expr: expr}
+	*n = ast.ComputedProperty{Expr: expr, LeftBracket: left, RightBracket: right}
 	return n
 }
 

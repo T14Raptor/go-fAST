@@ -362,7 +362,9 @@ func (n *ArrayPattern) VisitWith(v Visitor) {
 }
 func (n *ArrayPattern) VisitChildrenWith(v Visitor) {
 	n.Elements.VisitWith(v)
-	n.Rest.VisitWith(v)
+	if n.Rest != nil {
+		n.Rest.VisitWith(v)
+	}
 }
 func (n *ArrowFunctionLiteral) VisitWith(v Visitor) {
 	v.VisitArrowFunctionLiteral(n)
@@ -570,8 +572,12 @@ func (n *ForStatement) VisitChildrenWith(v Visitor) {
 	if n.Initializer != nil {
 		n.Initializer.VisitWith(v)
 	}
-	n.Update.VisitWith(v)
-	n.Test.VisitWith(v)
+	if n.Update != nil {
+		n.Update.VisitWith(v)
+	}
+	if n.Test != nil {
+		n.Test.VisitWith(v)
+	}
 	n.Body.VisitWith(v)
 }
 func (n *FunctionDeclaration) VisitWith(v Visitor) {
@@ -636,6 +642,7 @@ func (n *MetaProperty) VisitWith(v Visitor) {
 }
 func (n *MetaProperty) VisitChildrenWith(v Visitor) {
 	n.Meta.VisitWith(v)
+	n.Property.VisitWith(v)
 }
 func (n *MethodDefinition) VisitWith(v Visitor) {
 	v.VisitMethodDefinition(n)
@@ -736,7 +743,9 @@ func (n *PropertyShort) VisitWith(v Visitor) {
 }
 func (n *PropertyShort) VisitChildrenWith(v Visitor) {
 	n.Name.VisitWith(v)
-	n.Initializer.VisitWith(v)
+	if n.Initializer != nil {
+		n.Initializer.VisitWith(v)
+	}
 }
 func (n *RegExpLiteral) VisitWith(v Visitor) {
 	v.VisitRegExpLiteral(n)
@@ -887,7 +896,9 @@ func (n *YieldExpression) VisitWith(v Visitor) {
 	v.VisitYieldExpression(n)
 }
 func (n *YieldExpression) VisitChildrenWith(v Visitor) {
-	n.Argument.VisitWith(v)
+	if n.Argument != nil {
+		n.Argument.VisitWith(v)
+	}
 }
 
 func (n *BindingTarget) VisitWith(v Visitor) {
