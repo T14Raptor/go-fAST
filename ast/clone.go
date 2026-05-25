@@ -5,7 +5,11 @@ func (n *ArrayLiteral) Clone() *ArrayLiteral {
 	return &ArrayLiteral{Value: *n.Value.Clone(), LeftBracket: n.LeftBracket, RightBracket: n.RightBracket}
 }
 func (n *ArrayPattern) Clone() *ArrayPattern {
-	return &ArrayPattern{Elements: *n.Elements.Clone(), Rest: n.Rest.Clone(), LeftBracket: n.LeftBracket, RightBracket: n.RightBracket}
+	var rest *Expression
+	if n.Rest != nil {
+		rest = n.Rest.Clone()
+	}
+	return &ArrayPattern{Elements: *n.Elements.Clone(), Rest: rest, LeftBracket: n.LeftBracket, RightBracket: n.RightBracket}
 }
 func (n *ArrowFunctionLiteral) Clone() *ArrowFunctionLiteral {
 	return &ArrowFunctionLiteral{ParameterList: n.ParameterList.Clone(), Body: n.Body.Clone(), ScopeContext: n.ScopeContext, Start: n.Start, Async: n.Async}
@@ -87,7 +91,7 @@ func (n *ClassStaticBlock) Clone() *ClassStaticBlock {
 	return &ClassStaticBlock{Block: n.Block.Clone(), Static: n.Static}
 }
 func (n *ComputedProperty) Clone() *ComputedProperty {
-	return &ComputedProperty{Expr: n.Expr.Clone()}
+	return &ComputedProperty{Expr: n.Expr.Clone(), LeftBracket: n.LeftBracket, RightBracket: n.RightBracket}
 }
 func (n *ConditionalExpression) Clone() *ConditionalExpression {
 	return &ConditionalExpression{Test: n.Test.Clone(), Consequent: n.Consequent.Clone(), Alternate: n.Alternate.Clone()}
@@ -136,7 +140,15 @@ func (n *ForStatement) Clone() *ForStatement {
 	if n.Initializer != nil {
 		initializer = n.Initializer.Clone()
 	}
-	return &ForStatement{Initializer: initializer, Update: n.Update.Clone(), Test: n.Test.Clone(), Body: n.Body.Clone(), For: n.For}
+	var update *Expression
+	if n.Update != nil {
+		update = n.Update.Clone()
+	}
+	var test *Expression
+	if n.Test != nil {
+		test = n.Test.Clone()
+	}
+	return &ForStatement{Initializer: initializer, Update: update, Test: test, Body: n.Body.Clone(), For: n.For}
 }
 func (n *FunctionDeclaration) Clone() *FunctionDeclaration {
 	return &FunctionDeclaration{Function: n.Function.Clone()}
@@ -146,7 +158,7 @@ func (n *FunctionLiteral) Clone() *FunctionLiteral {
 	if n.Name != nil {
 		name = n.Name.Clone()
 	}
-	return &FunctionLiteral{Name: name, ParameterList: n.ParameterList.Clone(), Body: n.Body.Clone(), ScopeContext: n.ScopeContext, Function: n.Function, Async: n.Async}
+	return &FunctionLiteral{Name: name, ParameterList: n.ParameterList.Clone(), Body: n.Body.Clone(), ScopeContext: n.ScopeContext, Function: n.Function, Async: n.Async, Generator: n.Generator}
 }
 func (n *Identifier) Clone() *Identifier {
 	return &Identifier{Name: n.Name, ScopeContext: n.ScopeContext, Idx: n.Idx}
@@ -171,7 +183,7 @@ func (n *MemberExpression) Clone() *MemberExpression {
 	return &MemberExpression{Object: n.Object.Clone(), Property: n.Property.Clone()}
 }
 func (n *MetaProperty) Clone() *MetaProperty {
-	return &MetaProperty{Meta: n.Meta.Clone(), Idx: n.Idx}
+	return &MetaProperty{Meta: n.Meta.Clone(), Property: n.Property.Clone(), Idx: n.Idx}
 }
 func (n *MethodDefinition) Clone() *MethodDefinition {
 	return &MethodDefinition{Key: n.Key.Clone(), Kind: n.Kind, Body: n.Body.Clone(), Idx: n.Idx, Computed: n.Computed, Static: n.Static}
@@ -228,7 +240,11 @@ func (n *PropertyKeyed) Clone() *PropertyKeyed {
 	return &PropertyKeyed{Key: n.Key.Clone(), Kind: n.Kind, Value: n.Value.Clone(), Computed: n.Computed}
 }
 func (n *PropertyShort) Clone() *PropertyShort {
-	return &PropertyShort{Name: n.Name.Clone(), Initializer: n.Initializer.Clone()}
+	var initializer *Expression
+	if n.Initializer != nil {
+		initializer = n.Initializer.Clone()
+	}
+	return &PropertyShort{Name: n.Name.Clone(), Initializer: initializer}
 }
 func (n *RegExpLiteral) Clone() *RegExpLiteral {
 	return &RegExpLiteral{Literal: n.Literal, Pattern: n.Pattern, Flags: n.Flags, Idx: n.Idx}
@@ -326,7 +342,11 @@ func (n *WithStatement) Clone() *WithStatement {
 	return &WithStatement{Object: n.Object.Clone(), Body: n.Body.Clone(), With: n.With}
 }
 func (n *YieldExpression) Clone() *YieldExpression {
-	return &YieldExpression{Argument: n.Argument.Clone(), Yield: n.Yield, Delegate: n.Delegate}
+	var argument *Expression
+	if n.Argument != nil {
+		argument = n.Argument.Clone()
+	}
+	return &YieldExpression{Argument: argument, Yield: n.Yield, Delegate: n.Delegate}
 }
 
 func (n *BindingTarget) Clone() *BindingTarget {

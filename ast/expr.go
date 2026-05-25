@@ -19,7 +19,7 @@ type (
 	}
 
 	YieldExpression struct {
-		Argument *Expression
+		Argument *Expression `optional:"true"`
 
 		Yield Idx
 
@@ -41,7 +41,7 @@ type (
 
 	ArrayPattern struct {
 		Elements Expressions
-		Rest     *Expression
+		Rest     *Expression `optional:"true"`
 
 		LeftBracket  Idx
 		RightBracket Idx

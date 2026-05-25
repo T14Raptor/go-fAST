@@ -544,12 +544,12 @@ func (p *parser) parseDotMember(left *ast.Expression) ast.Expression {
 }
 
 func (p *parser) parseBracketMember(left *ast.Expression) ast.Expression {
-	p.expect(token.LeftBracket)
+	leftBracket := p.expect(token.LeftBracket)
 	member := p.alloc.Expression(p.parseExpression())
-	p.expect(token.RightBracket)
+	rightBracket := p.expect(token.RightBracket)
 	return ast.NewMemberExpr(p.alloc.MemberExpression(
 		left,
-		p.alloc.MemberProperty(ast.NewComputedMemProp(p.alloc.ComputedProperty(member))),
+		p.alloc.MemberProperty(ast.NewComputedMemProp(p.alloc.ComputedProperty(leftBracket, member, rightBracket))),
 	))
 }
 

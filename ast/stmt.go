@@ -135,8 +135,8 @@ type (
 
 	ForStatement struct {
 		Initializer *ForLoopInitializer `optional:"true"`
-		Update      *Expression
-		Test        *Expression
+		Update      *Expression         `optional:"true"`
+		Test        *Expression         `optional:"true"`
 		Body        *Statement
 
 		For Idx

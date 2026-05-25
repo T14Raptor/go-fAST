@@ -5,7 +5,7 @@ import "unsafe"
 type PropertyKind uint8
 
 const (
-	PropertyKindValue  PropertyKind = iota + 1
+	PropertyKindValue PropertyKind = iota + 1
 	PropertyKindGet
 	PropertyKindSet
 	PropertyKindMethod
@@ -23,7 +23,7 @@ type (
 
 	PropertyShort struct {
 		Name        *Identifier
-		Initializer *Expression
+		Initializer *Expression `optional:"true"`
 	}
 
 	PropertyKeyed struct {
@@ -35,5 +35,8 @@ type (
 
 	ComputedProperty struct {
 		Expr *Expression
+
+		LeftBracket  Idx
+		RightBracket Idx
 	}
 )

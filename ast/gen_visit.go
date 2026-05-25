@@ -65,8 +65,6 @@ func main() {
 	slices.SortFunc(nodes, func(a, b VisitableNodeType) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
-	fmt.Println(nodes)
-
 	var (
 		visitorMethods     []*ast.Field
 		noopVisitorMethods []ast.Decl
@@ -227,7 +225,6 @@ func main() {
 
 	os.WriteFile("ast/visit.go", formatted, 0644)
 
-	fmt.Println(pkgs)
 }
 
 func generateUnionVisit(buf *bytes.Buffer, node VisitableNodeType) {
@@ -303,10 +300,6 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 	for _, field := range fields {
 		optional := field.Tag != nil && field.Tag.Value == "`optional:\"true\"`"
 
-		if len(field.Names) != 0 {
-			fmt.Println(field.Names[0].Name)
-		}
-
 		switch fieldType := field.Type.(type) {
 		case *ast.Ident:
 			if len(field.Names) == 0 {
@@ -318,8 +311,9 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "float64",
 				"UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator":
 			default:
-				fmt.Println(fieldType.Name)
-				children = append(children, newChild(field.Names[0].Name, optional))
+				for _, name := range field.Names {
+					children = append(children, newChild(name.Name, optional))
+				}
 			}
 		case *ast.StarExpr:
 			ident, ok := fieldType.X.(*ast.Ident)
@@ -331,7 +325,9 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			if ident.Name == "string" {
 				continue
 			}
-			children = append(children, newChild(field.Names[0].Name, optional))
+			for _, name := range field.Names {
+				children = append(children, newChild(name.Name, optional))
+			}
 		}
 	}
 	return children
