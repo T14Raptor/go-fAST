@@ -102,7 +102,7 @@ func (p *parser) parseStatement() ast.Statement {
 		return ast.NewLabelledStmt(p.alloc.LabelledStatement(identifier, colon, statement))
 	}
 
-	p.semicolon()
+	p.requireSemicolon()
 
 	return ast.NewExpressionStmt(p.alloc.ExpressionStatement(p.alloc.Expression(expression)))
 }
@@ -397,7 +397,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 
 func (p *parser) parseDebuggerStatement() ast.Statement {
 	idx := p.expect(token.Debugger)
-	p.semicolon()
+	p.requireSemicolon()
 	return ast.NewDebuggerStmt(p.alloc.DebuggerStatement(idx))
 }
 
@@ -416,7 +416,7 @@ func (p *parser) parseReturnStatement() ast.Statement {
 		node.Argument = p.alloc.Expression(p.parseExpression())
 	}
 
-	p.semicolon()
+	p.requireSemicolon()
 
 	return ast.NewReturnStmt(node)
 }
@@ -432,7 +432,7 @@ func (p *parser) parseThrowStatement() ast.Statement {
 
 	node := p.alloc.ThrowStatement(idx, p.alloc.Expression(p.parseExpression()))
 
-	p.semicolon()
+	p.requireSemicolon()
 	return ast.NewThrowStmt(node)
 }
 
@@ -666,7 +666,7 @@ func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.VariableDeclarati
 
 	list := p.parseVariableDeclarationList()
 	p.ensurePatternInit(list)
-	p.semicolon()
+	p.requireSemicolon()
 
 	return p.alloc.VariableDeclaration(idx, tok, list)
 }
@@ -764,7 +764,7 @@ func (p *parser) parseBreakStatement() ast.Statement {
 			p.errorf("%s", identifier.Name)
 			return ast.NewBadStmt(p.alloc.BadStatement(idx, identifier.Idx1()))
 		}
-		p.semicolon()
+		p.requireSemicolon()
 		return ast.NewBreakStmt(p.alloc.BreakStatement(idx, identifier))
 	}
 
@@ -799,7 +799,7 @@ func (p *parser) parseContinueStatement() ast.Statement {
 		if !p.scope.inIteration {
 			goto illegal
 		}
-		p.semicolon()
+		p.requireSemicolon()
 		return ast.NewContinueStmt(p.alloc.ContinueStatement(idx, identifier))
 	}
 

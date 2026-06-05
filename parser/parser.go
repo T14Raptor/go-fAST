@@ -150,6 +150,12 @@ func (p *parser) semicolon() bool {
 	return true
 }
 
+func (p *parser) requireSemicolon() {
+	if !p.semicolon() {
+		p.errorUnexpectedToken(p.currentKind())
+	}
+}
+
 func (p *parser) idxOf(offset int) ast.Idx {
 	return ast.Idx(1 + offset)
 }
