@@ -75,7 +75,18 @@ func MayHaveSideEffectsStmt(stmt ast.Statement) bool {
 		// TODO: Check in_strict mode like swc
 	case ast.StmtVarDecl:
 		s := stmt.MustVarDecl()
-		return s.Token == token.Var
+		if s.Token == token.Var {
+			return true
+		}
+		for _, decl := range s.List {
+			if decl.Target.IsPattern() {
+				return true
+			}
+			if decl.Initializer != nil && MayHaveSideEffects(decl.Initializer) {
+				return true
+			}
+		}
+		return false
 	case ast.StmtExpression:
 		s := stmt.MustExpression()
 		return MayHaveSideEffects(s.Expression)
