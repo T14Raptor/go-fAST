@@ -5,21 +5,15 @@ import "unsafe"
 type (
 	Expressions []Expression
 
-	//union:ArrayLiteral,ArrayPattern,ArrowFunctionLiteral,AssignExpression,AwaitExpression,BigIntLiteral,BinaryExpression,BooleanLiteral,CallExpression,ClassLiteral,ConditionalExpression,FunctionLiteral,Identifier,InvalidExpression,LogicalExpression,MemberExpression,MetaProperty,NewExpression,NullLiteral,NumberLiteral,ObjectLiteral,ObjectPattern,OptionalChain,Optional,PrivateDotExpression,PrivateIdentifier,PropertyKeyed,PropertyShort,RegExpLiteral,SequenceExpression,SpreadElement,StringLiteral,SuperExpression,ThisExpression,TemplateLiteral,UnaryExpression,UpdateExpression,VariableDeclarator,YieldExpression
+	//union:ArrayLiteral,ArrowFunctionLiteral,AssignExpression,AwaitExpression,BigIntLiteral,BinaryExpression,BooleanLiteral,CallExpression,ClassLiteral,ConditionalExpression,FunctionLiteral,Identifier,InvalidExpression,LogicalExpression,MemberExpression,MetaProperty,NewExpression,NullLiteral,NumberLiteral,ObjectLiteral,OptionalChain,Optional,PrivateDotExpression,PrivateIdentifier,RegExpLiteral,SequenceExpression,SpreadElement,StringLiteral,SuperExpression,ThisExpression,TemplateLiteral,UnaryExpression,UpdateExpression,VariableDeclarator,YieldExpression
 	Expression struct {
 		kind ExprKind
 
 		ptr unsafe.Pointer
 	}
 
-	//union:ArrayPattern,Identifier,InvalidExpression,MemberExpression,ObjectPattern
-	BindingTarget struct {
-		ptr  unsafe.Pointer
-		kind BindingTargetKind
-	}
-
 	YieldExpression struct {
-		Argument *Expression `optional:"true"`
+		Argument *Expression
 
 		Yield Idx
 
@@ -39,16 +33,8 @@ type (
 		RightBracket Idx
 	}
 
-	ArrayPattern struct {
-		Elements Expressions
-		Rest     *Expression `optional:"true"`
-
-		LeftBracket  Idx
-		RightBracket Idx
-	}
-
 	AssignExpression struct {
-		Left  *Expression
+		Left  *Pattern
 		Right *Expression
 
 		Operator AssignmentOperator
@@ -132,8 +118,8 @@ type (
 	}
 
 	NewExpression struct {
-		ArgumentList Expressions
 		Callee       *Expression
+		ArgumentList Expressions
 
 		New              Idx
 		LeftParenthesis  Idx
@@ -142,14 +128,6 @@ type (
 
 	ObjectLiteral struct {
 		Value Properties
-
-		LeftBrace  Idx
-		RightBrace Idx
-	}
-
-	ObjectPattern struct {
-		Properties Properties
-		Rest       *Expression `optional:"true"`
 
 		LeftBrace  Idx
 		RightBrace Idx
@@ -212,38 +190,20 @@ type (
 	}
 )
 
-func BindingTargetFromExpression(expr *Expression) BindingTarget {
-	switch expr.Kind() {
-	case ExprArrPat:
-		return NewArrPatBindingTarget((*ArrayPattern)(expr.ptr))
-	case ExprMember:
-		return NewMemberBindingTarget((*MemberExpression)(expr.ptr))
-	case ExprObjPat:
-		return NewObjPatBindingTarget((*ObjectPattern)(expr.ptr))
-	case ExprIdent:
-		return NewIdentBindingTarget((*Identifier)(expr.ptr))
-	case ExprInvalid:
-		return NewInvalidBindingTarget((*InvalidExpression)(expr.ptr))
-	}
-	return BindingTarget{}
-}
-
-func ExpressionFromBindingTarget(target *BindingTarget) Expression {
-	switch target.Kind() {
-	case BindingTargetArrPat:
-		return NewArrPatExpr((*ArrayPattern)(target.ptr))
-	case BindingTargetMember:
-		return NewMemberExpr((*MemberExpression)(target.ptr))
-	case BindingTargetObjPat:
-		return NewObjPatExpr((*ObjectPattern)(target.ptr))
-	case BindingTargetIdent:
-		return NewIdentExpr((*Identifier)(target.ptr))
-	case BindingTargetInvalid:
-		return NewInvalidExpr((*InvalidExpression)(target.ptr))
+// ExpressionFromPattern unwraps the simple-target variants of a pattern
+// (identifier, member, private-dot, invalid) back into an Expression. It is used
+// by the generator, which emits those leaf targets through the expression path.
+// Array/object/assignment patterns are emitted directly and are not handled here.
+func ExpressionFromPattern(p *Pattern) Expression {
+	switch p.Kind() {
+	case PatternIdent:
+		return NewIdentExpr((*Identifier)(p.ptr))
+	case PatternMember:
+		return NewMemberExpr((*MemberExpression)(p.ptr))
+	case PatternPrivDot:
+		return NewPrivDotExpr((*PrivateDotExpression)(p.ptr))
+	case PatternInvalid:
+		return NewInvalidExpr((*InvalidExpression)(p.ptr))
 	}
 	return Expression{}
-}
-
-func (bt *BindingTarget) IsPattern() bool {
-	return bt.kind == BindingTargetArrPat || bt.kind == BindingTargetObjPat
 }

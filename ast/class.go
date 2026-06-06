@@ -2,6 +2,17 @@ package ast
 
 import "unsafe"
 
+// MethodKind distinguishes the kinds of class/object method definitions. The
+// zero value is intentionally unused so it can mark "not a method" during
+// parsing.
+type MethodKind uint8
+
+const (
+	MethodKindMethod MethodKind = iota + 1
+	MethodKindGet
+	MethodKindSet
+)
+
 type (
 	ClassLiteral struct {
 		Name       *Identifier `optional:"true"`
@@ -21,23 +32,21 @@ type (
 	}
 
 	FieldDefinition struct {
-		Key         *Expression
+		Key         PropertyName
 		Initializer *Expression `optional:"true"`
 
 		Idx Idx
 
-		Computed bool
-		Static   bool
+		Static bool
 	}
 
 	MethodDefinition struct {
-		Key  *Expression
-		Kind PropertyKind
+		Key  PropertyName
+		Kind MethodKind
 		Body *FunctionLiteral
 
-		Idx      Idx
-		Computed bool
-		Static   bool
+		Idx    Idx
+		Static bool
 	}
 
 	ClassStaticBlock struct {

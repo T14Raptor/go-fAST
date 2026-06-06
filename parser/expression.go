@@ -133,11 +133,13 @@ func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) *ast
 			p.declBuf = p.declBuf[:mark]
 			return p.alloc.ParameterList(ast.ParameterList{})
 		}
-		p.declBuf = append(p.declBuf, p.reinterpretAsBinding(&list[i]))
+		p.declBuf = append(p.declBuf, p.declaratorFromExpression(&list[i]))
 	}
-	var rest *ast.Expression
+	var rest *ast.Pattern
 	if firstRestIdx != -1 {
-		rest = p.reinterpretAsBindingRestElement(&list[firstRestIdx])
+		if spread, ok := list[firstRestIdx].Spread(); ok {
+			rest = p.alloc.Pattern(p.restPattern(spread.Expression, patBinding))
+		}
 	}
 	return p.alloc.ParameterList(ast.ParameterList{
 		List: p.finishDeclBuf(mark),
@@ -209,27 +211,26 @@ func (p *parser) tokenToBindingId() {
 	}
 }
 
-func (p *parser) parseBindingTarget() (target ast.BindingTarget) {
+func (p *parser) parsePattern() *ast.Pattern {
 	p.tokenToBindingId()
 	switch p.currentKind() {
 	case token.Identifier:
-		target = ast.NewIdentBindingTarget(p.alloc.Identifier(p.currentOffset(), p.currentString()))
+		pat := ast.NewIdentPattern(p.alloc.Identifier(p.currentOffset(), p.currentString()))
 		p.next()
+		return p.alloc.Pattern(pat)
 	case token.LeftBracket:
-		target = p.parseArrayBindingPattern()
+		return p.alloc.Pattern(p.arrayPatternFromLiteral(p.parseArrayLiteral(), patBinding))
 	case token.LeftBrace:
-		target = p.parseObjectBindingPattern()
+		return p.alloc.Pattern(p.objectPatternFromLiteral(p.parseObjectLiteral(), patBinding))
 	default:
 		idx := p.expect(token.Identifier)
 		p.nextStatement()
-		target = ast.NewInvalidBindingTarget(p.alloc.InvalidExpression(idx, p.currentOffset()))
+		return p.alloc.Pattern(ast.NewInvalidPattern(p.alloc.InvalidExpression(idx, p.currentOffset())))
 	}
-
-	return
 }
 
 func (p *parser) parseVariableDeclaration() ast.VariableDeclarator {
-	node := ast.VariableDeclarator{Target: p.alloc.BindingTarget(p.parseBindingTarget())}
+	node := ast.VariableDeclarator{Target: p.parsePattern()}
 
 	if p.currentKind() == token.Assign {
 		p.next()
@@ -251,40 +252,41 @@ func (p *parser) parseVariableDeclarationList() ast.VariableDeclarators {
 	return p.finishDeclBuf(mark)
 }
 
-func (p *parser) parseObjectPropertyKey() (string, string, *ast.Expression, token.Token) {
+func (p *parser) parseObjectPropertyKey() (string, string, ast.PropertyName, token.Token) {
 	if p.currentKind() == token.LeftBracket {
+		lb := p.currentOffset()
 		p.next()
 		expr := p.alloc.Expression(p.parseAssignmentExpression())
-		p.expect(token.RightBracket)
-		return "", "", expr, token.Illegal
+		rb := p.expect(token.RightBracket)
+		return "", "", ast.NewComputedPropName(p.alloc.ComputedProperty(lb, expr, rb)), token.Illegal
 	}
 	idx, tkn, literal, parsedLiteral := p.currentOffset(), p.currentKind(), p.scanner.Token.Raw(p.scanner), p.currentString()
-	var value *ast.Expression
+	var value ast.PropertyName
 	p.next()
 	switch tkn {
 	case token.Identifier, token.String, token.Keyword, token.EscapedReservedWord:
-		value = p.alloc.Expression(ast.NewStrLitExpr(p.alloc.StringLiteral(idx, parsedLiteral, literal)))
+		value = ast.NewStrLitPropName(p.alloc.StringLiteral(idx, parsedLiteral, literal))
 	case token.Number:
 		if isBigIntLiteral(literal) {
 			bi, err := parseBigIntLiteral(literal)
 			if err != nil {
 				p.errorf("%s", err.Error())
 			} else {
-				value = p.alloc.Expression(ast.NewBigIntLitExpr(p.alloc.BigIntLiteral(idx, bi, literal)))
+				value = ast.NewBigIntLitPropName(p.alloc.BigIntLiteral(idx, bi, literal))
 			}
 		} else {
 			num, err := parseNumberLiteral(literal)
 			if err != nil {
 				p.errorf("%s", err.Error())
 			} else {
-				value = p.alloc.Expression(ast.NewNumLitExpr(p.alloc.NumberLiteral(idx, num, literal)))
+				value = ast.NewNumLitPropName(p.alloc.NumberLiteral(idx, num, literal))
 			}
 		}
 	case token.PrivateIdentifier:
-		value = p.alloc.Expression(ast.NewPrivIdentExpr(p.alloc.PrivateIdentifier(p.alloc.Identifier(idx, parsedLiteral))))
+		value = ast.NewPrivIdentPropName(p.alloc.PrivateIdentifier(p.alloc.Identifier(idx, parsedLiteral)))
 	default:
 		if token.ID(tkn) {
-			value = p.alloc.Expression(ast.NewStrLitExpr(p.alloc.StringLiteral(idx, literal, literal)))
+			value = ast.NewStrLitPropName(p.alloc.StringLiteral(idx, literal, literal))
 		} else {
 			p.errorUnexpectedToken(tkn)
 		}
@@ -304,26 +306,18 @@ func (p *parser) parseObjectProperty() ast.Property {
 		p.next()
 	}
 	literal, parsedLiteral, value, tkn := p.parseObjectPropertyKey()
-	if value == nil {
+	if value.IsNone() {
 		return ast.Property{}
 	}
 	if token.ID(tkn) || tkn == token.String || tkn == token.Number || tkn == token.Illegal {
 		if generator {
-			return ast.NewKeyedProp(p.alloc.PropertyKeyed(
-				value,
-				ast.PropertyKindMethod,
-				p.alloc.Expression(ast.NewFuncLitExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, true, false))),
-				tkn == token.Illegal,
-			))
+			return ast.NewMethodProp(p.alloc.PropertyMethod(value,
+				p.parseMethodDefinition(keyStartIdx, ast.MethodKindMethod, true, false)))
 		}
 		switch {
 		case p.currentKind() == token.LeftParenthesis:
-			return ast.NewKeyedProp(p.alloc.PropertyKeyed(
-				value,
-				ast.PropertyKindMethod,
-				p.alloc.Expression(ast.NewFuncLitExpr(p.parseMethodDefinition(keyStartIdx, ast.PropertyKindMethod, false, false))),
-				tkn == token.Illegal,
-			))
+			return ast.NewMethodProp(p.alloc.PropertyMethod(value,
+				p.parseMethodDefinition(keyStartIdx, ast.MethodKindMethod, false, false)))
 		case p.currentKind() == token.Comma || p.currentKind() == token.RightBrace || p.currentKind() == token.Assign:
 			if p.isBindingId(tkn) {
 				var initializer *ast.Expression
@@ -339,41 +333,36 @@ func (p *parser) parseObjectProperty() ast.Property {
 				p.errorUnexpectedToken(p.currentKind())
 			}
 		case (literal == "get" || literal == "set" || tkn == token.Async) && p.currentKind() != token.Colon:
-			_, _, keyValue, tkn1 := p.parseObjectPropertyKey()
-			if keyValue == nil {
+			async := tkn == token.Async
+			methodGen := false
+			if async && p.currentKind() == token.Multiply {
+				methodGen = true
+				p.next()
+			}
+			_, _, keyValue, _ := p.parseObjectPropertyKey()
+			if keyValue.IsNone() {
 				return ast.Property{}
 			}
 
-			var kind ast.PropertyKind
-			var async bool
-			if tkn == token.Async {
-				async = true
-				kind = ast.PropertyKindMethod
-			} else if literal == "get" {
-				kind = ast.PropertyKindGet
-			} else {
-				kind = ast.PropertyKindSet
+			if async {
+				return ast.NewMethodProp(p.alloc.PropertyMethod(keyValue,
+					p.parseMethodDefinition(keyStartIdx, ast.MethodKindMethod, methodGen, true)))
 			}
-
-			return ast.NewKeyedProp(p.alloc.PropertyKeyed(
-				keyValue,
-				kind,
-				p.alloc.Expression(ast.NewFuncLitExpr(p.parseMethodDefinition(keyStartIdx, kind, false, async))),
-				tkn1 == token.Illegal,
-			))
+			if literal == "get" {
+				return ast.NewGetterProp(p.alloc.PropertyGetter(keyValue,
+					p.parseMethodDefinition(keyStartIdx, ast.MethodKindGet, false, false)))
+			}
+			return ast.NewSetterProp(p.alloc.PropertySetter(keyValue,
+				p.parseMethodDefinition(keyStartIdx, ast.MethodKindSet, false, false)))
 		}
 	}
 
 	p.expect(token.Colon)
-	return ast.NewKeyedProp(p.alloc.PropertyKeyed(
-		value,
-		ast.PropertyKindValue,
-		p.alloc.Expression(p.parseAssignmentExpression()),
-		tkn == token.Illegal,
-	))
+	return ast.NewKeyValueProp(p.alloc.PropertyKeyValue(value,
+		p.alloc.Expression(p.parseAssignmentExpression())))
 }
 
-func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKind, generator, async bool) *ast.FunctionLiteral {
+func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.MethodKind, generator, async bool) *ast.FunctionLiteral {
 	savedYield := p.scope.allowYield
 	savedAwait := p.scope.allowAwait
 	if generator != savedYield {
@@ -384,11 +373,11 @@ func (p *parser) parseMethodDefinition(keyStartIdx ast.Idx, kind ast.PropertyKin
 	}
 	parameterList := p.parseFunctionParameterList()
 	switch kind {
-	case ast.PropertyKindGet:
+	case ast.MethodKindGet:
 		if len(parameterList.List) > 0 || parameterList.Rest != nil {
 			p.errorf("Getter must not have any formal parameters.")
 		}
-	case ast.PropertyKindSet:
+	case ast.MethodKindSet:
 		if len(parameterList.List) != 1 || parameterList.Rest != nil {
 			p.errorf("Setter must have exactly one formal parameter.")
 		}
@@ -849,7 +838,7 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 		Opening: id.Idx,
 		Closing: id.Idx1(),
 		List: ast.VariableDeclarators{{
-			Target: p.alloc.BindingTarget(ast.NewIdentBindingTarget(id)),
+			Target: p.alloc.Pattern(ast.NewIdentPattern(id)),
 		}},
 	})
 
@@ -895,7 +884,7 @@ func (p *parser) parseAssignmentExpression() ast.Expression {
 				Opening: id.Idx,
 				Closing: id.Idx1() - 1,
 				List: ast.VariableDeclarators{{
-					Target: p.alloc.BindingTarget(ast.NewIdentBindingTarget(id)),
+					Target: p.alloc.Pattern(ast.NewIdentPattern(id)),
 				}},
 			})
 		} else if parenthesis {
@@ -937,23 +926,17 @@ func (p *parser) parseAssignmentExpression() ast.Expression {
 
 		idx := p.currentOffset()
 		p.next()
-		ok := false
+		var target *ast.Pattern
 		switch left.Kind() {
 		case ast.ExprIdent, ast.ExprPrivDot, ast.ExprMember:
-			ok = true
-		case ast.ExprArrLit:
+			target = p.alloc.Pattern(p.patternFromExpression(&left, patAssign))
+		case ast.ExprArrLit, ast.ExprObjLit:
 			if !parenthesis && operator == ast.AssignmentAssign {
-				left = p.reinterpretAsArrayAssignmentPattern(left.MustArrLit())
-				ok = true
-			}
-		case ast.ExprObjLit:
-			if !parenthesis && operator == ast.AssignmentAssign {
-				left = p.reinterpretAsObjectAssignmentPattern(left.MustObjLit())
-				ok = true
+				target = p.alloc.Pattern(p.patternFromExpression(&left, patAssign))
 			}
 		}
-		if ok {
-			return ast.NewAssignExpr(p.alloc.AssignExpression(operator, p.alloc.Expression(left), p.alloc.Expression(p.parseAssignmentExpression())))
+		if target != nil {
+			return ast.NewAssignExpr(p.alloc.AssignExpression(operator, target, p.alloc.Expression(p.parseAssignmentExpression())))
 		}
 		p.errorf("Invalid left-hand side in assignment")
 		p.nextStatement()
@@ -1015,245 +998,169 @@ func (p *parser) checkComma(from, to ast.Idx) {
 	}
 }
 
-func (p *parser) reinterpretAsArrayAssignmentPattern(left *ast.ArrayLiteral) ast.Expression {
-	value := left.Value
-	var rest *ast.Expression
-	for i := range value {
-		if spread, ok := value[i].Spread(); ok {
-			if i != len(value)-1 {
-				p.errorf("Rest element must be last element")
-				return ast.NewInvalidExpr(p.alloc.InvalidExpression(left.Idx0(), left.Idx1()))
-			}
-			p.checkComma(spread.Idx1(), left.RightBracket)
-			rest = p.reinterpretAsDestructAssignTarget(spread.Expression)
-			value = value[:len(value)-1]
-		} else {
-			result := p.reinterpretAsAssignmentElement(&value[i])
-			value[i] = *result
-		}
-	}
-	return ast.NewArrPatExpr(p.alloc.ArrayPattern(left.LeftBracket, left.RightBracket, value, rest))
-}
+// patternMode selects which simple targets are permitted when converting an
+// already-parsed expression (cover grammar) into a Pattern.
+type patternMode uint8
 
-func (p *parser) reinterpretArrayAssignPatternAsBinding(pattern *ast.ArrayPattern) *ast.ArrayPattern {
-	for i := range pattern.Elements {
-		result := p.reinterpretAsDestructBindingTarget(&pattern.Elements[i])
-		pattern.Elements[i] = *result
-	}
-	if pattern.Rest != nil {
-		pattern.Rest = p.reinterpretAsDestructBindingTarget(pattern.Rest)
-	}
-	return pattern
-}
+const (
+	patBinding patternMode = iota // declaration targets: ident / array / object
+	patAssign                     // assignment targets: + member / private-dot
+)
 
-func (p *parser) reinterpretAsArrayBindingPattern(left *ast.ArrayLiteral) ast.Expression {
-	value := left.Value
-	var rest *ast.Expression
-	for i := range value {
-		if spread, ok := value[i].Spread(); ok {
-			if i != len(value)-1 {
-				p.errorf("Rest element must be last element")
-				return ast.NewInvalidExpr(p.alloc.InvalidExpression(left.Idx0(), left.Idx1()))
-			}
-			p.checkComma(spread.Idx1(), left.RightBracket)
-			rest = p.reinterpretAsDestructBindingTarget(spread.Expression)
-			value = value[:len(value)-1]
-		} else {
-			result := p.reinterpretAsBindingElement(&value[i])
-			value[i] = *result
-		}
-	}
-	return ast.NewArrPatExpr(p.alloc.ArrayPattern(left.LeftBracket, left.RightBracket, value, rest))
-}
-
-func (p *parser) parseArrayBindingPattern() ast.BindingTarget {
-	result := p.reinterpretAsArrayBindingPattern(p.parseArrayLiteral())
-	return ast.BindingTargetFromExpression(&result)
-}
-
-func (p *parser) parseObjectBindingPattern() ast.BindingTarget {
-	result := p.reinterpretAsObjectBindingPattern(p.parseObjectLiteral())
-	return ast.BindingTargetFromExpression(&result)
-}
-
-func (p *parser) reinterpretArrayObjectPatternAsBinding(pattern *ast.ObjectPattern) *ast.ObjectPattern {
-	for _, prop := range pattern.Properties {
-		if keyed, ok := prop.Keyed(); ok {
-			keyed.Value = p.reinterpretAsBindingElement(keyed.Value)
-		}
-	}
-	if pattern.Rest != nil {
-		pattern.Rest = p.reinterpretAsBindingRestElement(pattern.Rest)
-	}
-	return pattern
-}
-
-func (p *parser) reinterpretAsObjectBindingPattern(expr *ast.ObjectLiteral) ast.Expression {
-	var rest *ast.Expression
-	value := expr.Value
-	for i, prop := range value {
-		ok := false
-		switch prop.Kind() {
-		case ast.PropKeyed:
-			keyed := prop.MustKeyed()
-			if keyed.Kind == ast.PropertyKindValue {
-				keyed.Value = p.reinterpretAsBindingElement(keyed.Value)
-				ok = true
-			}
-		case ast.PropShort:
-			ok = true
-		case ast.PropSpread:
-			spread := prop.MustSpread()
-			if i != len(expr.Value)-1 {
-				p.errorf("Rest element must be last element")
-				return ast.NewInvalidExpr(p.alloc.InvalidExpression(expr.Idx0(), expr.Idx1()))
-			}
-			rest = p.reinterpretAsBindingRestElement(spread.Expression)
-			value = value[:i]
-			ok = true
-		}
-		if !ok {
-			p.errorf("Invalid destructuring binding target")
-			return ast.NewInvalidExpr(p.alloc.InvalidExpression(expr.Idx0(), expr.Idx1()))
-		}
-	}
-	return ast.NewObjPatExpr(p.alloc.ObjectPattern(expr.LeftBrace, expr.RightBrace, value, rest))
-}
-
-func (p *parser) reinterpretAsObjectAssignmentPattern(l *ast.ObjectLiteral) ast.Expression {
-	var rest *ast.Expression
-	value := l.Value
-	for i, prop := range value {
-		ok := false
-		switch prop.Kind() {
-		case ast.PropKeyed:
-			keyed := prop.MustKeyed()
-			if keyed.Kind == ast.PropertyKindValue {
-				keyed.Value = p.reinterpretAsAssignmentElement(keyed.Value)
-				ok = true
-			}
-		case ast.PropShort:
-			ok = true
-		case ast.PropSpread:
-			spread := prop.MustSpread()
-			if i != len(l.Value)-1 {
-				p.errorf("Rest element must be last element")
-				return ast.NewInvalidExpr(p.alloc.InvalidExpression(l.Idx0(), l.Idx1()))
-			}
-			rest = spread.Expression
-			value = value[:i]
-			ok = true
-		}
-		if !ok {
-			p.errorf("Invalid destructuring assignment target")
-			return ast.NewInvalidExpr(p.alloc.InvalidExpression(l.Idx0(), l.Idx1()))
-		}
-	}
-	return ast.NewObjPatExpr(p.alloc.ObjectPattern(l.LeftBrace, l.RightBrace, value, rest))
-}
-
-func (p *parser) reinterpretAsAssignmentElement(expr *ast.Expression) *ast.Expression {
-	switch expr.Kind() {
-	case ast.ExprAssign:
-		e := expr.MustAssign()
-		if e.Operator == ast.AssignmentAssign {
-			e.Left = p.reinterpretAsDestructAssignTarget(e.Left)
-			return expr
-		}
+func (p *parser) invalidPattern(node ast.Node, mode patternMode) ast.Pattern {
+	if mode == patBinding {
+		p.errorf("Invalid destructuring binding target")
+	} else {
 		p.errorf("Invalid destructuring assignment target")
-		return p.alloc.Expression(ast.NewInvalidExpr(p.alloc.InvalidExpression(expr.Idx0(), expr.Idx1())))
-	default:
-		return p.reinterpretAsDestructAssignTarget(expr)
 	}
+	return ast.NewInvalidPattern(p.alloc.InvalidExpression(node.Idx0(), node.Idx1()))
 }
 
-func (p *parser) reinterpretAsBindingElement(expr *ast.Expression) *ast.Expression {
+// patternFromExpression converts a cover-grammar expression into a Pattern.
+func (p *parser) patternFromExpression(expr *ast.Expression, mode patternMode) ast.Pattern {
+	if expr == nil || expr.IsNone() {
+		return ast.Pattern{} // elision hole
+	}
 	switch expr.Kind() {
-	case ast.ExprAssign:
-		e := expr.MustAssign()
-		if e.Operator == ast.AssignmentAssign {
-			e.Left = p.reinterpretAsDestructBindingTarget(e.Left)
-			return expr
-		}
-		p.errorf("Invalid destructuring assignment target")
-		return p.alloc.Expression(ast.NewInvalidExpr(p.alloc.InvalidExpression(expr.Idx0(), expr.Idx1())))
-	default:
-		return p.reinterpretAsDestructBindingTarget(expr)
-	}
-}
-
-func (p *parser) reinterpretAsBinding(expr *ast.Expression) ast.VariableDeclarator {
-	switch expr.Kind() {
-	case ast.ExprAssign:
-		e := expr.MustAssign()
-		if e.Operator == ast.AssignmentAssign {
-			target := p.reinterpretAsDestructBindingTarget(e.Left)
-			return ast.VariableDeclarator{
-				Target:      p.alloc.BindingTarget(ast.BindingTargetFromExpression(target)),
-				Initializer: e.Right,
-			}
-		}
-		p.errorf("Invalid destructuring assignment target")
-		return ast.VariableDeclarator{
-			Target: p.alloc.BindingTarget(ast.NewInvalidBindingTarget(p.alloc.InvalidExpression(expr.Idx0(), expr.Idx1()))),
-		}
-	default:
-		target := p.reinterpretAsDestructBindingTarget(expr)
-		return ast.VariableDeclarator{
-			Target: p.alloc.BindingTarget(ast.BindingTargetFromExpression(target)),
-		}
-	}
-}
-
-func (p *parser) reinterpretAsDestructAssignTarget(item *ast.Expression) *ast.Expression {
-	if item == nil || item.IsNone() {
-		return nil
-	}
-	switch item.Kind() {
-	case ast.ExprArrLit:
-		v := p.reinterpretAsArrayAssignmentPattern(item.MustArrLit())
-		return p.alloc.Expression(v)
-	case ast.ExprObjLit:
-		v := p.reinterpretAsObjectAssignmentPattern(item.MustObjLit())
-		return p.alloc.Expression(v)
-	case ast.ExprArrPat, ast.ExprObjPat, ast.ExprIdent, ast.ExprPrivDot, ast.ExprMember:
-		return item
-	}
-	p.errorf("Invalid destructuring assignment target")
-	return p.alloc.Expression(ast.NewInvalidExpr(p.alloc.InvalidExpression(item.Idx0(), item.Idx1())))
-}
-
-func (p *parser) reinterpretAsDestructBindingTarget(item *ast.Expression) *ast.Expression {
-	if item == nil || item.IsNone() {
-		return item
-	}
-	switch item.Kind() {
-	case ast.ExprArrPat:
-		p.reinterpretArrayAssignPatternAsBinding(item.MustArrPat())
-		return item
-	case ast.ExprObjPat:
-		p.reinterpretArrayObjectPatternAsBinding(item.MustObjPat())
-		return item
-	case ast.ExprArrLit:
-		v := p.reinterpretAsArrayBindingPattern(item.MustArrLit())
-		return p.alloc.Expression(v)
-	case ast.ExprObjLit:
-		v := p.reinterpretAsObjectBindingPattern(item.MustObjLit())
-		return p.alloc.Expression(v)
 	case ast.ExprIdent:
-		id := item.MustIdent()
-		if !p.scope.allowAwait || id.Name != "await" {
-			return item
+		id := expr.MustIdent()
+		if mode == patBinding && p.scope.allowAwait && id.Name == "await" {
+			break
+		}
+		return ast.NewIdentPattern(id)
+	case ast.ExprMember:
+		if mode == patAssign {
+			return ast.NewMemberPattern(expr.MustMember())
+		}
+	case ast.ExprPrivDot:
+		if mode == patAssign {
+			return ast.NewPrivDotPattern(expr.MustPrivDot())
+		}
+	case ast.ExprArrLit:
+		return p.arrayPatternFromLiteral(expr.MustArrLit(), mode)
+	case ast.ExprObjLit:
+		return p.objectPatternFromLiteral(expr.MustObjLit(), mode)
+	case ast.ExprAssign:
+		e := expr.MustAssign()
+		if e.Operator == ast.AssignmentAssign {
+			// e.Left was already converted to a Pattern (in assign mode) when the
+			// assignment expression was parsed. In binding position, re-validate it.
+			if mode == patBinding && !p.ensureBindingTarget(e.Left) {
+				return ast.NewInvalidPattern(p.alloc.InvalidExpression(expr.Idx0(), expr.Idx1()))
+			}
+			return ast.NewAssignPattern(p.alloc.AssignmentPattern(e.Left, e.Right))
 		}
 	}
-	p.errorf("Invalid destructuring binding target")
-	return p.alloc.Expression(ast.NewInvalidExpr(p.alloc.InvalidExpression(item.Idx0(), item.Idx1())))
+	return p.invalidPattern(expr, mode)
 }
 
-func (p *parser) reinterpretAsBindingRestElement(expr *ast.Expression) *ast.Expression {
-	if expr.IsIdent() {
-		return expr
+func (p *parser) arrayPatternFromLiteral(lit *ast.ArrayLiteral, mode patternMode) ast.Pattern {
+	value := lit.Value
+	var rest *ast.Pattern
+	mark := len(p.patBuf)
+	for i := range value {
+		if spread, ok := value[i].Spread(); ok {
+			if i != len(value)-1 {
+				p.patBuf = p.patBuf[:mark]
+				p.errorf("Rest element must be last element")
+				return ast.NewInvalidPattern(p.alloc.InvalidExpression(lit.Idx0(), lit.Idx1()))
+			}
+			p.checkComma(spread.Idx1(), lit.RightBracket)
+			rest = p.alloc.Pattern(p.patternFromExpression(spread.Expression, mode))
+			break
+		}
+		p.patBuf = append(p.patBuf, p.patternFromExpression(&value[i], mode))
 	}
-	p.errorf("Invalid binding rest")
-	return p.alloc.Expression(ast.NewInvalidExpr(p.alloc.InvalidExpression(expr.Idx0(), expr.Idx1())))
+	elems := p.finishPatBuf(mark)
+	return ast.NewArrPatPattern(p.alloc.ArrayPattern(lit.LeftBracket, lit.RightBracket, elems, rest))
+}
+
+func (p *parser) objectPatternFromLiteral(lit *ast.ObjectLiteral, mode patternMode) ast.Pattern {
+	value := lit.Value
+	var rest *ast.Pattern
+	mark := len(p.patPropBuf)
+	for i := range value {
+		switch value[i].Kind() {
+		case ast.PropKeyValue:
+			keyed := value[i].MustKeyValue()
+			val := p.alloc.Pattern(p.patternFromExpression(keyed.Value, mode))
+			p.patPropBuf = append(p.patPropBuf, ast.NewKeyValuePatProp(p.alloc.PatternKeyValue(keyed.Key, val)))
+		case ast.PropShort:
+			short := value[i].MustShort()
+			p.patPropBuf = append(p.patPropBuf, ast.NewShorthandPatProp(p.alloc.PatternShorthand(short.Name, short.Initializer)))
+		case ast.PropSpread:
+			spread := value[i].MustSpread()
+			if i != len(value)-1 {
+				p.patPropBuf = p.patPropBuf[:mark]
+				p.errorf("Rest element must be last element")
+				return ast.NewInvalidPattern(p.alloc.InvalidExpression(lit.Idx0(), lit.Idx1()))
+			}
+			rest = p.alloc.Pattern(p.restPattern(spread.Expression, mode))
+		default:
+			p.patPropBuf = p.patPropBuf[:mark]
+			return p.invalidPattern(lit, mode)
+		}
+	}
+	props := p.finishPatPropBuf(mark)
+	return ast.NewObjPatPattern(p.alloc.ObjectPattern(lit.LeftBrace, lit.RightBrace, props, rest))
+}
+
+// restPattern converts an object/parameter rest target, which must be a simple
+// binding/assignment target (no defaults).
+func (p *parser) restPattern(expr *ast.Expression, mode patternMode) ast.Pattern {
+	switch expr.Kind() {
+	case ast.ExprIdent:
+		return ast.NewIdentPattern(expr.MustIdent())
+	case ast.ExprMember:
+		if mode == patAssign {
+			return ast.NewMemberPattern(expr.MustMember())
+		}
+	case ast.ExprPrivDot:
+		if mode == patAssign {
+			return ast.NewPrivDotPattern(expr.MustPrivDot())
+		}
+	}
+	return p.invalidPattern(expr, mode)
+}
+
+// ensureBindingTarget reports whether a pattern (built in assignment mode) is a
+// valid binding target, i.e. contains no member/private-dot leaves.
+func (p *parser) ensureBindingTarget(pat *ast.Pattern) bool {
+	switch pat.Kind() {
+	case ast.PatternNone, ast.PatternIdent, ast.PatternInvalid:
+		return true
+	case ast.PatternMember, ast.PatternPrivDot:
+		return false
+	case ast.PatternAssign:
+		return p.ensureBindingTarget(pat.MustAssign().Left)
+	case ast.PatternArrPat:
+		ap := pat.MustArrPat()
+		for i := range ap.Elements {
+			if !p.ensureBindingTarget(&ap.Elements[i]) {
+				return false
+			}
+		}
+		return ap.Rest == nil || p.ensureBindingTarget(ap.Rest)
+	case ast.PatternObjPat:
+		op := pat.MustObjPat()
+		for i := range op.Properties {
+			if kv, ok := op.Properties[i].KeyValue(); ok && !p.ensureBindingTarget(kv.Value) {
+				return false
+			}
+		}
+		return op.Rest == nil || p.ensureBindingTarget(op.Rest)
+	}
+	return false
+}
+
+// declaratorFromExpression converts an arrow-function parameter (parsed as an
+// expression) into a VariableDeclarator. Defaults are stored in Initializer.
+func (p *parser) declaratorFromExpression(expr *ast.Expression) ast.VariableDeclarator {
+	if e, ok := expr.Assign(); ok && e.Operator == ast.AssignmentAssign {
+		if !p.ensureBindingTarget(e.Left) {
+			return ast.VariableDeclarator{Target: p.alloc.Pattern(ast.NewInvalidPattern(p.alloc.InvalidExpression(expr.Idx0(), expr.Idx1())))}
+		}
+		return ast.VariableDeclarator{Target: e.Left, Initializer: e.Right}
+	}
+	return ast.VariableDeclarator{Target: p.alloc.Pattern(p.patternFromExpression(expr, patBinding))}
 }

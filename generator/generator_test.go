@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/t14raptor/go-fast/parser"
+	"github.com/t14raptor/go-fast/resolver"
 )
 
 func assertMinified(t *testing.T, input, want string) {
@@ -18,6 +19,15 @@ func assertMinified(t *testing.T, input, want string) {
 	if got != want {
 		t.Fatalf("gen(%q) = %q; want %q", input, got, want)
 	}
+}
+
+func TestMinifiedOperatorTokenBoundaries(t *testing.T) {
+	assertMinified(t, `a + ++b;`, `a+ ++b;`)
+	assertMinified(t, `a - --b;`, `a- --b;`)
+	assertMinified(t, `a + +b;`, `a+ +b;`)
+	assertMinified(t, `a - -b;`, `a- -b;`)
+	assertMinified(t, `x = a / /b/.source;`, `x=a/ /b/.source;`)
+	assertMinified(t, `x = a / /b/();`, `x=a/ /b/();`)
 }
 
 func TestMetaProperty(t *testing.T) {
@@ -41,7 +51,7 @@ func TestMetaProperty(t *testing.T) {
 	}
 }
 
-func TestPropertyKindGetSetKeywords(t *testing.T) {
+func TestMethodKindGetSetKeywords(t *testing.T) {
 	assertMinified(t,
 		`({get value(){return 1;},set value(next){this.next=next;}});`,
 		`({get value(){return 1;},set value(next){this.next=next;}});`,
@@ -203,5 +213,68 @@ func TestSequenceExpressionInNewExpression(t *testing.T) {
 				t.Errorf("\nInput:    %s\nExpected: %s\nGot:      %s", tt.input, tt.expected, result)
 			}
 		})
+	}
+}
+
+func TestPatternRoundTrip(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{`var [a, , b = 1, ...c] = x;`, `var [a,,b=1,...c]=x;`},
+		{`var {a, b: {c} = {}, ...r} = o;`, `var {a,b:{c}={},...r}=o;`},
+		{`for (const [k, v] of m) {}`, `for(const [k,v] of m){}`},
+		{`for ([x.y, z] of p) {}`, `for([x.y,z] of p){}`},
+		{`try {} catch ({message}) {}`, `try{}catch({message}){}`},
+		{`([x.y, z] = p);`, `([x.y,z]=p);`},
+		{`function f([a] = [], {b} = {}, ...rest) {}`, `function f([a]=[],{b}={},...rest){}`},
+		{`({a = 1} = o);`, `({a=1}=o);`},
+		{`label: x = 1;`, `label:x=1;`},
+		{`obj.x = 1;`, `obj.x=1;`},
+	}
+	for _, c := range cases {
+		p, err := parser.ParseFile(c.in)
+		if err != nil {
+			t.Fatalf("parse(%q): %v", c.in, err)
+		}
+		got := GenerateMinified(p)
+		if got != c.want {
+			t.Errorf("gen(%q) = %q; want %q", c.in, got, c.want)
+		}
+	}
+}
+
+func TestPatternEdgeRoundTrip(t *testing.T) {
+	ok := []struct{ in, want string }{
+		{`var [a, ...[b, c]] = x;`, `var [a,...[b,c]]=x;`},     // array rest is a nested pattern
+		{`function f(...[a, b]) {}`, `function f(...[a,b]){}`}, // param rest is a pattern
+		{`var {a, ...rest} = o;`, `var {a,...rest}=o;`},        // object rest ident
+		{`[a, , b] = c;`, `([a,,b]=c);`},                       // assignment with elision hole
+		{`({a, b} = c);`, `({a,b}=c);`},                        // parenthesised object assign
+		{`for ({a} of x) {}`, `for({a} of x){}`},               // for-of object pattern target
+		{`for ([a] in x) {}`, `for([a] in x){}`},               // for-in array pattern target
+		{`function f({a = 1, b: {c} = {}}) {}`, `function f({a=1,b:{c}={}}){}`},
+		{`var {[k]: v = 1} = o;`, `var {[k]:v=1}=o;`}, // computed key + default
+		{`let [a, b = a] = x;`, `let [a,b=a]=x;`},     // sibling default reference
+		{`var [a = b.c] = o;`, `var [a=b.c]=o;`},      // default value may be a member
+	}
+	for _, c := range ok {
+		p, err := parser.ParseFile(c.in)
+		if err != nil {
+			t.Errorf("parse(%q): %v", c.in, err)
+			continue
+		}
+		resolver.Resolve(p) // must not panic
+		if got := GenerateMinified(p); got != c.want {
+			t.Errorf("gen(%q) = %q; want %q", c.in, got, c.want)
+		}
+	}
+
+	bad := []string{
+		`var {...{a}} = o;`, // object rest must be a simple target
+		`var [a.b] = c;`,    // member in binding position
+		`var {a: b.c} = o;`, // member value in binding position
+	}
+	for _, src := range bad {
+		if _, err := parser.ParseFile(src); err == nil {
+			t.Errorf("parse(%q): expected error, got nil", src)
+		}
 	}
 }

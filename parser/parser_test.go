@@ -639,7 +639,7 @@ func TestObjectLiteralAST(t *testing.T) {
 	}
 
 	// First property: a: 1
-	p1 := obj.Value[0].MustKeyed()
+	p1 := obj.Value[0].MustKeyValue()
 	if id := p1.Key.MustStrLit(); id.Value != "a" {
 		t.Errorf("prop[0] key = %q; want \"a\"", id.Value)
 	}
@@ -648,13 +648,13 @@ func TestObjectLiteralAST(t *testing.T) {
 	}
 
 	// Second property: b: 'two'
-	p2 := obj.Value[1].MustKeyed()
+	p2 := obj.Value[1].MustKeyValue()
 	if s := p2.Value.MustStrLit(); s.Value != "two" {
 		t.Errorf("prop[1] value = %q; want \"two\"", s.Value)
 	}
 
 	// Third property: c: true
-	p3 := obj.Value[2].MustKeyed()
+	p3 := obj.Value[2].MustKeyValue()
 	if b := p3.Value.MustBoolLit(); !b.Value {
 		t.Errorf("prop[2] value = %v; want true", b.Value)
 	}
@@ -687,8 +687,8 @@ func TestObjectLiteralSpreadAST(t *testing.T) {
 	if got := len(obj.Value); got != 3 {
 		t.Fatalf("property count = %d; want 3", got)
 	}
-	if _, ok := obj.Value[0].Keyed(); !ok {
-		t.Errorf("prop[0] kind = %v; want PropKeyed", obj.Value[0].Kind())
+	if _, ok := obj.Value[0].KeyValue(); !ok {
+		t.Errorf("prop[0] kind = %v; want PropKeyValue", obj.Value[0].Kind())
 	}
 	spread, ok := obj.Value[1].Spread()
 	if !ok {
@@ -697,8 +697,8 @@ func TestObjectLiteralSpreadAST(t *testing.T) {
 	if id := spread.Expression.MustIdent(); id.Name != "b" {
 		t.Errorf("spread target = %q; want \"b\"", id.Name)
 	}
-	if _, ok := obj.Value[2].Keyed(); !ok {
-		t.Errorf("prop[2] kind = %v; want PropKeyed", obj.Value[2].Kind())
+	if _, ok := obj.Value[2].KeyValue(); !ok {
+		t.Errorf("prop[2] kind = %v; want PropKeyValue", obj.Value[2].Kind())
 	}
 }
 
@@ -2040,11 +2040,12 @@ func TestComputedPropertyKey(t *testing.T) {
 	if got := len(obj.Value); got != 1 {
 		t.Fatalf("property count = %d; want 1", got)
 	}
-	pk := obj.Value[0].MustKeyed()
-	if !pk.Computed {
-		t.Error("computed = false; want true")
+	pk := obj.Value[0].MustKeyValue()
+	comp, ok := pk.Key.Computed()
+	if !ok {
+		t.Fatalf("key kind = %v; want computed", pk.Key.Kind())
 	}
-	bin := pk.Key.MustBinary()
+	bin := comp.Expr.MustBinary()
 	if bin.Operator != ast.BinaryAddition {
 		t.Errorf("key op = %v; want +", bin.Operator)
 	}

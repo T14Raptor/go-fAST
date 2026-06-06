@@ -50,11 +50,38 @@ type GenVisitor struct {
 	binaryStack []binaryExprEntry
 }
 
+// mergeable reports whether emitting next immediately after prev would form a
+// different token than intended: `++`/`+++` (a+ +b / a+ ++b), `--`, or a `//` or
+// `/*` comment after a division/regex. A separating space is inserted in those
+// cases. Over-spacing the harmless `a++ +b` case is acceptable; under-spacing is
+// a correctness bug.
+func mergeable(prev, next byte) bool {
+	switch prev {
+	case '+':
+		return next == '+'
+	case '-':
+		return next == '-'
+	case '/':
+		return next == '/' || next == '*'
+	}
+	return false
+}
+
 func (g *GenVisitor) writeByte(c byte) {
+	if n := len(g.buf); n > 0 && mergeable(g.buf[n-1], c) {
+		g.buf = append(g.buf, ' ', c)
+		return
+	}
 	g.buf = append(g.buf, c)
 }
 
 func (g *GenVisitor) writeString(s string) {
+	if s == "" {
+		return
+	}
+	if n := len(g.buf); n > 0 && mergeable(g.buf[n-1], s[0]) {
+		g.buf = append(g.buf, ' ')
+	}
 	g.buf = append(g.buf, s...)
 }
 
@@ -109,7 +136,7 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 		ctx &^= ctxForbidIn
 	}
 
-	g.genExpr(n.Left, ast.PrecedenceAssign, ctx)
+	g.gen(n.Left)
 	g.space()
 	g.writeString(n.Operator.String())
 	g.space()
@@ -382,21 +409,42 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			if e.Static {
 				g.writeString("static ")
 			}
-			if e.Kind == ast.PropertyKindGet {
+			switch e.Kind {
+			case ast.MethodKindGet:
 				g.writeString("get ")
-			} else if e.Kind == ast.PropertyKindSet {
+			case ast.MethodKindSet:
 				g.writeString("set ")
+			default:
+				if e.Body.Async {
+					g.writeString("async")
+					if !e.Body.Generator {
+						g.writeByte(' ')
+					}
+				}
+				if e.Body.Generator {
+					g.writeByte('*')
+				}
 			}
-			if e.Computed {
-				g.writeByte('[')
-				g.gen(e.Key)
-				g.writeByte(']')
-			} else {
-				g.gen(e.Key)
+			g.genPropertyName(&e.Key)
+			g.genMethodBody(e.Body)
+		case ast.ClassElemField:
+			e := element.MustField()
+			if e.Static {
+				g.writeString("static ")
 			}
-			g.gen(e.Body.ParameterList)
+			g.genPropertyName(&e.Key)
+			if e.Initializer != nil {
+				g.space()
+				g.writeByte('=')
+				g.space()
+				g.genExpr(e.Initializer, ast.PrecedenceAssign, 0)
+			}
+			g.writeByte(';')
+		case ast.ClassElemStaticBlock:
+			e := element.MustStaticBlock()
+			g.writeString("static")
 			g.space()
-			g.gen(e.Body.Body)
+			g.gen(e.Block)
 		}
 	}
 	g.indent--
@@ -527,12 +575,20 @@ func (g *GenVisitor) VisitArrayPattern(n *ast.ArrayPattern) {
 	for i := range n.Elements {
 		elem := &n.Elements[i]
 		if !elem.IsNone() {
-			g.genExpr(elem, ast.PrecedenceAssign, 0)
+			g.gen(elem)
 		}
 		if i < len(n.Elements)-1 {
 			g.writeByte(',')
 			g.space()
 		}
+	}
+	if n.Rest != nil {
+		if len(n.Elements) > 0 {
+			g.writeByte(',')
+			g.space()
+		}
+		g.writeString("...")
+		g.gen(n.Rest)
 	}
 	g.writeByte(']')
 }
@@ -563,9 +619,41 @@ func (g *GenVisitor) VisitMetaProperty(n *ast.MetaProperty) {
 	g.gen(n.Property)
 }
 
-func (g *GenVisitor) VisitBindingTarget(n *ast.BindingTarget) {
-	expr := ast.ExpressionFromBindingTarget(n)
-	g.genExpr(&expr, ast.PrecedenceLowest, 0)
+func (g *GenVisitor) VisitPattern(n *ast.Pattern) {
+	switch n.Kind() {
+	case ast.PatternArrPat:
+		g.gen(n.MustArrPat())
+	case ast.PatternObjPat:
+		g.gen(n.MustObjPat())
+	case ast.PatternAssign:
+		a := n.MustAssign()
+		g.gen(a.Left)
+		g.space()
+		g.writeByte('=')
+		g.space()
+		g.genExpr(a.Right, ast.PrecedenceAssign, 0)
+	default:
+		// identifier / member / private-dot / invalid
+		expr := ast.ExpressionFromPattern(n)
+		g.genExpr(&expr, ast.PrecedenceLowest, 0)
+	}
+}
+
+func (g *GenVisitor) VisitPatternKeyValue(n *ast.PatternKeyValue) {
+	g.genPropertyName(&n.Key)
+	g.writeByte(':')
+	g.space()
+	g.gen(n.Value)
+}
+
+func (g *GenVisitor) VisitPatternShorthand(n *ast.PatternShorthand) {
+	g.gen(n.Name)
+	if n.Initializer != nil {
+		g.space()
+		g.writeByte('=')
+		g.space()
+		g.genExpr(n.Initializer, ast.PrecedenceAssign, 0)
+	}
 }
 
 func (g *GenVisitor) VisitProgram(n *ast.Program) {
@@ -603,7 +691,7 @@ func (g *GenVisitor) VisitExpressionStatement(n *ast.ExpressionStatement) {
 		g.writeByte(')')
 	case ast.ExprAssign:
 		switch n.Expression.MustAssign().Left.Kind() {
-		case ast.ExprObjPat, ast.ExprArrPat:
+		case ast.PatternObjPat, ast.PatternArrPat:
 			g.writeByte('(')
 			g.genExpr(n.Expression, ast.PrecedenceLowest, 0)
 			g.writeByte(')')
@@ -771,8 +859,8 @@ func (g *GenVisitor) VisitForInto(n *ast.ForInto) {
 		g.writeString(into.Token.String())
 		g.writeByte(' ')
 		g.gen(&into.List)
-	case ast.ForIntoExpr:
-		g.gen(n.MustExpr())
+	case ast.ForIntoPattern:
+		g.gen(n.MustPattern())
 	}
 }
 
@@ -928,6 +1016,10 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 	}
 
 	if n.Rest != nil {
+		if len(n.List) > 0 {
+			g.writeByte(',')
+			g.space()
+		}
 		g.writeString("...")
 		g.gen(n.Rest)
 	}
@@ -946,36 +1038,53 @@ func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
 	}
 }
 
-func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
-	if n.Kind == ast.PropertyKindGet || n.Kind == ast.PropertyKindSet {
-		switch n.Kind {
-		case ast.PropertyKindGet:
-			g.writeString("get")
-		case ast.PropertyKindSet:
-			g.writeString("set")
-		}
-		g.writeByte(' ')
-		if n.Computed {
-			g.writeByte('[')
-			g.genExpr(n.Key, ast.PrecedenceLowest, 0)
-			g.writeByte(']')
-		} else {
-			g.genExpr(n.Key, ast.PrecedenceLowest, 0)
-		}
-		f := n.Value.MustFuncLit()
-		g.gen(f.ParameterList)
-		g.space()
-		g.gen(f.Body)
+func (g *GenVisitor) genPropertyName(key *ast.PropertyName) {
+	if c, ok := key.Computed(); ok {
+		g.writeByte('[')
+		g.genExpr(c.Expr, ast.PrecedenceAssign, 0)
+		g.writeByte(']')
 		return
 	}
-	if n.Computed {
-		g.writeByte('[')
-		g.genExpr(n.Key, ast.PrecedenceLowest, 0)
-		g.writeByte(']')
-	} else {
-		g.genExpr(n.Key, ast.PrecedenceLowest, 0)
-	}
+	// Identifier/string/number/bigint/private key — emit the underlying node.
+	g.gen(key.Unwrap())
+}
+
+// genMethodBody emits the (params) body of a method/getter/setter.
+func (g *GenVisitor) genMethodBody(f *ast.FunctionLiteral) {
+	g.gen(f.ParameterList)
+	g.space()
+	g.gen(f.Body)
+}
+
+func (g *GenVisitor) VisitPropertyKeyValue(n *ast.PropertyKeyValue) {
+	g.genPropertyName(&n.Key)
 	g.writeByte(':')
 	g.space()
 	g.genExpr(n.Value, ast.PrecedenceAssign, 0)
+}
+
+func (g *GenVisitor) VisitPropertyMethod(n *ast.PropertyMethod) {
+	if n.Body.Async {
+		g.writeString("async")
+		if !n.Body.Generator {
+			g.writeByte(' ')
+		}
+	}
+	if n.Body.Generator {
+		g.writeByte('*')
+	}
+	g.genPropertyName(&n.Key)
+	g.genMethodBody(n.Body)
+}
+
+func (g *GenVisitor) VisitPropertyGetter(n *ast.PropertyGetter) {
+	g.writeString("get ")
+	g.genPropertyName(&n.Key)
+	g.genMethodBody(n.Body)
+}
+
+func (g *GenVisitor) VisitPropertySetter(n *ast.PropertySetter) {
+	g.writeString("set ")
+	g.genPropertyName(&n.Key)
+	g.genMethodBody(n.Body)
 }

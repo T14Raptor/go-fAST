@@ -20,12 +20,12 @@ func classHasSideEffect(class *ast.ClassLiteral) bool {
 		switch elem.Kind() {
 		case ast.ClassElemMethod:
 			method := elem.MustMethod()
-			if method.Computed && MayHaveSideEffects(method.Key) {
+			if e, ok := computedKeyExpr(&method.Key); ok && MayHaveSideEffects(e) {
 				return true
 			}
 		case ast.ClassElemField:
 			field := elem.MustField()
-			if field.Computed && MayHaveSideEffects(field.Key) {
+			if e, ok := computedKeyExpr(&field.Key); ok && MayHaveSideEffects(e) {
 				return true
 			}
 			if field.Initializer != nil && MayHaveSideEffects(field.Initializer) {
@@ -170,24 +170,51 @@ func (v *literalVisitor) VisitNumberLiteral(n *ast.NumberLiteral) {
 }
 func (v *literalVisitor) VisitOptionalChain(n *ast.OptionalChain)         { v.isLit = false }
 func (v *literalVisitor) VisitPrivateIdentifier(n *ast.PrivateIdentifier) { v.isLit = false }
+// propName returns the key of a key-bearing property variant (key/value,
+// method, getter, setter).
+func propName(prop ast.Property) (*ast.PropertyName, bool) {
+	switch prop.Kind() {
+	case ast.PropKeyValue:
+		return &prop.MustKeyValue().Key, true
+	case ast.PropMethod:
+		return &prop.MustMethod().Key, true
+	case ast.PropGetter:
+		return &prop.MustGetter().Key, true
+	case ast.PropSetter:
+		return &prop.MustSetter().Key, true
+	}
+	return nil, false
+}
+
+// computedKeyExpr returns the key's expression when it is a computed key.
+func computedKeyExpr(key *ast.PropertyName) (*ast.Expression, bool) {
+	if c, ok := key.Computed(); ok {
+		return c.Expr, true
+	}
+	return nil, false
+}
+
 func (v *literalVisitor) VisitProperty(n *ast.Property) {
 	if !v.isLit {
 		return
 	}
 	n.VisitChildrenWith(v)
 	switch n.Kind() {
-	case ast.PropKeyed:
-		p := n.MustKeyed()
-		switch p.Key.Kind() {
-		case ast.ExprStrLit:
+	case ast.PropKeyValue:
+		switch p := n.MustKeyValue(); p.Key.Kind() {
+		case ast.PropNameStrLit:
 			v.cost += 2 + len(p.Key.MustStrLit().Value)
-		case ast.ExprIdent:
-			v.cost += 2 + len(p.Key.MustIdent().Name)
-		case ast.ExprNumLit:
+		case ast.PropNameNumLit:
 			v.cost += 2 + len(strconv.FormatFloat(p.Key.MustNumLit().Value, 'f', -1, 64))
+		case ast.PropNameBigIntLit:
+			v.cost += 2
+		default:
+			// Computed/private keys are not plain object literals.
+			v.isLit = false
 		}
 		v.cost++
 	default:
+		// Methods, getters, setters and spreads make the object non-literal.
 		v.isLit = false
 	}
 }
@@ -281,12 +308,18 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 			switch prop.Kind() {
 			case ast.PropShort:
 				return true
-			case ast.PropKeyed:
-				p := prop.MustKeyed()
-				if p.Computed && MayHaveSideEffects(p.Key) {
+			case ast.PropKeyValue:
+				p := prop.MustKeyValue()
+				if e, ok := computedKeyExpr(&p.Key); ok && MayHaveSideEffects(e) {
 					return false
 				}
 				return !MayHaveSideEffects(p.Value)
+			case ast.PropMethod, ast.PropGetter, ast.PropSetter:
+				// The function literal itself is side-effect-free; only a
+				// computed key can have side effects.
+				key, _ := propName(prop)
+				e, ok := computedKeyExpr(key)
+				return !(ok && MayHaveSideEffects(e))
 			case ast.PropSpread:
 				hasSpread = true
 				return false
@@ -299,12 +332,17 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 			for _, prop := range e.Value {
 				switch prop.Kind() {
 				case ast.PropShort:
-				case ast.PropKeyed:
-					p := prop.MustKeyed()
-					if p.Computed {
-						ExtractSideEffectsTo(to, p.Key)
+				case ast.PropKeyValue:
+					p := prop.MustKeyValue()
+					if e, ok := computedKeyExpr(&p.Key); ok {
+						ExtractSideEffectsTo(to, e)
 					}
 					ExtractSideEffectsTo(to, p.Value)
+				case ast.PropMethod, ast.PropGetter, ast.PropSetter:
+					key, _ := propName(prop)
+					if e, ok := computedKeyExpr(key); ok {
+						ExtractSideEffectsTo(to, e)
+					}
 				}
 			}
 		}

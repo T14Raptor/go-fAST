@@ -29,21 +29,25 @@ type parser struct {
 	// slices without per-call heap allocations. Each builder saves
 	// len(buf) as a mark, appends elements, copies the subslice to the
 	// arena, then restores buf to the saved mark.
-	exprBuf []ast.Expression
-	stmtBuf []ast.Statement
-	propBuf []ast.Property
-	elemBuf []ast.ClassElement
-	declBuf []ast.VariableDeclarator
+	exprBuf    []ast.Expression
+	stmtBuf    []ast.Statement
+	propBuf    []ast.Property
+	elemBuf    []ast.ClassElement
+	declBuf    []ast.VariableDeclarator
+	patBuf     []ast.Pattern
+	patPropBuf []ast.PatternProperty
 }
 
 var parserPool = sync.Pool{
 	New: func() any {
 		return &parser{
-			exprBuf: make([]ast.Expression, 0, 64),
-			stmtBuf: make([]ast.Statement, 0, 64),
-			propBuf: make([]ast.Property, 0, 16),
-			elemBuf: make([]ast.ClassElement, 0, 16),
-			declBuf: make([]ast.VariableDeclarator, 0, 16),
+			exprBuf:    make([]ast.Expression, 0, 64),
+			stmtBuf:    make([]ast.Statement, 0, 64),
+			propBuf:    make([]ast.Property, 0, 16),
+			elemBuf:    make([]ast.ClassElement, 0, 16),
+			declBuf:    make([]ast.VariableDeclarator, 0, 16),
+			patBuf:     make([]ast.Pattern, 0, 16),
+			patPropBuf: make([]ast.PatternProperty, 0, 16),
 		}
 	},
 }
@@ -69,6 +73,8 @@ func putParser(p *parser) {
 	p.propBuf = p.propBuf[:0]
 	p.elemBuf = p.elemBuf[:0]
 	p.declBuf = p.declBuf[:0]
+	p.patBuf = p.patBuf[:0]
+	p.patPropBuf = p.patPropBuf[:0]
 	parserPool.Put(p)
 }
 
@@ -179,6 +185,18 @@ func (p *parser) finishStmtBuf(mark int) ast.Statements {
 func (p *parser) finishPropBuf(mark int) ast.Properties {
 	result := p.alloc.CopyProperties(p.propBuf[mark:])
 	p.propBuf = p.propBuf[:mark]
+	return result
+}
+
+func (p *parser) finishPatBuf(mark int) ast.Patterns {
+	result := p.alloc.CopyPatterns(p.patBuf[mark:])
+	p.patBuf = p.patBuf[:mark]
+	return result
+}
+
+func (p *parser) finishPatPropBuf(mark int) ast.PatternProperties {
+	result := p.alloc.CopyPatternProperties(p.patPropBuf[mark:])
+	p.patPropBuf = p.patPropBuf[:mark]
 	return result
 }
 

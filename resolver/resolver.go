@@ -1,10 +1,6 @@
 package resolver
 
-import (
-	"fmt"
-
-	"github.com/t14raptor/go-fast/ast"
-)
+import "github.com/t14raptor/go-fast/ast"
 
 type IdentType int
 
@@ -27,6 +23,8 @@ type Resolver struct {
 	declKind  DeclKind
 
 	nextCtxt ast.ScopeContext
+
+	binder resolverBinder
 }
 
 func Resolve(p ast.VisitableNode) *Resolver {
@@ -35,6 +33,8 @@ func Resolve(p ast.VisitableNode) *Resolver {
 		nextCtxt:  TopLevelMark,
 	}
 	r.V = r
+	r.binder.r = r
+	r.binder.V = &r.binder
 
 	p.VisitWith(r)
 	return r
@@ -182,14 +182,6 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	r.identType = IdentTypeBinding
 	n.ParameterList.VisitWith(r)
 
-	if n.ParameterList.Rest != nil {
-		if ident, ok := n.ParameterList.Rest.Ident(); ok {
-			ident.VisitWith(r)
-		} else {
-			panic(fmt.Sprintf("Unexpected rest kind: %s\n", n.ParameterList.Rest.Kind()))
-		}
-	}
-
 	r.identType = IdentTypeRef
 	// Prevent creating new scope.
 	n.Body.ScopeContext = r.current.ctx
@@ -197,6 +189,33 @@ func (r *Resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 
 	r.identType = oldIdentType
 
+	r.popScope()
+}
+
+func (r *Resolver) VisitParameterList(n *ast.ParameterList) {
+	// Phase 1: pre-declare every parameter binding so a default can forward-
+	// reference a later parameter (e.g. function f(a = b, b) {}). The binder
+	// declares binding identifiers and skips defaults/computed keys.
+	n.VisitChildrenWith(&r.binder)
+
+	// Phase 2: resolve defaults and computed keys as references. The binding
+	// identifiers already have a scope context, so VisitIdentifier skips them.
+	old := r.identType
+	r.identType = IdentTypeRef
+	n.VisitChildrenWith(r)
+	r.identType = old
+}
+
+func (r *Resolver) VisitCatchStatement(n *ast.CatchStatement) {
+	r.pushScope(ScopeKindBlock)
+	if n.Parameter != nil {
+		old := r.identType
+		r.identType = IdentTypeBinding
+		n.Parameter.VisitWith(r)
+		r.identType = old
+	}
+	n.Body.ScopeContext = r.current.ctx
+	n.Body.VisitChildrenWith(r)
 	r.popScope()
 }
 
@@ -221,10 +240,10 @@ func (r *Resolver) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	r.declKind = DeclKindVar
 
 	for _, decl := range n.List {
-		oldIdentType := r.identType
+		old := r.identType
 		r.identType = IdentTypeBinding
 		decl.Target.VisitWith(r)
-		r.identType = oldIdentType
+		r.identType = old
 
 		if decl.Initializer != nil {
 			decl.Initializer.VisitWith(r)

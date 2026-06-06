@@ -663,7 +663,7 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 				obj := e.Object.MustClassLit()
 				for _, elem := range obj.Body {
 					if method, ok := elem.Method(); ok && method.Static {
-						if method.Kind == ast.PropertyKindGet || method.Kind == ast.PropertyKindSet {
+						if method.Kind == ast.MethodKindGet || method.Kind == ast.MethodKindSet {
 							return true
 						}
 					}
@@ -680,15 +680,17 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 						if p.Name.Name == "__proto__" {
 							return true
 						}
-					case ast.PropKeyed:
-						p := prop.MustKeyed()
+					case ast.PropKeyValue:
+						p := prop.MustKeyValue()
 						if s, ok := p.Key.StrLit(); ok && s.Value == "__proto__" {
 							return true
 						}
-						if id, ok := p.Key.Ident(); ok && id.Name == "__proto__" {
+						if _, ok := p.Key.Computed(); ok {
 							return true
 						}
-						if p.Computed {
+					case ast.PropMethod, ast.PropGetter, ast.PropSetter:
+						key, _ := propName(prop)
+						if _, ok := key.Computed(); ok {
 							return true
 						}
 					}
@@ -753,12 +755,17 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 			case ast.PropSpread:
 				return true
 			case ast.PropShort:
-			case ast.PropKeyed:
-				p := prop.MustKeyed()
-				if p.Computed && MayHaveSideEffects(p.Key) {
+			case ast.PropKeyValue:
+				p := prop.MustKeyValue()
+				if e, ok := computedKeyExpr(&p.Key); ok && MayHaveSideEffects(e) {
 					return true
 				}
 				if MayHaveSideEffects(p.Value) {
+					return true
+				}
+			case ast.PropMethod, ast.PropGetter, ast.PropSetter:
+				key, _ := propName(prop)
+				if e, ok := computedKeyExpr(key); ok && MayHaveSideEffects(e) {
 					return true
 				}
 			}

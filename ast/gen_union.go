@@ -34,12 +34,19 @@ var shortNameOverrides = map[string]string{
 	"OptionalChain":    "OptChain",
 	"Expression":       "Expr",
 	"Statement":        "Stmt",
-	"PropertyKeyed":    "Keyed",
+	"PropertyKeyValue": "KeyValue",
+	"PropertyMethod":   "Method",
+	"PropertyGetter":   "Getter",
+	"PropertySetter":   "Setter",
 	"PropertyShort":    "Short",
 	"ComputedProperty": "Computed",
 	"ClassStaticBlock": "StaticBlock",
 	"FieldDefinition":  "Field",
 	"MethodDefinition": "Method",
+	"AssignmentPattern": "Assign",
+	"PatternKeyValue":   "KeyValue",
+	"PatternShorthand":  "Shorthand",
+	"Pattern":           "Pattern",
 }
 
 func main() {
@@ -167,6 +174,10 @@ func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
 		return "ForInit", "ForInitKind", "ForInit"
 	case "ClassElement":
 		return "ClassElem", "ClassElemKind", "ClassElem"
+	case "PatternProperty":
+		return "PatProp", "PatPropKind", "PatProp"
+	case "PropertyName":
+		return "PropName", "PropNameKind", "PropName"
 	default:
 		return name, name + "Kind", name
 	}

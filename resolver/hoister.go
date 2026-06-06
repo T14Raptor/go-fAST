@@ -1,8 +1,6 @@
 package resolver
 
 import (
-	"maps"
-
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
@@ -18,25 +16,45 @@ type hoister struct {
 
 	excludedFromCatch map[string]struct{}
 	catchParamDecls   map[string]struct{}
+
+	binder hoisterBinder
 }
 
 func newHoister(resolver *Resolver) *hoister {
-	return &hoister{
-		resolver:          resolver,
-		kind:              DeclKindVar,
-		excludedFromCatch: make(map[string]struct{}),
-		catchParamDecls:   make(map[string]struct{}),
+	h := &hoister{
+		resolver: resolver,
+		kind:     DeclKindVar,
 	}
+	h.binder.h = h
+	h.binder.V = &h.binder
+	return h
 }
+
+// hoisterBinder registers each binding identifier of a pattern for hoisting,
+// skipping default values and computed keys (see resolverBinder). One instance
+// lives on the hoister and is reused.
+type hoisterBinder struct {
+	ast.NoopVisitor
+
+	h *hoister
+}
+
+func (b *hoisterBinder) VisitExpression(*ast.Expression) {}
+
+func (b *hoisterBinder) VisitIdentifier(n *ast.Identifier) { b.h.addIdent(n) }
 
 func (h *hoister) addIdent(id *ast.Identifier) {
 	if h.inCatchBody {
 		if _, ok := h.catchParamDecls[id.Name]; ok {
 			if r, _ := h.resolver.lookupContext(id.Name); r != UnresolvedMark {
+				id.ScopeContext = r
 				return
 			}
 		}
 
+		if h.excludedFromCatch == nil {
+			h.excludedFromCatch = make(map[string]struct{})
+		}
 		h.excludedFromCatch[id.Name] = struct{}{}
 	} else if _, ok := h.catchParamDecls[id.Name]; ok {
 		if _, excluded := h.excludedFromCatch[id.Name]; !excluded {
@@ -56,25 +74,31 @@ func (h *hoister) VisitBlockStatement(n *ast.BlockStatement) {
 
 func (h *hoister) VisitCatchStatement(n *ast.CatchStatement) {
 	oldExclude := h.excludedFromCatch
-	h.excludedFromCatch = make(map[string]struct{})
+	h.excludedFromCatch = nil
 	oldInCatchBody := h.inCatchBody
 
+	var paramName string
 	if n.Parameter != nil {
-		if params := findIds(n.Parameter); len(params) == 1 {
-			h.catchParamDecls[params[0].Name] = struct{}{}
+		if ident, ok := n.Parameter.Ident(); ok {
+			paramName = ident.Name
 		}
 	}
 
-	old := maps.Clone(h.catchParamDecls)
+	var hadParam bool
+	if paramName != "" {
+		if h.catchParamDecls == nil {
+			h.catchParamDecls = make(map[string]struct{})
+		}
+		_, hadParam = h.catchParamDecls[paramName]
+		h.catchParamDecls[paramName] = struct{}{}
+	}
 
 	h.inCatchBody = true
 	n.Body.VisitWith(h)
-	h.inCatchBody = false
-	if n.Parameter != nil {
-		n.Parameter.VisitWith(h)
-	}
 
-	h.catchParamDecls = old
+	if paramName != "" && !hadParam {
+		delete(h.catchParamDecls, paramName)
+	}
 	h.inCatchBody = oldInCatchBody
 	h.excludedFromCatch = oldExclude
 }
@@ -108,12 +132,8 @@ func (h *hoister) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	h.kind = oldKind
 }
 
-func (h *hoister) VisitBindingTarget(n *ast.BindingTarget) {
-	if ident, ok := n.Ident(); ok {
-		h.addIdent(ident)
-		return
-	}
-	n.VisitChildrenWith(h)
+func (h *hoister) VisitPattern(n *ast.Pattern) {
+	n.VisitWith(&h.binder)
 }
 
 func (h *hoister) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
@@ -144,23 +164,3 @@ func (h *hoister) VisitSwitchStatement(n *ast.SwitchStatement) {
 func (h *hoister) VisitArrowFunctionLiteral(*ast.ArrowFunctionLiteral) {}
 func (h *hoister) VisitExpression(*ast.Expression)                     {}
 func (h *hoister) VisitFunctionLiteral(*ast.FunctionLiteral)           {}
-
-type idsFinder struct {
-	ast.NoopVisitor
-
-	found []ast.Id
-}
-
-func findIds(n ast.VisitableNode) []ast.Id {
-	v := &idsFinder{}
-	v.V = v
-	n.VisitWith(v)
-
-	return v.found
-}
-
-func (v *idsFinder) VisitExpression(*ast.Expression) {}
-
-func (v *idsFinder) VisitIdentifier(n *ast.Identifier) {
-	v.found = append(v.found, n.ToId())
-}

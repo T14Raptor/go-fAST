@@ -23,6 +23,8 @@ type nodeAllocator struct {
 	propSlice miniArena[ast.Property]
 	declSlice miniArena[ast.VariableDeclarator]
 	elemSlice miniArena[ast.ClassElement]
+	patSlice  miniArena[ast.Pattern]
+	patPrpSlc miniArena[ast.PatternProperty]
 
 	// Concrete expression nodes.
 	ident     miniArena[ast.Identifier]
@@ -64,8 +66,14 @@ type nodeAllocator struct {
 	invalidEx miniArena[ast.InvalidExpression]
 
 	// Property nodes.
-	propKeyed miniArena[ast.PropertyKeyed]
-	propShort miniArena[ast.PropertyShort]
+	propKeyVal miniArena[ast.PropertyKeyValue]
+	propMethod miniArena[ast.PropertyMethod]
+	propGetter miniArena[ast.PropertyGetter]
+	propSetter miniArena[ast.PropertySetter]
+	propShort  miniArena[ast.PropertyShort]
+	patKeyVal miniArena[ast.PatternKeyValue]
+	patShort  miniArena[ast.PatternShorthand]
+	assignPat miniArena[ast.AssignmentPattern]
 
 	// Statement nodes.
 	exprStmt  miniArena[ast.ExpressionStatement]
@@ -100,7 +108,8 @@ type nodeAllocator struct {
 	staticBl miniArena[ast.ClassStaticBlock]
 
 	// Wrapper/helper types.
-	bindTgt   miniArena[ast.BindingTarget]
+	pattern   miniArena[ast.Pattern]
+	patProp   miniArena[ast.PatternProperty]
 	concBody  miniArena[ast.ConciseBody]
 	forInit   miniArena[ast.ForLoopInitializer]
 	forInto   miniArena[ast.ForInto]
@@ -125,6 +134,8 @@ func newNodeAllocator() nodeAllocator {
 		propSlice: newArena[ast.Property](256),
 		declSlice: newArena[ast.VariableDeclarator](256),
 		elemSlice: newArena[ast.ClassElement](64),
+		patSlice:  newArena[ast.Pattern](256),
+		patPrpSlc: newArena[ast.PatternProperty](128),
 
 		// Identifiers are the most frequent node.
 		ident: newArena[ast.Identifier](1024),
@@ -170,8 +181,14 @@ func newNodeAllocator() nodeAllocator {
 		invalidEx: newArena[ast.InvalidExpression](32),
 
 		// Properties.
-		propKeyed: newArena[ast.PropertyKeyed](128),
-		propShort: newArena[ast.PropertyShort](64),
+		propKeyVal: newArena[ast.PropertyKeyValue](128),
+		propMethod: newArena[ast.PropertyMethod](32),
+		propGetter: newArena[ast.PropertyGetter](8),
+		propSetter: newArena[ast.PropertySetter](8),
+		propShort:  newArena[ast.PropertyShort](64),
+		patKeyVal: newArena[ast.PatternKeyValue](64),
+		patShort:  newArena[ast.PatternShorthand](64),
+		assignPat: newArena[ast.AssignmentPattern](32),
 
 		// Statements.
 		exprStmt:  newArena[ast.ExpressionStatement](256),
@@ -206,7 +223,8 @@ func newNodeAllocator() nodeAllocator {
 		staticBl: newArena[ast.ClassStaticBlock](8),
 
 		// Wrappers.
-		bindTgt:   newArena[ast.BindingTarget](128),
+		pattern:   newArena[ast.Pattern](128),
+		patProp:   newArena[ast.PatternProperty](64),
 		concBody:  newArena[ast.ConciseBody](64),
 		forInit:   newArena[ast.ForLoopInitializer](32),
 		forInto:   newArena[ast.ForInto](16),
@@ -380,7 +398,7 @@ func (a *nodeAllocator) UpdateExpression(op ast.UpdateOperator, idx ast.Idx, ope
 	return n
 }
 
-func (a *nodeAllocator) AssignExpression(op ast.AssignmentOperator, left, right *ast.Expression) *ast.AssignExpression {
+func (a *nodeAllocator) AssignExpression(op ast.AssignmentOperator, left *ast.Pattern, right *ast.Expression) *ast.AssignExpression {
 	n := a.assignExp.make()
 	*n = ast.AssignExpression{Operator: op, Left: left, Right: right}
 	return n
@@ -476,16 +494,64 @@ func (a *nodeAllocator) ArrayLiteral(lb, rb ast.Idx, value ast.Expressions) *ast
 	return n
 }
 
-func (a *nodeAllocator) ArrayPattern(lb, rb ast.Idx, elems ast.Expressions, rest *ast.Expression) *ast.ArrayPattern {
+func (a *nodeAllocator) ArrayPattern(lb, rb ast.Idx, elems ast.Patterns, rest *ast.Pattern) *ast.ArrayPattern {
 	n := a.arrPat.make()
 	*n = ast.ArrayPattern{LeftBracket: lb, RightBracket: rb, Elements: elems, Rest: rest}
 	return n
 }
 
-func (a *nodeAllocator) ObjectPattern(lb, rb ast.Idx, props ast.Properties, rest *ast.Expression) *ast.ObjectPattern {
+func (a *nodeAllocator) ObjectPattern(lb, rb ast.Idx, props ast.PatternProperties, rest *ast.Pattern) *ast.ObjectPattern {
 	n := a.objPat.make()
 	*n = ast.ObjectPattern{LeftBrace: lb, RightBrace: rb, Properties: props, Rest: rest}
 	return n
+}
+
+func (a *nodeAllocator) Pattern(p ast.Pattern) *ast.Pattern {
+	n := a.pattern.make()
+	*n = p
+	return n
+}
+
+func (a *nodeAllocator) PatternProperty(p ast.PatternProperty) *ast.PatternProperty {
+	n := a.patProp.make()
+	*n = p
+	return n
+}
+
+func (a *nodeAllocator) AssignmentPattern(left *ast.Pattern, right *ast.Expression) *ast.AssignmentPattern {
+	n := a.assignPat.make()
+	*n = ast.AssignmentPattern{Left: left, Right: right}
+	return n
+}
+
+func (a *nodeAllocator) PatternKeyValue(key ast.PropertyName, value *ast.Pattern) *ast.PatternKeyValue {
+	n := a.patKeyVal.make()
+	*n = ast.PatternKeyValue{Key: key, Value: value}
+	return n
+}
+
+func (a *nodeAllocator) PatternShorthand(name *ast.Identifier, initializer *ast.Expression) *ast.PatternShorthand {
+	n := a.patShort.make()
+	*n = ast.PatternShorthand{Name: name, Initializer: initializer}
+	return n
+}
+
+func (a *nodeAllocator) CopyPatterns(src []ast.Pattern) ast.Patterns {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.patSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (a *nodeAllocator) CopyPatternProperties(src []ast.PatternProperty) ast.PatternProperties {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.patPrpSlc.makeSlice(len(src))
+	copy(dst, src)
+	return dst
 }
 
 func (a *nodeAllocator) TemplateLiteral(openQuote ast.Idx) *ast.TemplateLiteral {
@@ -524,9 +590,27 @@ func (a *nodeAllocator) FunctionLiteral(start ast.Idx, async bool) *ast.Function
 	return n
 }
 
-func (a *nodeAllocator) PropertyKeyed(key *ast.Expression, kind ast.PropertyKind, value *ast.Expression, computed bool) *ast.PropertyKeyed {
-	n := a.propKeyed.make()
-	*n = ast.PropertyKeyed{Key: key, Kind: kind, Value: value, Computed: computed}
+func (a *nodeAllocator) PropertyKeyValue(key ast.PropertyName, value *ast.Expression) *ast.PropertyKeyValue {
+	n := a.propKeyVal.make()
+	*n = ast.PropertyKeyValue{Key: key, Value: value}
+	return n
+}
+
+func (a *nodeAllocator) PropertyMethod(key ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertyMethod {
+	n := a.propMethod.make()
+	*n = ast.PropertyMethod{Key: key, Body: body}
+	return n
+}
+
+func (a *nodeAllocator) PropertyGetter(key ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertyGetter {
+	n := a.propGetter.make()
+	*n = ast.PropertyGetter{Key: key, Body: body}
+	return n
+}
+
+func (a *nodeAllocator) PropertySetter(key ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertySetter {
+	n := a.propSetter.make()
+	*n = ast.PropertySetter{Key: key, Body: body}
 	return n
 }
 
@@ -600,7 +684,7 @@ func (a *nodeAllocator) TryStatement(idx ast.Idx, body *ast.BlockStatement) *ast
 	return n
 }
 
-func (a *nodeAllocator) CatchStatement(idx ast.Idx, param *ast.BindingTarget, body *ast.BlockStatement) *ast.CatchStatement {
+func (a *nodeAllocator) CatchStatement(idx ast.Idx, param *ast.Pattern, body *ast.BlockStatement) *ast.CatchStatement {
 	n := a.catchStmt.make()
 	*n = ast.CatchStatement{Catch: idx, Parameter: param, Body: body}
 	return n
@@ -658,7 +742,7 @@ func (a *nodeAllocator) VariableDeclaration(idx ast.Idx, tok token.Token, list a
 	return n
 }
 
-func (a *nodeAllocator) VariableDeclarator(target *ast.BindingTarget) *ast.VariableDeclarator {
+func (a *nodeAllocator) VariableDeclarator(target *ast.Pattern) *ast.VariableDeclarator {
 	n := a.varDeclr.make()
 	*n = ast.VariableDeclarator{Target: target}
 	return n
@@ -682,27 +766,21 @@ func (a *nodeAllocator) ClassDeclaration(class *ast.ClassLiteral) *ast.ClassDecl
 	return n
 }
 
-func (a *nodeAllocator) MethodDefinition(idx ast.Idx, key *ast.Expression, kind ast.PropertyKind, body *ast.FunctionLiteral, static, computed bool) *ast.MethodDefinition {
+func (a *nodeAllocator) MethodDefinition(idx ast.Idx, key ast.PropertyName, kind ast.MethodKind, body *ast.FunctionLiteral, static bool) *ast.MethodDefinition {
 	n := a.methDef.make()
-	*n = ast.MethodDefinition{Idx: idx, Key: key, Kind: kind, Body: body, Static: static, Computed: computed}
+	*n = ast.MethodDefinition{Idx: idx, Key: key, Kind: kind, Body: body, Static: static}
 	return n
 }
 
-func (a *nodeAllocator) FieldDefinition(idx ast.Idx, key, initializer *ast.Expression, static, computed bool) *ast.FieldDefinition {
+func (a *nodeAllocator) FieldDefinition(idx ast.Idx, key ast.PropertyName, initializer *ast.Expression, static bool) *ast.FieldDefinition {
 	n := a.fieldDef.make()
-	*n = ast.FieldDefinition{Idx: idx, Key: key, Initializer: initializer, Static: static, Computed: computed}
+	*n = ast.FieldDefinition{Idx: idx, Key: key, Initializer: initializer, Static: static}
 	return n
 }
 
 func (a *nodeAllocator) ClassStaticBlock(idx ast.Idx) *ast.ClassStaticBlock {
 	n := a.staticBl.make()
 	*n = ast.ClassStaticBlock{Static: idx}
-	return n
-}
-
-func (a *nodeAllocator) BindingTarget(bt ast.BindingTarget) *ast.BindingTarget {
-	n := a.bindTgt.make()
-	*n = bt
 	return n
 }
 

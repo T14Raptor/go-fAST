@@ -420,7 +420,7 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			}
 
 			switch fieldType.Name {
-			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "Token",
+			case "Idx", "any", "bool", "int", "ScopeContext", "string", "MethodKind", "Token",
 				"float64", "UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator":
 				children = appendNamedChildren(children, field.Names, fieldType.Name, false, false, optional)
 			default:
@@ -560,6 +560,10 @@ func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
 		return "ForInit", "ForInitKind", "ForInit"
 	case "ClassElement":
 		return "ClassElem", "ClassElemKind", "ClassElem"
+	case "PatternProperty":
+		return "PatProp", "PatPropKind", "PatProp"
+	case "PropertyName":
+		return "PropName", "PropNameKind", "PropName"
 	default:
 		return name, name + "Kind", name
 	}
@@ -569,12 +573,19 @@ var shortNameOverrides = map[string]string{
 	"OptionalChain":    "OptChain",
 	"Expression":       "Expr",
 	"Statement":        "Stmt",
-	"PropertyKeyed":    "Keyed",
+	"PropertyKeyValue": "KeyValue",
+	"PropertyMethod":   "Method",
+	"PropertyGetter":   "Getter",
+	"PropertySetter":   "Setter",
 	"PropertyShort":    "Short",
 	"ComputedProperty": "Computed",
 	"ClassStaticBlock": "StaticBlock",
 	"FieldDefinition":  "Field",
 	"MethodDefinition": "Method",
+	"AssignmentPattern": "Assign",
+	"PatternKeyValue":   "KeyValue",
+	"PatternShorthand":  "Shorthand",
+	"Pattern":           "Pattern",
 }
 
 func deriveShortName(typeName string) string {

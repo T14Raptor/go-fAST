@@ -6,11 +6,11 @@ type Visitor interface {
 	VisitArrayPattern(n *ArrayPattern)
 	VisitArrowFunctionLiteral(n *ArrowFunctionLiteral)
 	VisitAssignExpression(n *AssignExpression)
+	VisitAssignmentPattern(n *AssignmentPattern)
 	VisitAwaitExpression(n *AwaitExpression)
 	VisitBadStatement(n *BadStatement)
 	VisitBigIntLiteral(n *BigIntLiteral)
 	VisitBinaryExpression(n *BinaryExpression)
-	VisitBindingTarget(n *BindingTarget)
 	VisitBlockStatement(n *BlockStatement)
 	VisitBooleanLiteral(n *BooleanLiteral)
 	VisitBreakStatement(n *BreakStatement)
@@ -58,12 +58,22 @@ type Visitor interface {
 	VisitOptional(n *Optional)
 	VisitOptionalChain(n *OptionalChain)
 	VisitParameterList(n *ParameterList)
+	VisitPattern(n *Pattern)
+	VisitPatternKeyValue(n *PatternKeyValue)
+	VisitPatternProperties(n *PatternProperties)
+	VisitPatternProperty(n *PatternProperty)
+	VisitPatternShorthand(n *PatternShorthand)
+	VisitPatterns(n *Patterns)
 	VisitPrivateDotExpression(n *PrivateDotExpression)
 	VisitPrivateIdentifier(n *PrivateIdentifier)
 	VisitProgram(n *Program)
 	VisitProperties(n *Properties)
 	VisitProperty(n *Property)
-	VisitPropertyKeyed(n *PropertyKeyed)
+	VisitPropertyGetter(n *PropertyGetter)
+	VisitPropertyKeyValue(n *PropertyKeyValue)
+	VisitPropertyMethod(n *PropertyMethod)
+	VisitPropertyName(n *PropertyName)
+	VisitPropertySetter(n *PropertySetter)
 	VisitPropertyShort(n *PropertyShort)
 	VisitRegExpLiteral(n *RegExpLiteral)
 	VisitReturnStatement(n *ReturnStatement)
@@ -105,6 +115,9 @@ func (nv *NoopVisitor) VisitArrowFunctionLiteral(n *ArrowFunctionLiteral) {
 func (nv *NoopVisitor) VisitAssignExpression(n *AssignExpression) {
 	n.VisitChildrenWith(nv.V)
 }
+func (nv *NoopVisitor) VisitAssignmentPattern(n *AssignmentPattern) {
+	n.VisitChildrenWith(nv.V)
+}
 func (nv *NoopVisitor) VisitAwaitExpression(n *AwaitExpression) {
 	n.VisitChildrenWith(nv.V)
 }
@@ -115,9 +128,6 @@ func (nv *NoopVisitor) VisitBigIntLiteral(n *BigIntLiteral) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBinaryExpression(n *BinaryExpression) {
-	n.VisitChildrenWith(nv.V)
-}
-func (nv *NoopVisitor) VisitBindingTarget(n *BindingTarget) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitBlockStatement(n *BlockStatement) {
@@ -261,6 +271,24 @@ func (nv *NoopVisitor) VisitOptionalChain(n *OptionalChain) {
 func (nv *NoopVisitor) VisitParameterList(n *ParameterList) {
 	n.VisitChildrenWith(nv.V)
 }
+func (nv *NoopVisitor) VisitPattern(n *Pattern) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPatternKeyValue(n *PatternKeyValue) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPatternProperties(n *PatternProperties) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPatternProperty(n *PatternProperty) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPatternShorthand(n *PatternShorthand) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPatterns(n *Patterns) {
+	n.VisitChildrenWith(nv.V)
+}
 func (nv *NoopVisitor) VisitPrivateDotExpression(n *PrivateDotExpression) {
 	n.VisitChildrenWith(nv.V)
 }
@@ -276,7 +304,19 @@ func (nv *NoopVisitor) VisitProperties(n *Properties) {
 func (nv *NoopVisitor) VisitProperty(n *Property) {
 	n.VisitChildrenWith(nv.V)
 }
-func (nv *NoopVisitor) VisitPropertyKeyed(n *PropertyKeyed) {
+func (nv *NoopVisitor) VisitPropertyGetter(n *PropertyGetter) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPropertyKeyValue(n *PropertyKeyValue) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPropertyMethod(n *PropertyMethod) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPropertyName(n *PropertyName) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitPropertySetter(n *PropertySetter) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitPropertyShort(n *PropertyShort) {
@@ -377,6 +417,13 @@ func (n *AssignExpression) VisitWith(v Visitor) {
 	v.VisitAssignExpression(n)
 }
 func (n *AssignExpression) VisitChildrenWith(v Visitor) {
+	n.Left.VisitWith(v)
+	n.Right.VisitWith(v)
+}
+func (n *AssignmentPattern) VisitWith(v Visitor) {
+	v.VisitAssignmentPattern(n)
+}
+func (n *AssignmentPattern) VisitChildrenWith(v Visitor) {
 	n.Left.VisitWith(v)
 	n.Right.VisitWith(v)
 }
@@ -655,8 +702,8 @@ func (n *NewExpression) VisitWith(v Visitor) {
 	v.VisitNewExpression(n)
 }
 func (n *NewExpression) VisitChildrenWith(v Visitor) {
-	n.ArgumentList.VisitWith(v)
 	n.Callee.VisitWith(v)
+	n.ArgumentList.VisitWith(v)
 }
 func (n *NullLiteral) VisitWith(v Visitor) {
 	v.VisitNullLiteral(n)
@@ -704,6 +751,38 @@ func (n *ParameterList) VisitChildrenWith(v Visitor) {
 		n.Rest.VisitWith(v)
 	}
 }
+func (n *PatternKeyValue) VisitWith(v Visitor) {
+	v.VisitPatternKeyValue(n)
+}
+func (n *PatternKeyValue) VisitChildrenWith(v Visitor) {
+	n.Key.VisitWith(v)
+	n.Value.VisitWith(v)
+}
+func (n *PatternProperties) VisitWith(v Visitor) {
+	v.VisitPatternProperties(n)
+}
+func (n *PatternProperties) VisitChildrenWith(v Visitor) {
+	for i := 0; i < len(*n); i++ {
+		(*n)[i].VisitWith(v)
+	}
+}
+func (n *PatternShorthand) VisitWith(v Visitor) {
+	v.VisitPatternShorthand(n)
+}
+func (n *PatternShorthand) VisitChildrenWith(v Visitor) {
+	n.Name.VisitWith(v)
+	if n.Initializer != nil {
+		n.Initializer.VisitWith(v)
+	}
+}
+func (n *Patterns) VisitWith(v Visitor) {
+	v.VisitPatterns(n)
+}
+func (n *Patterns) VisitChildrenWith(v Visitor) {
+	for i := 0; i < len(*n); i++ {
+		(*n)[i].VisitWith(v)
+	}
+}
 func (n *PrivateDotExpression) VisitWith(v Visitor) {
 	v.VisitPrivateDotExpression(n)
 }
@@ -731,12 +810,33 @@ func (n *Properties) VisitChildrenWith(v Visitor) {
 		(*n)[i].VisitWith(v)
 	}
 }
-func (n *PropertyKeyed) VisitWith(v Visitor) {
-	v.VisitPropertyKeyed(n)
+func (n *PropertyGetter) VisitWith(v Visitor) {
+	v.VisitPropertyGetter(n)
 }
-func (n *PropertyKeyed) VisitChildrenWith(v Visitor) {
+func (n *PropertyGetter) VisitChildrenWith(v Visitor) {
+	n.Key.VisitWith(v)
+	n.Body.VisitWith(v)
+}
+func (n *PropertyKeyValue) VisitWith(v Visitor) {
+	v.VisitPropertyKeyValue(n)
+}
+func (n *PropertyKeyValue) VisitChildrenWith(v Visitor) {
 	n.Key.VisitWith(v)
 	n.Value.VisitWith(v)
+}
+func (n *PropertyMethod) VisitWith(v Visitor) {
+	v.VisitPropertyMethod(n)
+}
+func (n *PropertyMethod) VisitChildrenWith(v Visitor) {
+	n.Key.VisitWith(v)
+	n.Body.VisitWith(v)
+}
+func (n *PropertySetter) VisitWith(v Visitor) {
+	v.VisitPropertySetter(n)
+}
+func (n *PropertySetter) VisitChildrenWith(v Visitor) {
+	n.Key.VisitWith(v)
+	n.Body.VisitWith(v)
 }
 func (n *PropertyShort) VisitWith(v Visitor) {
 	v.VisitPropertyShort(n)
@@ -896,34 +996,7 @@ func (n *YieldExpression) VisitWith(v Visitor) {
 	v.VisitYieldExpression(n)
 }
 func (n *YieldExpression) VisitChildrenWith(v Visitor) {
-	if n.Argument != nil {
-		n.Argument.VisitWith(v)
-	}
-}
-
-func (n *BindingTarget) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
-	v.VisitBindingTarget(n)
-}
-
-func (n *BindingTarget) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
-	switch n.kind {
-	case BindingTargetArrPat:
-		(*ArrayPattern)(n.ptr).VisitWith(v)
-	case BindingTargetIdent:
-		(*Identifier)(n.ptr).VisitWith(v)
-	case BindingTargetInvalid:
-		(*InvalidExpression)(n.ptr).VisitWith(v)
-	case BindingTargetMember:
-		(*MemberExpression)(n.ptr).VisitWith(v)
-	case BindingTargetObjPat:
-		(*ObjectPattern)(n.ptr).VisitWith(v)
-	}
+	n.Argument.VisitWith(v)
 }
 
 func (n *ClassElement) VisitWith(v Visitor) {
@@ -980,8 +1053,6 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 	switch n.kind {
 	case ExprArrLit:
 		(*ArrayLiteral)(n.ptr).VisitWith(v)
-	case ExprArrPat:
-		(*ArrayPattern)(n.ptr).VisitWith(v)
 	case ExprArrowFuncLit:
 		(*ArrowFunctionLiteral)(n.ptr).VisitWith(v)
 	case ExprAssign:
@@ -1006,8 +1077,6 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*Identifier)(n.ptr).VisitWith(v)
 	case ExprInvalid:
 		(*InvalidExpression)(n.ptr).VisitWith(v)
-	case ExprKeyed:
-		(*PropertyKeyed)(n.ptr).VisitWith(v)
 	case ExprLogical:
 		(*LogicalExpression)(n.ptr).VisitWith(v)
 	case ExprMember:
@@ -1022,8 +1091,6 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*NumberLiteral)(n.ptr).VisitWith(v)
 	case ExprObjLit:
 		(*ObjectLiteral)(n.ptr).VisitWith(v)
-	case ExprObjPat:
-		(*ObjectPattern)(n.ptr).VisitWith(v)
 	case ExprOptChain:
 		(*OptionalChain)(n.ptr).VisitWith(v)
 	case ExprOptional:
@@ -1036,8 +1103,6 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*RegExpLiteral)(n.ptr).VisitWith(v)
 	case ExprSequence:
 		(*SequenceExpression)(n.ptr).VisitWith(v)
-	case ExprShort:
-		(*PropertyShort)(n.ptr).VisitWith(v)
 	case ExprSpread:
 		(*SpreadElement)(n.ptr).VisitWith(v)
 	case ExprStrLit:
@@ -1071,8 +1136,8 @@ func (n *ForInto) VisitChildrenWith(v Visitor) {
 		return
 	}
 	switch n.kind {
-	case ForIntoExpr:
-		(*Expression)(n.ptr).VisitWith(v)
+	case ForIntoPattern:
+		(*Pattern)(n.ptr).VisitWith(v)
 	case ForIntoVarDecl:
 		(*VariableDeclaration)(n.ptr).VisitWith(v)
 	}
@@ -1116,6 +1181,54 @@ func (n *MemberProperty) VisitChildrenWith(v Visitor) {
 	}
 }
 
+func (n *Pattern) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitPattern(n)
+}
+
+func (n *Pattern) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case PatternArrPat:
+		(*ArrayPattern)(n.ptr).VisitWith(v)
+	case PatternAssign:
+		(*AssignmentPattern)(n.ptr).VisitWith(v)
+	case PatternIdent:
+		(*Identifier)(n.ptr).VisitWith(v)
+	case PatternInvalid:
+		(*InvalidExpression)(n.ptr).VisitWith(v)
+	case PatternMember:
+		(*MemberExpression)(n.ptr).VisitWith(v)
+	case PatternObjPat:
+		(*ObjectPattern)(n.ptr).VisitWith(v)
+	case PatternPrivDot:
+		(*PrivateDotExpression)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *PatternProperty) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitPatternProperty(n)
+}
+
+func (n *PatternProperty) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case PatPropKeyValue:
+		(*PatternKeyValue)(n.ptr).VisitWith(v)
+	case PatPropShorthand:
+		(*PatternShorthand)(n.ptr).VisitWith(v)
+	}
+}
+
 func (n *Property) VisitWith(v Visitor) {
 	if n == nil {
 		return
@@ -1128,12 +1241,43 @@ func (n *Property) VisitChildrenWith(v Visitor) {
 		return
 	}
 	switch n.kind {
-	case PropKeyed:
-		(*PropertyKeyed)(n.ptr).VisitWith(v)
+	case PropGetter:
+		(*PropertyGetter)(n.ptr).VisitWith(v)
+	case PropKeyValue:
+		(*PropertyKeyValue)(n.ptr).VisitWith(v)
+	case PropMethod:
+		(*PropertyMethod)(n.ptr).VisitWith(v)
+	case PropSetter:
+		(*PropertySetter)(n.ptr).VisitWith(v)
 	case PropShort:
 		(*PropertyShort)(n.ptr).VisitWith(v)
 	case PropSpread:
 		(*SpreadElement)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *PropertyName) VisitWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	v.VisitPropertyName(n)
+}
+
+func (n *PropertyName) VisitChildrenWith(v Visitor) {
+	if n == nil {
+		return
+	}
+	switch n.kind {
+	case PropNameBigIntLit:
+		(*BigIntLiteral)(n.ptr).VisitWith(v)
+	case PropNameComputed:
+		(*ComputedProperty)(n.ptr).VisitWith(v)
+	case PropNameNumLit:
+		(*NumberLiteral)(n.ptr).VisitWith(v)
+	case PropNamePrivIdent:
+		(*PrivateIdentifier)(n.ptr).VisitWith(v)
+	case PropNameStrLit:
+		(*StringLiteral)(n.ptr).VisitWith(v)
 	}
 }
 

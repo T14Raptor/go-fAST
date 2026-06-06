@@ -50,7 +50,7 @@ type (
 	}
 
 	CatchStatement struct {
-		Parameter *BindingTarget `optional:"true"`
+		Parameter *Pattern `optional:"true"`
 		Body      *BlockStatement
 
 		Catch Idx
@@ -165,7 +165,7 @@ type (
 		Await bool
 	}
 
-	//union:Expression,VariableDeclaration
+	//union:Pattern,VariableDeclaration
 	ForInto struct {
 		ptr  unsafe.Pointer
 		kind ForIntoKind

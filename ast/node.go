@@ -59,8 +59,8 @@ func (n *SuperExpression) Idx0() Idx       { return n.Idx }
 func (n *UnaryExpression) Idx0() Idx       { return n.Idx }
 func (n *UpdateExpression) Idx0() Idx      { return n.Idx }
 func (n *MetaProperty) Idx0() Idx          { return n.Idx }
-func (m *MemberExpression) Idx0() Idx      { return m.Object.Idx0() }
-func (m *MemberExpression) Idx1() Idx      { return m.Property.Idx1() }
+func (m *MemberExpression) Idx0() Idx      { return 0 }
+func (m *MemberExpression) Idx1() Idx      { return 0 }
 func (n *SpreadElement) Idx0() Idx {
 	return n.Expression.Idx0()
 }
@@ -107,30 +107,29 @@ func (n *ComputedProperty) Idx1() Idx {
 	}
 	return n.Expr.Idx1()
 }
-func (n *PropertyShort) Idx0() Idx { return n.Name.Idx }
-func (n *PropertyKeyed) Idx0() Idx { return n.Key.Idx0() }
+func (n *PropertyShort) Idx0() Idx     { return n.Name.Idx }
+func (n *PropertyKeyValue) Idx0() Idx  { return n.Key.Idx0() }
+func (n *PropertyMethod) Idx0() Idx    { return n.Key.Idx0() }
+func (n *PropertyGetter) Idx0() Idx    { return n.Key.Idx0() }
+func (n *PropertySetter) Idx0() Idx    { return n.Key.Idx0() }
 
 func (n *FieldDefinition) Idx0() Idx  { return n.Idx }
 func (n *MethodDefinition) Idx0() Idx { return n.Idx }
 func (n *ClassStaticBlock) Idx0() Idx { return n.Static }
 
-func (o *Optional) Idx1() Idx          { return o.Expr.Idx1() }
-func (n *OptionalChain) Idx1() Idx     { return n.Base.Idx1() }
-func (a *ArrayLiteral) Idx1() Idx      { return a.RightBracket + 1 }
-func (a *ArrayPattern) Idx1() Idx      { return a.RightBracket + 1 }
-func (a *AssignExpression) Idx1() Idx  { return a.Right.Idx1() }
-func (a *AwaitExpression) Idx1() Idx   { return a.Argument.Idx1() }
-func (n *InvalidExpression) Idx1() Idx { return n.To }
-func (b *BinaryExpression) Idx1() Idx  { return b.Right.Idx1() }
-func (b *LogicalExpression) Idx1() Idx { return b.Right.Idx1() }
-func (b *BooleanLiteral) Idx1() Idx {
-	if b.Value {
-		return Idx(int(b.Idx) + 4)
-	}
-	return Idx(int(b.Idx) + 5)
-}
+
+func (o *Optional) Idx1() Idx              { return o.Expr.Idx1() }
+func (n *OptionalChain) Idx1() Idx         { return n.Base.Idx1() }
+func (a *ArrayLiteral) Idx1() Idx          { return a.RightBracket + 1 }
+func (a *ArrayPattern) Idx1() Idx          { return a.RightBracket + 1 }
+func (a *AssignExpression) Idx1() Idx      { return a.Right.Idx1() }
+func (a *AwaitExpression) Idx1() Idx       { return a.Argument.Idx1() }
+func (n *InvalidExpression) Idx1() Idx     { return n.To }
+func (b *BinaryExpression) Idx1() Idx      { return b.Right.Idx1() }
+func (b *LogicalExpression) Idx1() Idx     { return b.Right.Idx1() }
+func (b *BooleanLiteral) Idx1() Idx        { return Idx(int(b.Idx) + 4) }
 func (n *CallExpression) Idx1() Idx        { return n.RightParenthesis + 1 }
-func (n *ConditionalExpression) Idx1() Idx { return n.Alternate.Idx1() }
+func (n *ConditionalExpression) Idx1() Idx { return n.Test.Idx1() }
 func (p *PrivateDotExpression) Idx1() Idx  { return p.Identifier.Idx1() }
 func (f *FunctionLiteral) Idx1() Idx       { return f.Body.Idx1() }
 func (c *ClassLiteral) Idx1() Idx          { return c.RightBrace + 1 }
@@ -195,20 +194,10 @@ func (n *PrivateIdentifier) Idx1() Idx {
 	return n.Identifier.Idx1()
 }
 
-func (n *BadStatement) Idx1() Idx   { return n.To }
-func (n *BlockStatement) Idx1() Idx { return n.RightBrace + 1 }
-func (n *BreakStatement) Idx1() Idx {
-	if n.Label != nil {
-		return n.Label.Idx1()
-	}
-	return n.Idx + 5
-}
-func (n *ContinueStatement) Idx1() Idx {
-	if n.Label != nil {
-		return n.Label.Idx1()
-	}
-	return n.Idx + 8
-}
+func (n *BadStatement) Idx1() Idx        { return n.To }
+func (n *BlockStatement) Idx1() Idx      { return n.RightBrace + 1 }
+func (n *BreakStatement) Idx1() Idx      { return n.Idx }
+func (n *ContinueStatement) Idx1() Idx   { return n.Idx }
 func (n *CaseStatement) Idx1() Idx       { return n.Consequent[len(n.Consequent)-1].Idx1() }
 func (n *CatchStatement) Idx1() Idx      { return n.Body.Idx1() }
 func (n *DebuggerStatement) Idx1() Idx   { return n.Debugger + 8 }
@@ -224,16 +213,11 @@ func (n *IfStatement) Idx1() Idx {
 	}
 	return n.Consequent.Idx1()
 }
-func (n *LabelledStatement) Idx1() Idx { return n.Statement.Idx1() }
+func (n *LabelledStatement) Idx1() Idx { return n.Colon + 1 }
 func (n *Program) Idx1() Idx           { return n.Body[len(n.Body)-1].Idx1() }
-func (n *ReturnStatement) Idx1() Idx {
-	if n.Argument != nil {
-		return n.Argument.Idx1()
-	}
-	return n.Return + 6
-}
-func (n *SwitchStatement) Idx1() Idx { return n.Body[len(n.Body)-1].Idx1() }
-func (n *ThrowStatement) Idx1() Idx  { return n.Argument.Idx1() }
+func (n *ReturnStatement) Idx1() Idx   { return n.Return + 6 }
+func (n *SwitchStatement) Idx1() Idx   { return n.Body[len(n.Body)-1].Idx1() }
+func (n *ThrowStatement) Idx1() Idx    { return n.Argument.Idx1() }
 func (n *TryStatement) Idx1() Idx {
 	if n.Finally != nil {
 		return n.Finally.Idx1()
@@ -262,7 +246,10 @@ func (n *PropertyShort) Idx1() Idx {
 	return n.Name.Idx1()
 }
 
-func (n *PropertyKeyed) Idx1() Idx { return n.Value.Idx1() }
+func (n *PropertyKeyValue) Idx1() Idx { return n.Value.Idx1() }
+func (n *PropertyMethod) Idx1() Idx   { return n.Body.Idx1() }
+func (n *PropertyGetter) Idx1() Idx   { return n.Body.Idx1() }
+func (n *PropertySetter) Idx1() Idx   { return n.Body.Idx1() }
 
 func (n *FieldDefinition) Idx1() Idx {
 	if n.Initializer != nil {
@@ -285,5 +272,4 @@ func (y *YieldExpression) Idx1() Idx {
 	}
 	return y.Yield + 5
 }
-
 // Expression.Idx0/Idx1 and Statement.Idx0/Idx1 are generated in union_gen.go.

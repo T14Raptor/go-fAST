@@ -114,10 +114,10 @@ func (p *parser) parseTryStatement() ast.Statement {
 	if p.currentKind() == token.Catch {
 		catch := p.currentOffset()
 		p.next()
-		var parameter *ast.BindingTarget
+		var parameter *ast.Pattern
 		if p.currentKind() == token.LeftParenthesis {
 			p.next()
-			parameter = p.alloc.BindingTarget(p.parseBindingTarget())
+			parameter = p.parsePattern()
 			p.expect(token.RightParenthesis)
 		}
 		node.Catch = p.alloc.CatchStatement(catch, parameter, p.parseBlockStatement())
@@ -139,7 +139,7 @@ func (p *parser) parseTryStatement() ast.Statement {
 func (p *parser) parseFunctionParameterList() *ast.ParameterList {
 	opening := p.expect(token.LeftParenthesis)
 	var list ast.VariableDeclarators
-	var rest *ast.Expression
+	var rest *ast.Pattern
 	savedFuncParams := p.scope.inFuncParams
 	if !savedFuncParams {
 		p.scope.inFuncParams = true
@@ -147,7 +147,7 @@ func (p *parser) parseFunctionParameterList() *ast.ParameterList {
 	for p.currentKind() != token.RightParenthesis && p.currentKind() != token.Eof {
 		if p.currentKind() == token.Ellipsis {
 			p.next()
-			rest = p.reinterpretAsDestructBindingTarget(p.alloc.Expression(p.parseAssignmentExpression()))
+			rest = p.alloc.Pattern(p.patternFromExpression(p.alloc.Expression(p.parseAssignmentExpression()), patBinding))
 			break
 		}
 		list = append(list, p.parseVariableDeclaration())
@@ -303,34 +303,34 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			}
 		}
 
-		var kind ast.PropertyKind
+		var kind ast.MethodKind
 		var async bool
 		methodBodyStart := p.currentOffset()
 		if p.currentString() == "get" || p.currentString() == "set" {
 			if tok := p.peek().Kind; tok != token.Semicolon && tok != token.LeftParenthesis {
 				if p.currentString() == "get" {
-					kind = ast.PropertyKindGet
+					kind = ast.MethodKindGet
 				} else {
-					kind = ast.PropertyKindSet
+					kind = ast.MethodKindSet
 				}
 				p.next()
 			}
 		} else if p.currentKind() == token.Async {
 			if tok := p.peek().Kind; tok != token.Semicolon && tok != token.LeftParenthesis {
 				async = true
-				kind = ast.PropertyKindMethod
+				kind = ast.MethodKindMethod
 				p.next()
 			}
 		}
 		generator := false
-		if p.currentKind() == token.Multiply && (kind == 0 || kind == ast.PropertyKindMethod) {
+		if p.currentKind() == token.Multiply && (kind == 0 || kind == ast.MethodKindMethod) {
 			generator = true
-			kind = ast.PropertyKindMethod
+			kind = ast.MethodKindMethod
 			p.next()
 		}
 
 		_, keyName, value, tkn := p.parseObjectPropertyKey()
-		if value == nil {
+		if value.IsNone() {
 			continue
 		}
 		computed := tkn == token.Illegal
@@ -341,14 +341,14 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 		}
 
 		if kind == 0 && p.currentKind() == token.LeftParenthesis {
-			kind = ast.PropertyKindMethod
+			kind = ast.MethodKindMethod
 		}
 
 		if kind != 0 {
 			// method
 			if keyName == "constructor" && !computed {
 				if !static {
-					if kind != ast.PropertyKindMethod {
+					if kind != ast.MethodKindMethod {
 						p.errorf("Class constructor may not be an accessor")
 					} else if async {
 						p.errorf("Class constructor may not be an async method")
@@ -361,7 +361,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			}
 			md := p.alloc.MethodDefinition(start, value, kind,
 				p.parseMethodDefinition(methodBodyStart, kind, generator, async),
-				static, computed)
+				static)
 			p.elemBuf = append(p.elemBuf, ast.NewMethodClassElem(md))
 		} else {
 			// field
@@ -385,7 +385,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 				break
 			}
 			p.elemBuf = append(p.elemBuf, ast.NewFieldClassElem(p.alloc.FieldDefinition(
-				start, value, initializer, static, computed,
+				start, value, initializer, static,
 			)))
 		}
 	}
@@ -612,17 +612,14 @@ func (p *parser) parseForOrForInStatement() ast.Statement {
 			}
 			if forIn || forOf {
 				switch exprNode.Kind() {
-				case ast.ExprIdent, ast.ExprPrivDot, ast.ExprVarDeclarator, ast.ExprMember:
-				case ast.ExprObjLit:
-					*exprNode = p.reinterpretAsObjectAssignmentPattern(exprNode.MustObjLit())
-				case ast.ExprArrLit:
-					*exprNode = p.reinterpretAsArrayAssignmentPattern(exprNode.MustArrLit())
+				case ast.ExprIdent, ast.ExprPrivDot, ast.ExprMember, ast.ExprArrLit, ast.ExprObjLit:
+					pat := p.alloc.Pattern(p.patternFromExpression(exprNode, patAssign))
+					into = p.alloc.ForIntoPtr(ast.NewPatternForInto(pat))
 				default:
 					p.errorf("Invalid left-hand side in for-in or for-of")
 					p.nextStatement()
 					return ast.NewBadStmt(p.alloc.BadStatement(idx, p.currentOffset()))
 				}
-				into = p.alloc.ForIntoPtr(ast.NewExprForInto(exprNode))
 			} else {
 				initializer = p.alloc.ForLoopInitializer(ast.NewExprForInit(exprNode))
 			}
