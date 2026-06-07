@@ -8,7 +8,7 @@ import (
 )
 
 func TestMayHaveSideEffectsStmtChecksLexicalInitializers(t *testing.T) {
-	program, err := parser.ParseFile("let x = foo();")
+	program, err := parser.Parse("let x = foo();")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -17,7 +17,7 @@ func TestMayHaveSideEffectsStmtChecksLexicalInitializers(t *testing.T) {
 		t.Fatal("let initializer call should be side-effectful")
 	}
 
-	program, err = parser.ParseFile("const x = 1;")
+	program, err = parser.Parse("const x = 1;")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,7 +26,7 @@ func TestMayHaveSideEffectsStmtChecksLexicalInitializers(t *testing.T) {
 		t.Fatal("pure const initializer should not be side-effectful")
 	}
 
-	program, err = parser.ParseFile("const {[foo()]: x} = {}; ")
+	program, err = parser.Parse("const {[foo()]: x} = {}; ")
 	if err != nil {
 		t.Fatal(err)
 	}

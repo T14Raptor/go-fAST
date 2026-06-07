@@ -17,7 +17,7 @@ type idVisitor struct {
 func idsForName(t *testing.T, src, name string) []ast.Id {
 	t.Helper()
 
-	program, err := parser.ParseFile(src)
+	program, err := parser.Parse(src)
 	if err != nil {
 		t.Fatal(err)
 	}

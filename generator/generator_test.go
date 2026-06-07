@@ -10,7 +10,7 @@ import (
 func assertMinified(t *testing.T, input, want string) {
 	t.Helper()
 
-	p, err := parser.ParseFile(input)
+	p, err := parser.Parse(input)
 	if err != nil {
 		t.Fatalf("Failed to parse input: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestMetaProperty(t *testing.T) {
 		{`function Foo(){let x=new.target;}`, `function Foo(){let x=new.target;}`},
 	}
 	for _, tt := range tests {
-		p, err := parser.ParseFile(tt.in)
+		p, err := parser.Parse(tt.in)
 		if err != nil {
 			t.Fatalf("Failed to parse input: %v", err)
 		}
@@ -203,7 +203,7 @@ func TestSequenceExpressionInNewExpression(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			ctx, err := parser.ParseFile(tt.input)
+			ctx, err := parser.Parse(tt.input)
 			if err != nil {
 				t.Fatalf("Failed to parse input: %v", err)
 			}
@@ -230,7 +230,7 @@ func TestPatternRoundTrip(t *testing.T) {
 		{`obj.x = 1;`, `obj.x=1;`},
 	}
 	for _, c := range cases {
-		p, err := parser.ParseFile(c.in)
+		p, err := parser.Parse(c.in)
 		if err != nil {
 			t.Fatalf("parse(%q): %v", c.in, err)
 		}
@@ -256,7 +256,7 @@ func TestPatternEdgeRoundTrip(t *testing.T) {
 		{`var [a = b.c] = o;`, `var [a=b.c]=o;`},      // default value may be a member
 	}
 	for _, c := range ok {
-		p, err := parser.ParseFile(c.in)
+		p, err := parser.Parse(c.in)
 		if err != nil {
 			t.Errorf("parse(%q): %v", c.in, err)
 			continue
@@ -273,7 +273,7 @@ func TestPatternEdgeRoundTrip(t *testing.T) {
 		`var {a: b.c} = o;`, // member value in binding position
 	}
 	for _, src := range bad {
-		if _, err := parser.ParseFile(src); err == nil {
+		if _, err := parser.Parse(src); err == nil {
 			t.Errorf("parse(%q): expected error, got nil", src)
 		}
 	}

@@ -2,6 +2,7 @@ package parser
 
 import (
 	"sync"
+	"unsafe"
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/parser/scanner"
@@ -78,13 +79,25 @@ func putParser(p *parser) {
 	parserPool.Put(p)
 }
 
-// ParseFile parses the source code of a single JavaScript/ECMAScript source file and returns
-// the corresponding ast.Program node.
-func ParseFile(src string) (*ast.Program, error) {
+// Parse parses src as an ECMAScript script and returns the program AST.
+// Errors are accumulated; on a non-nil error the returned [*ast.Program]
+// may still be partially populated.
+//
+// To recover byte positions from errors use [errors.As] against
+// [*Error] or [scanner.Error], or the shared [ast.Positioned] interface.
+func Parse(src string) (*ast.Program, error) {
 	p := getParser(src)
 	program, err := p.parse()
 	putParser(p)
 	return program, err
+}
+
+// ParseBytes is identical to [Parse] but accepts a byte slice. The slice's
+// contents must remain valid for the lifetime of the returned AST: the
+// parser stores no-copy references into src for identifier and literal
+// names.
+func ParseBytes(src []byte) (*ast.Program, error) {
+	return Parse(unsafe.String(unsafe.SliceData(src), len(src)))
 }
 
 // parse ...
