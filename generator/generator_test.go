@@ -278,3 +278,20 @@ func TestPatternEdgeRoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestOptionalChainingMinified(t *testing.T) {
+	assertMinified(t, `a?.b; a?.(b); a?.[b];`, `a?.b;a?.(b);a?.[b];`)
+	assertMinified(t, `(function(){})?.();`, `(function(){})?.();`)
+	assertMinified(t, `(function(){})?.x;`, `(function(){})?.x;`)
+}
+
+func TestLiteralMemberAndCallBasesMinified(t *testing.T) {
+	assertMinified(t, `(function(){}).x;`, `(function(){}).x;`)
+	assertMinified(t, `(class {}).x;`, `(class {}).x;`)
+	assertMinified(t, `(class {})();`, `(class {})();`)
+	assertMinified(t, `({[(a,b)]:1});`, `({[(a,b)]:1});`)
+}
+
+func TestComputedMemberSequenceMinified(t *testing.T) {
+	assertMinified(t, `a[(b,c)]; a?.[(b,c)];`, `a[(b,c)];a?.[(b,c)];`)
+}
