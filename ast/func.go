@@ -21,3 +21,9 @@ type (
 		Closing Idx
 	}
 )
+
+func (f *FunctionLiteral) Idx0() Idx { return f.Function }
+func (f *FunctionLiteral) Idx1() Idx { return f.Body.Idx1() }
+
+func (n *ParameterList) Idx0() Idx { return n.Opening }
+func (n *ParameterList) Idx1() Idx { return n.Closing + 1 }
