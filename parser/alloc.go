@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 // nodeAllocator encapsulates typed arenas for all frequently allocated AST
@@ -186,9 +185,9 @@ func newNodeAllocator() nodeAllocator {
 		propGetter: newArena[ast.PropertyGetter](8),
 		propSetter: newArena[ast.PropertySetter](8),
 		propShort:  newArena[ast.PropertyShort](64),
-		patKeyVal: newArena[ast.PatternKeyValue](64),
-		patShort:  newArena[ast.PatternShorthand](64),
-		assignPat: newArena[ast.AssignmentPattern](32),
+		patKeyVal:  newArena[ast.PatternKeyValue](64),
+		patShort:   newArena[ast.PatternShorthand](64),
+		assignPat:  newArena[ast.AssignmentPattern](32),
 
 		// Statements.
 		exprStmt:  newArena[ast.ExpressionStatement](256),
@@ -736,9 +735,9 @@ func (a *nodeAllocator) ContinueStatement(idx ast.Idx, label *ast.Identifier) *a
 	return n
 }
 
-func (a *nodeAllocator) VariableDeclaration(idx ast.Idx, tok token.Token, list ast.VariableDeclarators) *ast.VariableDeclaration {
+func (a *nodeAllocator) VariableDeclaration(idx ast.Idx, kind ast.VarKind, list ast.VariableDeclarators) *ast.VariableDeclaration {
 	n := a.varDecl.make()
-	*n = ast.VariableDeclaration{Idx: idx, Token: tok, List: list}
+	*n = ast.VariableDeclaration{Idx: idx, Kind: kind, List: list}
 	return n
 }
 

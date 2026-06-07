@@ -1,7 +1,5 @@
 package ast
 
-import "github.com/t14raptor/go-fast/parser/scanner/token"
-
 type (
 	FunctionDeclaration struct {
 		Function *FunctionLiteral
@@ -15,8 +13,8 @@ type (
 		List    VariableDeclarators
 		Comment string
 
-		Idx   Idx
-		Token token.Token
+		Idx  Idx
+		Kind VarKind
 	}
 
 	VariableDeclarators []VariableDeclarator
@@ -26,3 +24,23 @@ type (
 		Initializer *Expression `optional:"true"`
 	}
 )
+
+type VarKind uint8
+
+const (
+	VarKindVar VarKind = iota
+	VarKindLet
+	VarKindConst
+)
+
+func (k VarKind) String() string {
+	switch k {
+	case VarKindVar:
+		return "var"
+	case VarKindLet:
+		return "let"
+	case VarKindConst:
+		return "const"
+	}
+	return ""
+}

@@ -229,12 +229,10 @@ func main() {
 
 func generateUnionVisit(buf *bytes.Buffer, node VisitableNodeType) {
 	fmt.Fprintf(buf, "\nfunc (n *%s) VisitWith(v Visitor) {\n", node.Name)
-	fmt.Fprintf(buf, "\tif n == nil { return }\n")
 	fmt.Fprintf(buf, "\tv.Visit%s(n)\n", node.Name)
 	fmt.Fprintf(buf, "}\n\n")
 
 	fmt.Fprintf(buf, "func (n *%s) VisitChildrenWith(v Visitor) {\n", node.Name)
-	fmt.Fprintf(buf, "\tif n == nil { return }\n")
 	fmt.Fprintf(buf, "\tswitch n.kind {\n")
 	for _, v := range node.Variants {
 		fmt.Fprintf(buf, "\tcase %s%s:\n", node.KindPrefix, v.ShortName)
@@ -308,7 +306,7 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			}
 
 			switch fieldType.Name {
-			case "Idx", "any", "bool", "int", "ScopeContext", "string", "MethodKind", "float64",
+			case "Idx", "any", "bool", "int", "ScopeContext", "string", "MethodKind", "VarKind", "float64",
 				"UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator":
 			default:
 				for _, name := range field.Names {
@@ -391,18 +389,18 @@ func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
 }
 
 var shortNameOverrides = map[string]string{
-	"OptionalChain":    "OptChain",
-	"Expression":       "Expr",
-	"Statement":        "Stmt",
-	"PropertyKeyValue": "KeyValue",
-	"PropertyMethod":   "Method",
-	"PropertyGetter":   "Getter",
-	"PropertySetter":   "Setter",
-	"PropertyShort":    "Short",
-	"ComputedProperty": "Computed",
-	"ClassStaticBlock": "StaticBlock",
-	"FieldDefinition":  "Field",
-	"MethodDefinition": "Method",
+	"OptionalChain":     "OptChain",
+	"Expression":        "Expr",
+	"Statement":         "Stmt",
+	"PropertyKeyValue":  "KeyValue",
+	"PropertyMethod":    "Method",
+	"PropertyGetter":    "Getter",
+	"PropertySetter":    "Setter",
+	"PropertyShort":     "Short",
+	"ComputedProperty":  "Computed",
+	"ClassStaticBlock":  "StaticBlock",
+	"FieldDefinition":   "Field",
+	"MethodDefinition":  "Method",
 	"AssignmentPattern": "Assign",
 	"PatternKeyValue":   "KeyValue",
 	"PatternShorthand":  "Shorthand",

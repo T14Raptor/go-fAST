@@ -708,7 +708,7 @@ func (g *GenVisitor) VisitExpressionStatement(n *ast.ExpressionStatement) {
 }
 
 func (g *GenVisitor) VisitVariableDeclaration(n *ast.VariableDeclaration) {
-	g.writeString(n.Token.String())
+	g.writeString(n.Kind.String())
 	g.writeByte(' ')
 	for i := range n.List {
 		g.gen(&n.List[i])
@@ -856,7 +856,7 @@ func (g *GenVisitor) VisitForInto(n *ast.ForInto) {
 	case ast.ForIntoVarDecl:
 		into := n.MustVarDecl()
 
-		g.writeString(into.Token.String())
+		g.writeString(into.Kind.String())
 		g.writeByte(' ')
 		g.gen(&into.List)
 	case ast.ForIntoPattern:

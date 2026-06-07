@@ -2,7 +2,6 @@ package resolver
 
 import (
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 type hoister struct {
@@ -122,7 +121,7 @@ func (h *hoister) VisitStatements(n *ast.Statements) {
 }
 
 func (h *hoister) VisitVariableDeclaration(n *ast.VariableDeclaration) {
-	if h.inBlock && n.Token != token.Var {
+	if h.inBlock && n.Kind != ast.VarKindVar {
 		return
 	}
 

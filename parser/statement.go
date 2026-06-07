@@ -5,6 +5,17 @@ import (
 	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
+// varKindFromToken maps the declaration keyword token to its ast.VarKind.
+func varKindFromToken(t token.Token) ast.VarKind {
+	switch t {
+	case token.Let:
+		return ast.VarKindLet
+	case token.Const:
+		return ast.VarKindConst
+	}
+	return ast.VarKindVar
+}
+
 func (p *parser) parseBlockStatement() *ast.BlockStatement {
 	node := p.alloc.BlockStatement()
 	node.LeftBrace = p.expect(token.LeftBrace)
@@ -595,11 +606,11 @@ func (p *parser) parseForOrForInStatement() ast.Statement {
 				if list[0].Initializer != nil {
 					p.errorf("for-in loop variable declaration may not have an initializer")
 				}
-				into = p.alloc.ForIntoPtr(ast.NewVarDeclForInto(p.alloc.VariableDeclaration(0, tok, ast.VariableDeclarators{list[0]})))
+				into = p.alloc.ForIntoPtr(ast.NewVarDeclForInto(p.alloc.VariableDeclaration(0, varKindFromToken(tok), ast.VariableDeclarators{list[0]})))
 			} else {
 				p.ensurePatternInit(list)
 
-				initializer = p.alloc.ForLoopInitializer(ast.NewVarDeclForInit(p.alloc.VariableDeclaration(idx, tok, list)))
+				initializer = p.alloc.ForLoopInitializer(ast.NewVarDeclForInit(p.alloc.VariableDeclaration(idx, varKindFromToken(tok), list)))
 			}
 		} else {
 			exprNode := p.alloc.Expression(p.parseExpression())
@@ -665,7 +676,7 @@ func (p *parser) parseLexicalDeclaration(tok token.Token) *ast.VariableDeclarati
 	p.ensurePatternInit(list)
 	p.requireSemicolon()
 
-	return p.alloc.VariableDeclaration(idx, tok, list)
+	return p.alloc.VariableDeclaration(idx, varKindFromToken(tok), list)
 }
 
 func (p *parser) parseDoWhileStatement() ast.Statement {
