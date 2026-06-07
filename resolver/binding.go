@@ -6,7 +6,7 @@ import "github.com/t14raptor/go-fast/ast"
 type resolverBinder struct {
 	ast.NoopVisitor
 
-	r *Resolver
+	r *resolver
 }
 
 func (b *resolverBinder) VisitExpression(*ast.Expression) {}

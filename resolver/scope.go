@@ -2,34 +2,39 @@ package resolver
 
 import "github.com/t14raptor/go-fast/ast"
 
-type DeclKind int
+type (
+	scopeKind int
 
-const (
-	DeclKindVar DeclKind = iota
-	DeclKindFunction
+	declKind int
+
+	identType int
 )
 
-type ScopeKind int
-
 const (
-	ScopeKindBlock ScopeKind = iota
-	ScopeKindFunction
+	scopeKindBlock    scopeKind = 0
+	scopeKindFunction scopeKind = 1
+
+	declKindVar      declKind = 0
+	declKindFunction declKind = 1
+
+	identTypeRef     identType = 0 // Reference (read)
+	identTypeBinding identType = 1 // Binding (declaration)
 )
 
-type Scope struct {
-	parent *Scope
+type scope struct {
+	parent *scope
 
-	kind ScopeKind
+	kind scopeKind
 
 	ctx ast.ScopeContext
 
-	declaredSymbols map[string]DeclKind
+	declaredSymbols map[string]declKind
 }
 
-func (s *Scope) isDeclared(id string) (DeclKind, bool) {
-	for scope := s; scope != nil; scope = scope.parent {
-		if declKind, exists := scope.declaredSymbols[id]; exists {
-			return declKind, true
+func (s *scope) isDeclared(id string) (declKind, bool) {
+	for sc := s; sc != nil; sc = sc.parent {
+		if kind, exists := sc.declaredSymbols[id]; exists {
+			return kind, true
 		}
 	}
 	return 0, false

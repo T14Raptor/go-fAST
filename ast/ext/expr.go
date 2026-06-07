@@ -2,7 +2,6 @@ package ext
 
 import (
 	"fmt"
-	"github.com/t14raptor/go-fast/resolver"
 	"math"
 	"slices"
 	"strings"
@@ -69,7 +68,7 @@ func IsVoid(expr *ast.Expression) bool {
 // IsGlobalRefTo returns true if id references a global object.
 func IsGlobalRefTo(expr *ast.Expression, id string) bool {
 	if ident, ok := expr.Ident(); ok {
-		return ident.Name == id && ident.ScopeContext == resolver.TopLevelMark
+		return ident.Name == id && ident.ScopeContext == ast.TopLevelContext
 	}
 	return false
 }
@@ -260,10 +259,10 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 		return numFromStr(s.Val()), true
 	case ast.ExprIdent:
 		e := expr.MustIdent()
-		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == resolver.TopLevelMark {
+		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == ast.TopLevelContext {
 			return Known(math.NaN()), true
 		}
-		if e.Name == "Infinity" && e.ScopeContext == resolver.TopLevelMark {
+		if e.Name == "Infinity" && e.ScopeContext == ast.TopLevelContext {
 			return Known(math.Inf(1)), true
 		}
 		return Unknown[float64](), true
@@ -620,7 +619,7 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 	switch expr.Kind() {
 	case ast.ExprIdent:
 		e := expr.MustIdent()
-		if e.ScopeContext == resolver.UnresolvedMark &&
+		if e.ScopeContext == ast.UnresolvedContext &&
 			!slices.Contains([]string{"Infinity", "NaN", "Math", "undefined",
 				"Object", "Array", "Promise", "Boolean", "Number", "String",
 				"BigInt", "Error", "RegExp", "Function", "document"}, e.Name) {

@@ -1,8 +1,6 @@
 package ast
 
 type (
-	ScopeContext int32
-
 	Id struct {
 		Name         string
 		ScopeContext ScopeContext

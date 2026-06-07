@@ -7,8 +7,8 @@ import (
 type hoister struct {
 	ast.NoopVisitor
 
-	resolver *Resolver
-	kind     DeclKind
+	resolver *resolver
+	kind     declKind
 	inBlock  bool
 
 	inCatchBody bool
@@ -19,10 +19,10 @@ type hoister struct {
 	binder hoisterBinder
 }
 
-func newHoister(resolver *Resolver) *hoister {
+func newHoister(resolver *resolver) *hoister {
 	h := &hoister{
 		resolver: resolver,
-		kind:     DeclKindVar,
+		kind:     declKindVar,
 	}
 	h.binder.h = h
 	h.binder.V = &h.binder
@@ -45,7 +45,7 @@ func (b *hoisterBinder) VisitIdentifier(n *ast.Identifier) { b.h.addIdent(n) }
 func (h *hoister) addIdent(id *ast.Identifier) {
 	if h.inCatchBody {
 		if _, ok := h.catchParamDecls[id.Name]; ok {
-			if r, _ := h.resolver.lookupContext(id.Name); r != UnresolvedMark {
+			if r, _ := h.resolver.lookupContext(id.Name); r != ast.UnresolvedContext {
 				id.ScopeContext = r
 				return
 			}
@@ -126,7 +126,7 @@ func (h *hoister) VisitVariableDeclaration(n *ast.VariableDeclaration) {
 	}
 
 	oldKind := h.kind
-	h.kind = DeclKindVar
+	h.kind = declKindVar
 	n.VisitChildrenWith(h)
 	h.kind = oldKind
 }
@@ -142,13 +142,13 @@ func (h *hoister) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 
 	if h.inBlock {
 		if kind, declared := h.resolver.current.isDeclared(n.Function.Name.Name); declared {
-			if kind != DeclKindVar && kind != DeclKindFunction {
+			if kind != declKindVar && kind != declKindFunction {
 				return
 			}
 		}
 	}
 
-	h.resolver.modify(n.Function.Name, DeclKindFunction)
+	h.resolver.modify(n.Function.Name, declKindFunction)
 }
 
 func (h *hoister) VisitSwitchStatement(n *ast.SwitchStatement) {
