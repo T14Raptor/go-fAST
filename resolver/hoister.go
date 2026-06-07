@@ -40,9 +40,9 @@ type hoisterBinder struct {
 
 func (b *hoisterBinder) VisitExpression(*ast.Expression) {}
 
-func (b *hoisterBinder) VisitIdentifier(n *ast.Identifier) { b.h.addIdent(n) }
+func (b *hoisterBinder) VisitIdentifier(n *ast.Identifier) { b.h.addIdentifier(n) }
 
-func (h *hoister) addIdent(id *ast.Identifier) {
+func (h *hoister) addIdentifier(id *ast.Identifier) {
 	if h.inCatchBody {
 		if _, ok := h.catchParamDecls[id.Name]; ok {
 			if r, _ := h.resolver.lookupContext(id.Name); r != ast.UnresolvedContext {
@@ -78,7 +78,7 @@ func (h *hoister) VisitCatchStatement(n *ast.CatchStatement) {
 
 	var paramName string
 	if n.Parameter != nil {
-		if ident, ok := n.Parameter.Ident(); ok {
+		if ident, ok := n.Parameter.Identifier(); ok {
 			paramName = ident.Name
 		}
 	}

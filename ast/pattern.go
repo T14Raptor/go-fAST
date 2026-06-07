@@ -35,7 +35,7 @@ type (
 
 	// PatternKeyValue is `{ key: value }` / `{ [key]: value }` inside a pattern.
 	PatternKeyValue struct {
-		Key   PropertyName
+		Key   *PropertyName
 		Value *Pattern
 	}
 
@@ -73,7 +73,7 @@ type (
 // IsPattern reports whether the target is a destructuring pattern (array or
 // object), as opposed to a simple binding/assignment target.
 func (p *Pattern) IsPattern() bool {
-	return p.kind == PatternArrPat || p.kind == PatternObjPat
+	return p.kind == PatternArrayPat || p.kind == PatternObjectPat
 }
 
 func (n *AssignmentPattern) Idx0() Idx { return n.Left.Idx0() }

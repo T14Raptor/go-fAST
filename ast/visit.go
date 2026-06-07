@@ -1007,9 +1007,9 @@ func (n *ClassElement) VisitWith(v Visitor) {
 
 func (n *ClassElement) VisitChildrenWith(v Visitor) {
 	switch n.kind {
-	case ClassElemField:
+	case ClassElemFieldDef:
 		(*FieldDefinition)(n.ptr).VisitWith(v)
-	case ClassElemMethod:
+	case ClassElemMethodDef:
 		(*MethodDefinition)(n.ptr).VisitWith(v)
 	case ClassElemStaticBlock:
 		(*ClassStaticBlock)(n.ptr).VisitWith(v)
@@ -1035,7 +1035,7 @@ func (n *Expression) VisitWith(v Visitor) {
 
 func (n *Expression) VisitChildrenWith(v Visitor) {
 	switch n.kind {
-	case ExprArrLit:
+	case ExprArrayLit:
 		(*ArrayLiteral)(n.ptr).VisitWith(v)
 	case ExprArrowFuncLit:
 		(*ArrowFunctionLiteral)(n.ptr).VisitWith(v)
@@ -1057,7 +1057,7 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*ConditionalExpression)(n.ptr).VisitWith(v)
 	case ExprFuncLit:
 		(*FunctionLiteral)(n.ptr).VisitWith(v)
-	case ExprIdent:
+	case ExprIdentifier:
 		(*Identifier)(n.ptr).VisitWith(v)
 	case ExprInvalid:
 		(*InvalidExpression)(n.ptr).VisitWith(v)
@@ -1071,17 +1071,17 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*NewExpression)(n.ptr).VisitWith(v)
 	case ExprNullLit:
 		(*NullLiteral)(n.ptr).VisitWith(v)
-	case ExprNumLit:
+	case ExprNumberLit:
 		(*NumberLiteral)(n.ptr).VisitWith(v)
-	case ExprObjLit:
+	case ExprObjectLit:
 		(*ObjectLiteral)(n.ptr).VisitWith(v)
-	case ExprOptChain:
-		(*OptionalChain)(n.ptr).VisitWith(v)
 	case ExprOptional:
 		(*Optional)(n.ptr).VisitWith(v)
+	case ExprOptionalChain:
+		(*OptionalChain)(n.ptr).VisitWith(v)
 	case ExprPrivDot:
 		(*PrivateDotExpression)(n.ptr).VisitWith(v)
-	case ExprPrivIdent:
+	case ExprPrivIdentifier:
 		(*PrivateIdentifier)(n.ptr).VisitWith(v)
 	case ExprRegExpLit:
 		(*RegExpLiteral)(n.ptr).VisitWith(v)
@@ -1089,7 +1089,7 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*SequenceExpression)(n.ptr).VisitWith(v)
 	case ExprSpread:
 		(*SpreadElement)(n.ptr).VisitWith(v)
-	case ExprStrLit:
+	case ExprStringLit:
 		(*StringLiteral)(n.ptr).VisitWith(v)
 	case ExprSuper:
 		(*SuperExpression)(n.ptr).VisitWith(v)
@@ -1142,7 +1142,7 @@ func (n *MemberProperty) VisitChildrenWith(v Visitor) {
 	switch n.kind {
 	case MemPropComputed:
 		(*ComputedProperty)(n.ptr).VisitWith(v)
-	case MemPropIdent:
+	case MemPropIdentifier:
 		(*Identifier)(n.ptr).VisitWith(v)
 	}
 }
@@ -1153,17 +1153,17 @@ func (n *Pattern) VisitWith(v Visitor) {
 
 func (n *Pattern) VisitChildrenWith(v Visitor) {
 	switch n.kind {
-	case PatternArrPat:
+	case PatternArrayPat:
 		(*ArrayPattern)(n.ptr).VisitWith(v)
 	case PatternAssign:
 		(*AssignmentPattern)(n.ptr).VisitWith(v)
-	case PatternIdent:
+	case PatternIdentifier:
 		(*Identifier)(n.ptr).VisitWith(v)
 	case PatternInvalid:
 		(*InvalidExpression)(n.ptr).VisitWith(v)
 	case PatternMember:
 		(*MemberExpression)(n.ptr).VisitWith(v)
-	case PatternObjPat:
+	case PatternObjectPat:
 		(*ObjectPattern)(n.ptr).VisitWith(v)
 	case PatternPrivDot:
 		(*PrivateDotExpression)(n.ptr).VisitWith(v)
@@ -1214,11 +1214,11 @@ func (n *PropertyName) VisitChildrenWith(v Visitor) {
 		(*BigIntLiteral)(n.ptr).VisitWith(v)
 	case PropNameComputed:
 		(*ComputedProperty)(n.ptr).VisitWith(v)
-	case PropNameNumLit:
+	case PropNameNumberLit:
 		(*NumberLiteral)(n.ptr).VisitWith(v)
-	case PropNamePrivIdent:
+	case PropNamePrivIdentifier:
 		(*PrivateIdentifier)(n.ptr).VisitWith(v)
-	case PropNameStrLit:
+	case PropNameStringLit:
 		(*StringLiteral)(n.ptr).VisitWith(v)
 	}
 }

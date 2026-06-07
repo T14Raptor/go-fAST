@@ -43,6 +43,7 @@ type nodeAllocator struct {
 	memberExp arena[ast.MemberExpression]
 	memberPrp arena[ast.MemberProperty]
 	compProp  arena[ast.ComputedProperty]
+	propName  arena[ast.PropertyName]
 	callExpr  arena[ast.CallExpression]
 	newExpr   arena[ast.NewExpression]
 	spread    arena[ast.SpreadElement]
@@ -158,6 +159,7 @@ func newNodeAllocator() nodeAllocator {
 		memberExp: newArena[ast.MemberExpression](256),
 		memberPrp: newArena[ast.MemberProperty](256),
 		compProp:  newArena[ast.ComputedProperty](64),
+		propName:  newArena[ast.PropertyName](64),
 		callExpr:  newArena[ast.CallExpression](256),
 		newExpr:   newArena[ast.NewExpression](32),
 		spread:    newArena[ast.SpreadElement](64),
@@ -523,7 +525,13 @@ func (a *nodeAllocator) AssignmentPattern(left *ast.Pattern, right *ast.Expressi
 	return n
 }
 
-func (a *nodeAllocator) PatternKeyValue(key ast.PropertyName, value *ast.Pattern) *ast.PatternKeyValue {
+func (a *nodeAllocator) PropertyName(n ast.PropertyName) *ast.PropertyName {
+	p := a.propName.make()
+	*p = n
+	return p
+}
+
+func (a *nodeAllocator) PatternKeyValue(key *ast.PropertyName, value *ast.Pattern) *ast.PatternKeyValue {
 	n := a.patKeyVal.make()
 	*n = ast.PatternKeyValue{Key: key, Value: value}
 	return n
@@ -589,25 +597,25 @@ func (a *nodeAllocator) FunctionLiteral(start ast.Idx, async bool) *ast.Function
 	return n
 }
 
-func (a *nodeAllocator) PropertyKeyValue(key ast.PropertyName, value *ast.Expression) *ast.PropertyKeyValue {
+func (a *nodeAllocator) PropertyKeyValue(key *ast.PropertyName, value *ast.Expression) *ast.PropertyKeyValue {
 	n := a.propKeyVal.make()
 	*n = ast.PropertyKeyValue{Key: key, Value: value}
 	return n
 }
 
-func (a *nodeAllocator) PropertyMethod(key ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertyMethod {
+func (a *nodeAllocator) PropertyMethod(key *ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertyMethod {
 	n := a.propMethod.make()
 	*n = ast.PropertyMethod{Key: key, Body: body}
 	return n
 }
 
-func (a *nodeAllocator) PropertyGetter(key ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertyGetter {
+func (a *nodeAllocator) PropertyGetter(key *ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertyGetter {
 	n := a.propGetter.make()
 	*n = ast.PropertyGetter{Key: key, Body: body}
 	return n
 }
 
-func (a *nodeAllocator) PropertySetter(key ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertySetter {
+func (a *nodeAllocator) PropertySetter(key *ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertySetter {
 	n := a.propSetter.make()
 	*n = ast.PropertySetter{Key: key, Body: body}
 	return n
@@ -765,13 +773,13 @@ func (a *nodeAllocator) ClassDeclaration(class *ast.ClassLiteral) *ast.ClassDecl
 	return n
 }
 
-func (a *nodeAllocator) MethodDefinition(idx ast.Idx, key ast.PropertyName, kind ast.MethodKind, body *ast.FunctionLiteral, static bool) *ast.MethodDefinition {
+func (a *nodeAllocator) MethodDefinition(idx ast.Idx, key *ast.PropertyName, kind ast.MethodKind, body *ast.FunctionLiteral, static bool) *ast.MethodDefinition {
 	n := a.methDef.make()
 	*n = ast.MethodDefinition{Idx: idx, Key: key, Kind: kind, Body: body, Static: static}
 	return n
 }
 
-func (a *nodeAllocator) FieldDefinition(idx ast.Idx, key ast.PropertyName, initializer *ast.Expression, static bool) *ast.FieldDefinition {
+func (a *nodeAllocator) FieldDefinition(idx ast.Idx, key *ast.PropertyName, initializer *ast.Expression, static bool) *ast.FieldDefinition {
 	n := a.fieldDef.make()
 	*n = ast.FieldDefinition{Idx: idx, Key: key, Initializer: initializer, Static: static}
 	return n

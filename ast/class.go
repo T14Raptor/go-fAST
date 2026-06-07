@@ -32,7 +32,7 @@ type (
 	}
 
 	FieldDefinition struct {
-		Key         PropertyName
+		Key         *PropertyName
 		Initializer *Expression `optional:"true"`
 
 		Idx Idx
@@ -41,7 +41,7 @@ type (
 	}
 
 	MethodDefinition struct {
-		Key  PropertyName
+		Key  *PropertyName
 		Kind MethodKind
 		Body *FunctionLiteral
 

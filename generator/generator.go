@@ -320,7 +320,7 @@ func (g *GenVisitor) VisitNewExpression(n *ast.NewExpression) {
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
 	switch n.Object.Kind() {
-	case ast.ExprNumLit:
+	case ast.ExprNumberLit:
 		g.writeByte('(')
 		g.genExpr(n.Object, ast.PrecedenceLowest, 0)
 		g.writeByte(')')
@@ -362,7 +362,7 @@ func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 		g.gen(n.Body)
 	case ast.ConciseBodyExpr:
 		body := n.Body.MustExpr()
-		if body.IsObjLit() {
+		if body.IsObjectLit() {
 			g.writeByte('(')
 			g.genExpr(body, ast.PrecedenceLowest, 0)
 			g.writeByte(')')
@@ -404,8 +404,8 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 	for _, element := range n.Body {
 		g.lineAndPad()
 		switch element.Kind() {
-		case ast.ClassElemMethod:
-			e := element.MustMethod()
+		case ast.ClassElemMethodDef:
+			e := element.MustMethodDef()
 			if e.Static {
 				g.writeString("static ")
 			}
@@ -425,14 +425,14 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 					g.writeByte('*')
 				}
 			}
-			g.genPropertyName(&e.Key)
+			g.genPropertyName(e.Key)
 			g.genMethodBody(e.Body)
-		case ast.ClassElemField:
-			e := element.MustField()
+		case ast.ClassElemFieldDef:
+			e := element.MustFieldDef()
 			if e.Static {
 				g.writeString("static ")
 			}
-			g.genPropertyName(&e.Key)
+			g.genPropertyName(e.Key)
 			if e.Initializer != nil {
 				g.space()
 				g.writeByte('=')
@@ -621,10 +621,10 @@ func (g *GenVisitor) VisitMetaProperty(n *ast.MetaProperty) {
 
 func (g *GenVisitor) VisitPattern(n *ast.Pattern) {
 	switch n.Kind() {
-	case ast.PatternArrPat:
-		g.gen(n.MustArrPat())
-	case ast.PatternObjPat:
-		g.gen(n.MustObjPat())
+	case ast.PatternArrayPat:
+		g.gen(n.MustArrayPat())
+	case ast.PatternObjectPat:
+		g.gen(n.MustObjectPat())
 	case ast.PatternAssign:
 		a := n.MustAssign()
 		g.gen(a.Left)
@@ -640,7 +640,7 @@ func (g *GenVisitor) VisitPattern(n *ast.Pattern) {
 }
 
 func (g *GenVisitor) VisitPatternKeyValue(n *ast.PatternKeyValue) {
-	g.genPropertyName(&n.Key)
+	g.genPropertyName(n.Key)
 	g.writeByte(':')
 	g.space()
 	g.gen(n.Value)
@@ -685,13 +685,13 @@ func (g *GenVisitor) VisitBlockStatement(n *ast.BlockStatement) {
 
 func (g *GenVisitor) VisitExpressionStatement(n *ast.ExpressionStatement) {
 	switch n.Expression.Kind() {
-	case ast.ExprObjLit, ast.ExprFuncLit, ast.ExprClassLit:
+	case ast.ExprObjectLit, ast.ExprFuncLit, ast.ExprClassLit:
 		g.writeByte('(')
 		g.genExpr(n.Expression, ast.PrecedenceLowest, 0)
 		g.writeByte(')')
 	case ast.ExprAssign:
 		switch n.Expression.MustAssign().Left.Kind() {
-		case ast.PatternObjPat, ast.PatternArrPat:
+		case ast.PatternObjectPat, ast.PatternArrayPat:
 			g.writeByte('(')
 			g.genExpr(n.Expression, ast.PrecedenceLowest, 0)
 			g.writeByte(')')
@@ -1028,9 +1028,9 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 
 func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
 	switch n.Kind() {
-	case ast.MemPropIdent:
+	case ast.MemPropIdentifier:
 		g.writeByte('.')
-		g.gen(n.MustIdent())
+		g.gen(n.MustIdentifier())
 	case ast.MemPropComputed:
 		g.writeByte('[')
 		g.genExpr(n.MustComputed().Expr, ast.PrecedenceLowest, 0)
@@ -1057,7 +1057,7 @@ func (g *GenVisitor) genMethodBody(f *ast.FunctionLiteral) {
 }
 
 func (g *GenVisitor) VisitPropertyKeyValue(n *ast.PropertyKeyValue) {
-	g.genPropertyName(&n.Key)
+	g.genPropertyName(n.Key)
 	g.writeByte(':')
 	g.space()
 	g.genExpr(n.Value, ast.PrecedenceAssign, 0)
@@ -1073,18 +1073,18 @@ func (g *GenVisitor) VisitPropertyMethod(n *ast.PropertyMethod) {
 	if n.Body.Generator {
 		g.writeByte('*')
 	}
-	g.genPropertyName(&n.Key)
+	g.genPropertyName(n.Key)
 	g.genMethodBody(n.Body)
 }
 
 func (g *GenVisitor) VisitPropertyGetter(n *ast.PropertyGetter) {
 	g.writeString("get ")
-	g.genPropertyName(&n.Key)
+	g.genPropertyName(n.Key)
 	g.genMethodBody(n.Body)
 }
 
 func (g *GenVisitor) VisitPropertySetter(n *ast.PropertySetter) {
 	g.writeString("set ")
-	g.genPropertyName(&n.Key)
+	g.genPropertyName(n.Key)
 	g.genMethodBody(n.Body)
 }

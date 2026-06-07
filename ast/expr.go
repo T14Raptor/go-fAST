@@ -196,8 +196,8 @@ type (
 // Array/object/assignment patterns are emitted directly and are not handled here.
 func ExpressionFromPattern(p *Pattern) Expression {
 	switch p.Kind() {
-	case PatternIdent:
-		return NewIdentExpr((*Identifier)(p.ptr))
+	case PatternIdentifier:
+		return NewIdentifierExpr((*Identifier)(p.ptr))
 	case PatternMember:
 		return NewMemberExpr((*MemberExpression)(p.ptr))
 	case PatternPrivDot:

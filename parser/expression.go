@@ -21,7 +21,7 @@ func (p *parser) parsePrimaryExpression() ast.Expression {
 	case token.Identifier:
 		parsedLiteral := p.currentString()
 		p.next()
-		return ast.NewIdentExpr(p.alloc.Identifier(idx, parsedLiteral))
+		return ast.NewIdentifierExpr(p.alloc.Identifier(idx, parsedLiteral))
 	case token.Null:
 		p.next()
 		return ast.NewNullLitExpr(p.alloc.NullLiteral(idx))
@@ -33,7 +33,7 @@ func (p *parser) parsePrimaryExpression() ast.Expression {
 		parsedLiteral := p.currentString()
 		raw := p.scanner.Token.Raw(p.scanner)
 		p.next()
-		return ast.NewStrLitExpr(p.alloc.StringLiteral(idx, parsedLiteral, raw))
+		return ast.NewStringLitExpr(p.alloc.StringLiteral(idx, parsedLiteral, raw))
 	case token.Number:
 		parsedLiteral := p.currentString()
 		raw := p.scanner.Token.Raw(p.scanner)
@@ -51,15 +51,15 @@ func (p *parser) parsePrimaryExpression() ast.Expression {
 			p.errorf("%s", err.Error())
 			value = 0
 		}
-		return ast.NewNumLitExpr(p.alloc.NumberLiteral(idx, value, raw))
+		return ast.NewNumberLitExpr(p.alloc.NumberLiteral(idx, value, raw))
 	case token.Slash, token.QuotientAssign:
 		pat, flags, lit := p.scanner.ParseRegExp()
 		p.next()
 		return ast.NewRegExpLitExpr(p.alloc.RegExpLiteral(idx, lit, pat, flags))
 	case token.LeftBrace:
-		return ast.NewObjLitExpr(p.parseObjectLiteral())
+		return ast.NewObjectLitExpr(p.parseObjectLiteral())
 	case token.LeftBracket:
-		return ast.NewArrLitExpr(p.parseArrayLiteral())
+		return ast.NewArrayLitExpr(p.parseArrayLiteral())
 	case token.LeftParenthesis:
 		return p.parseParenthesisedExpression()
 	case token.NoSubstitutionTemplate, token.TemplateHead:
@@ -81,7 +81,7 @@ func (p *parser) parsePrimaryExpression() ast.Expression {
 
 	if p.isBindingId(p.currentKind()) {
 		p.next()
-		return ast.NewIdentExpr(p.alloc.Identifier(idx, ""))
+		return ast.NewIdentifierExpr(p.alloc.Identifier(idx, ""))
 	}
 
 	p.errorUnexpectedToken(p.currentKind())
@@ -105,7 +105,7 @@ func (p *parser) parseSuperProperty() ast.Expression {
 		p.next()
 		return ast.NewMemberExpr(p.alloc.MemberExpression(
 			p.alloc.Expression(ast.NewSuperExpr(p.alloc.SuperExpression(idx))),
-			p.alloc.MemberProperty(ast.NewIdentMemProp(p.alloc.Identifier(idIdx, parsedLiteral))),
+			p.alloc.MemberProperty(ast.NewIdentifierMemProp(p.alloc.Identifier(idIdx, parsedLiteral))),
 		))
 	case token.LeftBracket:
 		return p.parseBracketMember(p.alloc.Expression(ast.NewSuperExpr(p.alloc.SuperExpression(idx))))
@@ -215,7 +215,7 @@ func (p *parser) parsePattern() *ast.Pattern {
 	p.tokenToBindingId()
 	switch p.currentKind() {
 	case token.Identifier:
-		pat := ast.NewIdentPattern(p.alloc.Identifier(p.currentOffset(), p.currentString()))
+		pat := ast.NewIdentifierPattern(p.alloc.Identifier(p.currentOffset(), p.currentString()))
 		p.next()
 		return p.alloc.Pattern(pat)
 	case token.LeftBracket:
@@ -252,20 +252,20 @@ func (p *parser) parseVariableDeclarationList() ast.VariableDeclarators {
 	return p.finishDeclBuf(mark)
 }
 
-func (p *parser) parseObjectPropertyKey() (string, string, ast.PropertyName, token.Token) {
+func (p *parser) parseObjectPropertyKey() (string, string, *ast.PropertyName, token.Token) {
 	if p.currentKind() == token.LeftBracket {
 		lb := p.currentOffset()
 		p.next()
 		expr := p.alloc.Expression(p.parseAssignmentExpression())
 		rb := p.expect(token.RightBracket)
-		return "", "", ast.NewComputedPropName(p.alloc.ComputedProperty(lb, expr, rb)), token.Illegal
+		return "", "", p.alloc.PropertyName(ast.NewComputedPropName(p.alloc.ComputedProperty(lb, expr, rb))), token.Illegal
 	}
 	idx, tkn, literal, parsedLiteral := p.currentOffset(), p.currentKind(), p.scanner.Token.Raw(p.scanner), p.currentString()
 	var value ast.PropertyName
 	p.next()
 	switch tkn {
 	case token.Identifier, token.String, token.Keyword, token.EscapedReservedWord:
-		value = ast.NewStrLitPropName(p.alloc.StringLiteral(idx, parsedLiteral, literal))
+		value = ast.NewStringLitPropName(p.alloc.StringLiteral(idx, parsedLiteral, literal))
 	case token.Number:
 		if isBigIntLiteral(literal) {
 			bi, err := parseBigIntLiteral(literal)
@@ -279,19 +279,19 @@ func (p *parser) parseObjectPropertyKey() (string, string, ast.PropertyName, tok
 			if err != nil {
 				p.errorf("%s", err.Error())
 			} else {
-				value = ast.NewNumLitPropName(p.alloc.NumberLiteral(idx, num, literal))
+				value = ast.NewNumberLitPropName(p.alloc.NumberLiteral(idx, num, literal))
 			}
 		}
 	case token.PrivateIdentifier:
-		value = ast.NewPrivIdentPropName(p.alloc.PrivateIdentifier(p.alloc.Identifier(idx, parsedLiteral)))
+		value = ast.NewPrivIdentifierPropName(p.alloc.PrivateIdentifier(p.alloc.Identifier(idx, parsedLiteral)))
 	default:
 		if token.ID(tkn) {
-			value = ast.NewStrLitPropName(p.alloc.StringLiteral(idx, literal, literal))
+			value = ast.NewStringLitPropName(p.alloc.StringLiteral(idx, literal, literal))
 		} else {
 			p.errorUnexpectedToken(tkn)
 		}
 	}
-	return literal, parsedLiteral, value, tkn
+	return literal, parsedLiteral, p.alloc.PropertyName(value), tkn
 }
 
 func (p *parser) parseObjectProperty() ast.Property {
@@ -528,7 +528,7 @@ func (p *parser) parseDotMember(left *ast.Expression) ast.Expression {
 
 	return ast.NewMemberExpr(p.alloc.MemberExpression(
 		left,
-		p.alloc.MemberProperty(ast.NewIdentMemProp(p.alloc.Identifier(idx, literal))),
+		p.alloc.MemberProperty(ast.NewIdentifierMemProp(p.alloc.Identifier(idx, literal))),
 	))
 }
 
@@ -641,7 +641,7 @@ L:
 	}
 
 	if optionalChain {
-		left = ast.NewOptChainExpr(p.alloc.OptionalChain(p.alloc.Expression(left)))
+		left = ast.NewOptionalChainExpr(p.alloc.OptionalChain(p.alloc.Expression(left)))
 	}
 	p.scope.allowIn = allowIn
 	return left
@@ -654,7 +654,7 @@ func (p *parser) parseUpdateExpression() ast.Expression {
 		p.next()
 		operand := p.parseUnaryExpression()
 		switch operand.Kind() {
-		case ast.ExprIdent, ast.ExprPrivDot, ast.ExprMember:
+		case ast.ExprIdentifier, ast.ExprPrivDot, ast.ExprMember:
 		default:
 			p.errorf("Invalid left-hand side in assignment")
 			p.nextStatement()
@@ -669,7 +669,7 @@ func (p *parser) parseUpdateExpression() ast.Expression {
 		idx := p.currentOffset()
 		p.next()
 		switch operand.Kind() {
-		case ast.ExprIdent, ast.ExprPrivDot, ast.ExprMember:
+		case ast.ExprIdentifier, ast.ExprPrivDot, ast.ExprMember:
 		default:
 			p.errorf("Invalid left-hand side in assignment")
 			p.nextStatement()
@@ -778,7 +778,7 @@ func (p *parser) parseBinaryExpressionRest(lhs ast.Expression, lhsParenthesized 
 
 // parsePrivateInExpression handles the `#identifier in expr` syntax.
 func (p *parser) parsePrivateInExpression(minPrecedence Precedence) ast.Expression {
-	left := ast.NewPrivIdentExpr(p.alloc.PrivateIdentifier(p.alloc.Identifier(p.currentOffset(), p.currentString())))
+	left := ast.NewPrivIdentifierExpr(p.alloc.PrivateIdentifier(p.alloc.Identifier(p.currentOffset(), p.currentString())))
 	p.next()
 
 	// If next token is not `in`, or `in`'s precedence (Compare) is too low, just return the identifier.
@@ -838,7 +838,7 @@ func (p *parser) parseSingleArgArrowFunction(start ast.Idx, async bool) ast.Expr
 		Opening: id.Idx,
 		Closing: id.Idx1(),
 		List: ast.VariableDeclarators{{
-			Target: p.alloc.Pattern(ast.NewIdentPattern(id)),
+			Target: p.alloc.Pattern(ast.NewIdentifierPattern(id)),
 		}},
 	})
 
@@ -879,12 +879,12 @@ func (p *parser) parseAssignmentExpression() ast.Expression {
 
 	if kind == token.Arrow {
 		var paramList *ast.ParameterList
-		if id, ok := left.Ident(); ok {
+		if id, ok := left.Identifier(); ok {
 			paramList = p.alloc.ParameterList(ast.ParameterList{
 				Opening: id.Idx,
 				Closing: id.Idx1() - 1,
 				List: ast.VariableDeclarators{{
-					Target: p.alloc.Pattern(ast.NewIdentPattern(id)),
+					Target: p.alloc.Pattern(ast.NewIdentifierPattern(id)),
 				}},
 			})
 		} else if parenthesis {
@@ -928,9 +928,9 @@ func (p *parser) parseAssignmentExpression() ast.Expression {
 		p.next()
 		var target *ast.Pattern
 		switch left.Kind() {
-		case ast.ExprIdent, ast.ExprPrivDot, ast.ExprMember:
+		case ast.ExprIdentifier, ast.ExprPrivDot, ast.ExprMember:
 			target = p.alloc.Pattern(p.patternFromExpression(&left, patAssign))
-		case ast.ExprArrLit, ast.ExprObjLit:
+		case ast.ExprArrayLit, ast.ExprObjectLit:
 			if !parenthesis && operator == ast.AssignmentAssign {
 				target = p.alloc.Pattern(p.patternFromExpression(&left, patAssign))
 			}
@@ -1022,12 +1022,12 @@ func (p *parser) patternFromExpression(expr *ast.Expression, mode patternMode) a
 		return ast.Pattern{} // elision hole
 	}
 	switch expr.Kind() {
-	case ast.ExprIdent:
-		id := expr.MustIdent()
+	case ast.ExprIdentifier:
+		id := expr.MustIdentifier()
 		if mode == patBinding && p.scope.allowAwait && id.Name == "await" {
 			break
 		}
-		return ast.NewIdentPattern(id)
+		return ast.NewIdentifierPattern(id)
 	case ast.ExprMember:
 		if mode == patAssign {
 			return ast.NewMemberPattern(expr.MustMember())
@@ -1036,10 +1036,10 @@ func (p *parser) patternFromExpression(expr *ast.Expression, mode patternMode) a
 		if mode == patAssign {
 			return ast.NewPrivDotPattern(expr.MustPrivDot())
 		}
-	case ast.ExprArrLit:
-		return p.arrayPatternFromLiteral(expr.MustArrLit(), mode)
-	case ast.ExprObjLit:
-		return p.objectPatternFromLiteral(expr.MustObjLit(), mode)
+	case ast.ExprArrayLit:
+		return p.arrayPatternFromLiteral(expr.MustArrayLit(), mode)
+	case ast.ExprObjectLit:
+		return p.objectPatternFromLiteral(expr.MustObjectLit(), mode)
 	case ast.ExprAssign:
 		e := expr.MustAssign()
 		if e.Operator == ast.AssignmentAssign {
@@ -1072,7 +1072,7 @@ func (p *parser) arrayPatternFromLiteral(lit *ast.ArrayLiteral, mode patternMode
 		p.patBuf = append(p.patBuf, p.patternFromExpression(&value[i], mode))
 	}
 	elems := p.finishPatBuf(mark)
-	return ast.NewArrPatPattern(p.alloc.ArrayPattern(lit.LeftBracket, lit.RightBracket, elems, rest))
+	return ast.NewArrayPatPattern(p.alloc.ArrayPattern(lit.LeftBracket, lit.RightBracket, elems, rest))
 }
 
 func (p *parser) objectPatternFromLiteral(lit *ast.ObjectLiteral, mode patternMode) ast.Pattern {
@@ -1102,15 +1102,15 @@ func (p *parser) objectPatternFromLiteral(lit *ast.ObjectLiteral, mode patternMo
 		}
 	}
 	props := p.finishPatPropBuf(mark)
-	return ast.NewObjPatPattern(p.alloc.ObjectPattern(lit.LeftBrace, lit.RightBrace, props, rest))
+	return ast.NewObjectPatPattern(p.alloc.ObjectPattern(lit.LeftBrace, lit.RightBrace, props, rest))
 }
 
 // restPattern converts an object/parameter rest target, which must be a simple
 // binding/assignment target (no defaults).
 func (p *parser) restPattern(expr *ast.Expression, mode patternMode) ast.Pattern {
 	switch expr.Kind() {
-	case ast.ExprIdent:
-		return ast.NewIdentPattern(expr.MustIdent())
+	case ast.ExprIdentifier:
+		return ast.NewIdentifierPattern(expr.MustIdentifier())
 	case ast.ExprMember:
 		if mode == patAssign {
 			return ast.NewMemberPattern(expr.MustMember())
@@ -1127,22 +1127,22 @@ func (p *parser) restPattern(expr *ast.Expression, mode patternMode) ast.Pattern
 // valid binding target, i.e. contains no member/private-dot leaves.
 func (p *parser) ensureBindingTarget(pat *ast.Pattern) bool {
 	switch pat.Kind() {
-	case ast.PatternNone, ast.PatternIdent, ast.PatternInvalid:
+	case ast.PatternNone, ast.PatternIdentifier, ast.PatternInvalid:
 		return true
 	case ast.PatternMember, ast.PatternPrivDot:
 		return false
 	case ast.PatternAssign:
 		return p.ensureBindingTarget(pat.MustAssign().Left)
-	case ast.PatternArrPat:
-		ap := pat.MustArrPat()
+	case ast.PatternArrayPat:
+		ap := pat.MustArrayPat()
 		for i := range ap.Elements {
 			if !p.ensureBindingTarget(&ap.Elements[i]) {
 				return false
 			}
 		}
 		return ap.Rest == nil || p.ensureBindingTarget(ap.Rest)
-	case ast.PatternObjPat:
-		op := pat.MustObjPat()
+	case ast.PatternObjectPat:
+		op := pat.MustObjectPat()
 		for i := range op.Properties {
 			if kv, ok := op.Properties[i].KeyValue(); ok && !p.ensureBindingTarget(kv.Value) {
 				return false

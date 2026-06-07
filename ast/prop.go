@@ -25,26 +25,26 @@ type (
 
 	// PropertyKeyValue is `{ key: value }` / `{ [key]: value }`.
 	PropertyKeyValue struct {
-		Key   PropertyName
+		Key   *PropertyName
 		Value *Expression
 	}
 
 	// PropertyMethod is a method shorthand: `{ key() {} }`, `{ *key() {} }`,
 	// `{ async key() {} }`, `{ async *key() {} }`. async/generator flags live on Body.
 	PropertyMethod struct {
-		Key  PropertyName
+		Key  *PropertyName
 		Body *FunctionLiteral
 	}
 
 	// PropertyGetter is `{ get key() {} }`.
 	PropertyGetter struct {
-		Key  PropertyName
+		Key  *PropertyName
 		Body *FunctionLiteral
 	}
 
 	// PropertySetter is `{ set key(v) {} }`.
 	PropertySetter struct {
-		Key  PropertyName
+		Key  *PropertyName
 		Body *FunctionLiteral
 	}
 

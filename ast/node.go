@@ -4,6 +4,7 @@ import "github.com/nukilabs/ftoa"
 
 //go:generate go run ast/gen_clone.go
 //go:generate go run ast/gen_visit.go
+//go:generate go run ast/gen_union.go
 
 // Idx is a compact encoding of a source position within JS code.
 type Idx uint32
@@ -107,16 +108,15 @@ func (n *ComputedProperty) Idx1() Idx {
 	}
 	return n.Expr.Idx1()
 }
-func (n *PropertyShort) Idx0() Idx     { return n.Name.Idx }
-func (n *PropertyKeyValue) Idx0() Idx  { return n.Key.Idx0() }
-func (n *PropertyMethod) Idx0() Idx    { return n.Key.Idx0() }
-func (n *PropertyGetter) Idx0() Idx    { return n.Key.Idx0() }
-func (n *PropertySetter) Idx0() Idx    { return n.Key.Idx0() }
+func (n *PropertyShort) Idx0() Idx    { return n.Name.Idx }
+func (n *PropertyKeyValue) Idx0() Idx { return n.Key.Idx0() }
+func (n *PropertyMethod) Idx0() Idx   { return n.Key.Idx0() }
+func (n *PropertyGetter) Idx0() Idx   { return n.Key.Idx0() }
+func (n *PropertySetter) Idx0() Idx   { return n.Key.Idx0() }
 
 func (n *FieldDefinition) Idx0() Idx  { return n.Idx }
 func (n *MethodDefinition) Idx0() Idx { return n.Idx }
 func (n *ClassStaticBlock) Idx0() Idx { return n.Static }
-
 
 func (o *Optional) Idx1() Idx              { return o.Expr.Idx1() }
 func (n *OptionalChain) Idx1() Idx         { return n.Base.Idx1() }
@@ -272,4 +272,3 @@ func (y *YieldExpression) Idx1() Idx {
 	}
 	return y.Yield + 5
 }
-// Expression.Idx0/Idx1 and Statement.Idx0/Idx1 are generated in union_gen.go.

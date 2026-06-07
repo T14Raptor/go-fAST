@@ -18,14 +18,14 @@ func classHasSideEffect(class *ast.ClassLiteral) bool {
 	}
 	for _, elem := range class.Body {
 		switch elem.Kind() {
-		case ast.ClassElemMethod:
-			method := elem.MustMethod()
-			if e, ok := computedKeyExpr(&method.Key); ok && MayHaveSideEffects(e) {
+		case ast.ClassElemMethodDef:
+			method := elem.MustMethodDef()
+			if e, ok := computedKeyExpr(method.Key); ok && MayHaveSideEffects(e) {
 				return true
 			}
-		case ast.ClassElemField:
-			field := elem.MustField()
-			if e, ok := computedKeyExpr(&field.Key); ok && MayHaveSideEffects(e) {
+		case ast.ClassElemFieldDef:
+			field := elem.MustFieldDef()
+			if e, ok := computedKeyExpr(field.Key); ok && MayHaveSideEffects(e) {
 				return true
 			}
 			if field.Initializer != nil && MayHaveSideEffects(field.Initializer) {
@@ -148,7 +148,7 @@ func (v *literalVisitor) VisitExpression(n *ast.Expression) {
 		return
 	}
 	switch n.Kind() {
-	case ast.ExprIdent, ast.ExprRegExpLit:
+	case ast.ExprIdentifier, ast.ExprRegExpLit:
 		v.isLit = false
 	case ast.ExprTmplLit:
 		if n.MustTmplLit().Expressions != nil {
@@ -170,18 +170,19 @@ func (v *literalVisitor) VisitNumberLiteral(n *ast.NumberLiteral) {
 }
 func (v *literalVisitor) VisitOptionalChain(n *ast.OptionalChain)         { v.isLit = false }
 func (v *literalVisitor) VisitPrivateIdentifier(n *ast.PrivateIdentifier) { v.isLit = false }
+
 // propName returns the key of a key-bearing property variant (key/value,
 // method, getter, setter).
 func propName(prop ast.Property) (*ast.PropertyName, bool) {
 	switch prop.Kind() {
 	case ast.PropKeyValue:
-		return &prop.MustKeyValue().Key, true
+		return prop.MustKeyValue().Key, true
 	case ast.PropMethod:
-		return &prop.MustMethod().Key, true
+		return prop.MustMethod().Key, true
 	case ast.PropGetter:
-		return &prop.MustGetter().Key, true
+		return prop.MustGetter().Key, true
 	case ast.PropSetter:
-		return &prop.MustSetter().Key, true
+		return prop.MustSetter().Key, true
 	}
 	return nil, false
 }
@@ -202,10 +203,10 @@ func (v *literalVisitor) VisitProperty(n *ast.Property) {
 	switch n.Kind() {
 	case ast.PropKeyValue:
 		switch p := n.MustKeyValue(); p.Key.Kind() {
-		case ast.PropNameStrLit:
-			v.cost += 2 + len(p.Key.MustStrLit().Value)
-		case ast.PropNameNumLit:
-			v.cost += 2 + len(strconv.FormatFloat(p.Key.MustNumLit().Value, 'f', -1, 64))
+		case ast.PropNameStringLit:
+			v.cost += 2 + len(p.Key.MustStringLit().Value)
+		case ast.PropNameNumberLit:
+			v.cost += 2 + len(strconv.FormatFloat(p.Key.MustNumberLit().Value, 'f', -1, 64))
 		case ast.PropNameBigIntLit:
 			v.cost += 2
 		default:
@@ -256,9 +257,9 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 		return
 	}
 	switch expr.Kind() {
-	case ast.ExprStrLit, ast.ExprBoolLit, ast.ExprNullLit, ast.ExprNumLit, ast.ExprBigIntLit, ast.ExprRegExpLit,
-		ast.ExprThis, ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprPrivIdent:
-	case ast.ExprIdent:
+	case ast.ExprStringLit, ast.ExprBoolLit, ast.ExprNullLit, ast.ExprNumberLit, ast.ExprBigIntLit, ast.ExprRegExpLit,
+		ast.ExprThis, ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprPrivIdentifier:
+	case ast.ExprIdentifier:
 		if MayHaveSideEffects(expr) {
 			*to = append(*to, *expr)
 		}
@@ -270,7 +271,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 		*to = append(*to, *expr)
 	case ast.ExprNew:
 		e := expr.MustNew()
-		if id, ok := e.Callee.Ident(); ok && id.Name == "Date" && len(e.ArgumentList) == 0 {
+		if id, ok := e.Callee.Identifier(); ok && id.Name == "Date" && len(e.ArgumentList) == 0 {
 			return
 		}
 		*to = append(*to, *expr)
@@ -281,7 +282,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 	case ast.ExprUnary:
 		e := expr.MustUnary()
 		if e.Operator == ast.UnaryTypeof {
-			if _, ok := e.Operand.Ident(); ok {
+			if _, ok := e.Operand.Identifier(); ok {
 				return
 			}
 		}
@@ -301,8 +302,8 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 		for _, expr := range e.Sequence {
 			ExtractSideEffectsTo(to, &expr)
 		}
-	case ast.ExprObjLit:
-		e := expr.MustObjLit()
+	case ast.ExprObjectLit:
+		e := expr.MustObjectLit()
 		var hasSpread bool
 		e.Value = slices.DeleteFunc(e.Value, func(prop ast.Property) bool {
 			switch prop.Kind() {
@@ -310,7 +311,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 				return true
 			case ast.PropKeyValue:
 				p := prop.MustKeyValue()
-				if e, ok := computedKeyExpr(&p.Key); ok && MayHaveSideEffects(e) {
+				if e, ok := computedKeyExpr(p.Key); ok && MayHaveSideEffects(e) {
 					return false
 				}
 				return !MayHaveSideEffects(p.Value)
@@ -334,7 +335,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 				case ast.PropShort:
 				case ast.PropKeyValue:
 					p := prop.MustKeyValue()
-					if e, ok := computedKeyExpr(&p.Key); ok {
+					if e, ok := computedKeyExpr(p.Key); ok {
 						ExtractSideEffectsTo(to, e)
 					}
 					ExtractSideEffectsTo(to, p.Value)
@@ -346,8 +347,8 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 				}
 			}
 		}
-	case ast.ExprArrLit:
-		e := expr.MustArrLit()
+	case ast.ExprArrayLit:
+		e := expr.MustArrayLit()
 		for _, elem := range e.Value {
 			ExtractSideEffectsTo(to, &elem)
 		}
@@ -358,7 +359,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 		}
 	case ast.ExprClassLit:
 		panic("add_effects for class expression")
-	case ast.ExprOptChain:
+	case ast.ExprOptionalChain:
 		*to = append(*to, *expr)
 	}
 }
@@ -366,12 +367,12 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 // PropNameEq returns true if the property name of the expression is equal to key.
 func PropNameEq(p *ast.Expression, key string) bool {
 	switch p.Kind() {
-	case ast.ExprIdent:
-		return p.MustIdent().Name == key
-	case ast.ExprStrLit:
-		return p.MustStrLit().Value == key
-	case ast.ExprNumLit:
-		return strconv.FormatFloat(p.MustNumLit().Value, 'f', -1, 64) == key
+	case ast.ExprIdentifier:
+		return p.MustIdentifier().Name == key
+	case ast.ExprStringLit:
+		return p.MustStringLit().Value == key
+	case ast.ExprNumberLit:
+		return strconv.FormatFloat(p.MustNumberLit().Value, 'f', -1, 64) == key
 	}
 	return false
 }

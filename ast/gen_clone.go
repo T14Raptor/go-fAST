@@ -570,7 +570,7 @@ func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
 }
 
 var shortNameOverrides = map[string]string{
-	"OptionalChain":     "OptChain",
+	"OptionalChain":     "OptionalChain",
 	"Expression":        "Expr",
 	"Statement":         "Stmt",
 	"PropertyKeyValue":  "KeyValue",
@@ -580,8 +580,8 @@ var shortNameOverrides = map[string]string{
 	"PropertyShort":     "Short",
 	"ComputedProperty":  "Computed",
 	"ClassStaticBlock":  "StaticBlock",
-	"FieldDefinition":   "Field",
-	"MethodDefinition":  "Method",
+	"FieldDefinition":   "FieldDef",
+	"MethodDefinition":  "MethodDef",
 	"AssignmentPattern": "Assign",
 	"PatternKeyValue":   "KeyValue",
 	"PatternShorthand":  "Shorthand",
@@ -612,17 +612,12 @@ func deriveShortName(typeName string) string {
 
 	abbreviations := [][2]string{
 		{"ArrowFunction", "ArrowFunc"},
-		{"Identifier", "Ident"},
 		{"Function", "Func"},
 		{"Variable", "Var"},
 		{"Property", "Prop"},
 		{"Template", "Tmpl"},
 		{"Private", "Priv"},
 		{"Boolean", "Bool"},
-		{"Number", "Num"},
-		{"String", "Str"},
-		{"Object", "Obj"},
-		{"Array", "Arr"},
 	}
 	for _, ab := range abbreviations {
 		name = strings.ReplaceAll(name, ab[0], ab[1])

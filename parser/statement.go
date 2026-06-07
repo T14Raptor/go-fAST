@@ -97,7 +97,7 @@ func (p *parser) parseStatement() ast.Statement {
 
 	expression := p.parseExpression()
 
-	if identifier, ok := expression.Ident(); ok && p.currentKind() == token.Colon {
+	if identifier, ok := expression.Identifier(); ok && p.currentKind() == token.Colon {
 		colon := p.currentOffset()
 		p.next()
 		label := identifier.Name
@@ -345,7 +345,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			continue
 		}
 		computed := tkn == token.Illegal
-		isPrivate := value.IsPrivIdent()
+		isPrivate := value.IsPrivIdentifier()
 
 		if static && !isPrivate && keyName == "prototype" {
 			p.errorf("Classes may not have a static property named 'prototype'")
@@ -373,12 +373,12 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 			md := p.alloc.MethodDefinition(start, value, kind,
 				p.parseMethodDefinition(methodBodyStart, kind, generator, async),
 				static)
-			p.elemBuf = append(p.elemBuf, ast.NewMethodClassElem(md))
+			p.elemBuf = append(p.elemBuf, ast.NewMethodDefClassElem(md))
 		} else {
 			// field
 			isCtor := !computed && keyName == "constructor"
 			if !isCtor {
-				if pi, ok := value.PrivIdent(); ok {
+				if pi, ok := value.PrivIdentifier(); ok {
 					isCtor = pi.Identifier.Name == "constructor"
 				}
 			}
@@ -395,7 +395,7 @@ func (p *parser) parseClass(declaration bool) *ast.ClassLiteral {
 				p.errorUnexpectedToken(p.currentKind())
 				break
 			}
-			p.elemBuf = append(p.elemBuf, ast.NewFieldClassElem(p.alloc.FieldDefinition(
+			p.elemBuf = append(p.elemBuf, ast.NewFieldDefClassElem(p.alloc.FieldDefinition(
 				start, value, initializer, static,
 			)))
 		}
@@ -623,7 +623,7 @@ func (p *parser) parseForOrForInStatement() ast.Statement {
 			}
 			if forIn || forOf {
 				switch exprNode.Kind() {
-				case ast.ExprIdent, ast.ExprPrivDot, ast.ExprMember, ast.ExprArrLit, ast.ExprObjLit:
+				case ast.ExprIdentifier, ast.ExprPrivDot, ast.ExprMember, ast.ExprArrayLit, ast.ExprObjectLit:
 					pat := p.alloc.Pattern(p.patternFromExpression(exprNode, patAssign))
 					into = p.alloc.ForIntoPtr(ast.NewPatternForInto(pat))
 				default:
