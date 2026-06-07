@@ -1002,16 +1002,10 @@ func (n *YieldExpression) VisitChildrenWith(v Visitor) {
 }
 
 func (n *ClassElement) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitClassElement(n)
 }
 
 func (n *ClassElement) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case ClassElemField:
 		(*FieldDefinition)(n.ptr).VisitWith(v)
@@ -1023,16 +1017,10 @@ func (n *ClassElement) VisitChildrenWith(v Visitor) {
 }
 
 func (n *ConciseBody) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitConciseBody(n)
 }
 
 func (n *ConciseBody) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case ConciseBodyBlock:
 		(*BlockStatement)(n.ptr).VisitWith(v)
@@ -1042,16 +1030,10 @@ func (n *ConciseBody) VisitChildrenWith(v Visitor) {
 }
 
 func (n *Expression) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitExpression(n)
 }
 
 func (n *Expression) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case ExprArrLit:
 		(*ArrayLiteral)(n.ptr).VisitWith(v)
@@ -1127,16 +1109,10 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 }
 
 func (n *ForInto) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitForInto(n)
 }
 
 func (n *ForInto) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case ForIntoPattern:
 		(*Pattern)(n.ptr).VisitWith(v)
@@ -1146,16 +1122,10 @@ func (n *ForInto) VisitChildrenWith(v Visitor) {
 }
 
 func (n *ForLoopInitializer) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitForLoopInitializer(n)
 }
 
 func (n *ForLoopInitializer) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case ForInitExpr:
 		(*Expression)(n.ptr).VisitWith(v)
@@ -1165,16 +1135,10 @@ func (n *ForLoopInitializer) VisitChildrenWith(v Visitor) {
 }
 
 func (n *MemberProperty) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitMemberProperty(n)
 }
 
 func (n *MemberProperty) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case MemPropComputed:
 		(*ComputedProperty)(n.ptr).VisitWith(v)
@@ -1184,16 +1148,10 @@ func (n *MemberProperty) VisitChildrenWith(v Visitor) {
 }
 
 func (n *Pattern) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitPattern(n)
 }
 
 func (n *Pattern) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case PatternArrPat:
 		(*ArrayPattern)(n.ptr).VisitWith(v)
@@ -1213,16 +1171,10 @@ func (n *Pattern) VisitChildrenWith(v Visitor) {
 }
 
 func (n *PatternProperty) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitPatternProperty(n)
 }
 
 func (n *PatternProperty) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case PatPropKeyValue:
 		(*PatternKeyValue)(n.ptr).VisitWith(v)
@@ -1232,16 +1184,10 @@ func (n *PatternProperty) VisitChildrenWith(v Visitor) {
 }
 
 func (n *Property) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitProperty(n)
 }
 
 func (n *Property) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case PropGetter:
 		(*PropertyGetter)(n.ptr).VisitWith(v)
@@ -1259,16 +1205,10 @@ func (n *Property) VisitChildrenWith(v Visitor) {
 }
 
 func (n *PropertyName) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitPropertyName(n)
 }
 
 func (n *PropertyName) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case PropNameBigIntLit:
 		(*BigIntLiteral)(n.ptr).VisitWith(v)
@@ -1284,16 +1224,10 @@ func (n *PropertyName) VisitChildrenWith(v Visitor) {
 }
 
 func (n *Statement) VisitWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	v.VisitStatement(n)
 }
 
 func (n *Statement) VisitChildrenWith(v Visitor) {
-	if n == nil {
-		return
-	}
 	switch n.kind {
 	case StmtBad:
 		(*BadStatement)(n.ptr).VisitWith(v)
