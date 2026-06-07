@@ -255,7 +255,7 @@ func findVisitableNodes(f *ast.File) (types []VisitableNodeType) {
 			}
 
 			switch typeSpec.Name.Name {
-			case "ScopeContext", "Id", "Position":
+			case "ScopeContext", "Id":
 				continue
 			}
 

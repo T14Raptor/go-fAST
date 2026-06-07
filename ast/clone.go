@@ -247,9 +247,6 @@ func (n *Patterns) Clone() *Patterns {
 	}
 	return &ns
 }
-func (n *Position) Clone() *Position {
-	return &Position{Line: n.Line, Column: n.Column, Offset: n.Offset}
-}
 func (n *PrivateDotExpression) Clone() *PrivateDotExpression {
 	return &PrivateDotExpression{Left: n.Left.Clone(), Identifier: n.Identifier.Clone()}
 }
