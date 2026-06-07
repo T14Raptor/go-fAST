@@ -44,3 +44,20 @@ func (k VarKind) String() string {
 	}
 	return ""
 }
+
+func (n *FunctionDeclaration) Idx0() Idx { return n.Function.Idx0() }
+func (n *FunctionDeclaration) Idx1() Idx { return n.Function.Idx1() }
+
+func (n *ClassDeclaration) Idx0() Idx { return n.Class.Idx0() }
+func (n *ClassDeclaration) Idx1() Idx { return n.Class.Idx1() }
+
+func (n *VariableDeclaration) Idx0() Idx { return n.Idx }
+func (n *VariableDeclaration) Idx1() Idx { return n.List[len(n.List)-1].Idx1() }
+
+func (b *VariableDeclarator) Idx0() Idx { return b.Target.Idx0() }
+func (b *VariableDeclarator) Idx1() Idx {
+	if b.Initializer != nil {
+		return b.Initializer.Idx1()
+	}
+	return b.Target.Idx1()
+}

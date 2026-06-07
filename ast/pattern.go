@@ -89,3 +89,9 @@ func (n *PatternShorthand) Idx1() Idx {
 	}
 	return n.Name.Idx1()
 }
+
+func (n *ObjectPattern) Idx0() Idx { return n.LeftBrace }
+func (n *ObjectPattern) Idx1() Idx { return n.RightBrace + 1 }
+
+func (a *ArrayPattern) Idx0() Idx { return a.LeftBracket }
+func (a *ArrayPattern) Idx1() Idx { return a.RightBracket + 1 }

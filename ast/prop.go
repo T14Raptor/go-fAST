@@ -62,3 +62,36 @@ type (
 		RightBracket Idx
 	}
 )
+
+func (n *ComputedProperty) Idx0() Idx {
+	if n.LeftBracket != 0 {
+		return n.LeftBracket
+	}
+	return n.Expr.Idx0()
+}
+func (n *ComputedProperty) Idx1() Idx {
+	if n.RightBracket != 0 {
+		return n.RightBracket + 1
+	}
+	return n.Expr.Idx1()
+}
+
+func (n *PropertyKeyValue) Idx0() Idx { return n.Key.Idx0() }
+func (n *PropertyKeyValue) Idx1() Idx { return n.Value.Idx1() }
+
+func (n *PropertyMethod) Idx0() Idx { return n.Key.Idx0() }
+func (n *PropertyMethod) Idx1() Idx { return n.Body.Idx1() }
+
+func (n *PropertyGetter) Idx0() Idx { return n.Key.Idx0() }
+func (n *PropertyGetter) Idx1() Idx { return n.Body.Idx1() }
+
+func (n *PropertySetter) Idx0() Idx { return n.Key.Idx0() }
+func (n *PropertySetter) Idx1() Idx { return n.Body.Idx1() }
+
+func (n *PropertyShort) Idx0() Idx { return n.Name.Idx }
+func (n *PropertyShort) Idx1() Idx {
+	if n.Initializer != nil {
+		return n.Initializer.Idx1()
+	}
+	return n.Name.Idx1()
+}
