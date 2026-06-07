@@ -15,7 +15,7 @@ type (
 
 	ParameterList struct {
 		List VariableDeclarators
-		Rest *Expression `optional:"true"`
+		Rest *Pattern `optional:"true"`
 
 		Opening Idx
 		Closing Idx

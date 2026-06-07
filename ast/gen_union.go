@@ -30,18 +30,6 @@ type Variant struct {
 	ShortName string
 }
 
-var shortNameOverrides = map[string]string{
-	"OptionalChain":    "OptChain",
-	"Expression":       "Expr",
-	"Statement":        "Stmt",
-	"PropertyKeyed":    "Keyed",
-	"PropertyShort":    "Short",
-	"ComputedProperty": "Computed",
-	"ClassStaticBlock": "StaticBlock",
-	"FieldDefinition":  "Field",
-	"MethodDefinition": "Method",
-}
-
 func main() {
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, "./ast", func(info fs.FileInfo) bool {
@@ -125,6 +113,11 @@ func findUnions(pkg *ast.Package) []UnionConfig {
 			}
 		}
 	}
+	// pkg.Files is a map, so unions are discovered in a nondeterministic
+	// order. Sort by wrapper type so the generated output is stable.
+	slices.SortFunc(unions, func(a, b UnionConfig) int {
+		return cmp.Compare(a.WrapperType, b.WrapperType)
+	})
 	return unions
 }
 
@@ -167,9 +160,32 @@ func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
 		return "ForInit", "ForInitKind", "ForInit"
 	case "ClassElement":
 		return "ClassElem", "ClassElemKind", "ClassElem"
+	case "PatternProperty":
+		return "PatProp", "PatPropKind", "PatProp"
+	case "PropertyName":
+		return "PropName", "PropNameKind", "PropName"
 	default:
 		return name, name + "Kind", name
 	}
+}
+
+var shortNameOverrides = map[string]string{
+	"OptionalChain":     "OptionalChain",
+	"Expression":        "Expr",
+	"Statement":         "Stmt",
+	"PropertyKeyValue":  "KeyValue",
+	"PropertyMethod":    "Method",
+	"PropertyGetter":    "Getter",
+	"PropertySetter":    "Setter",
+	"PropertyShort":     "Short",
+	"ComputedProperty":  "Computed",
+	"ClassStaticBlock":  "StaticBlock",
+	"FieldDefinition":   "FieldDef",
+	"MethodDefinition":  "MethodDef",
+	"AssignmentPattern": "Assign",
+	"PatternKeyValue":   "KeyValue",
+	"PatternShorthand":  "Shorthand",
+	"Pattern":           "Pattern",
 }
 
 func deriveShortName(typeName string) string {
@@ -196,17 +212,12 @@ func deriveShortName(typeName string) string {
 
 	abbreviations := [][2]string{
 		{"ArrowFunction", "ArrowFunc"},
-		{"Identifier", "Ident"},
 		{"Function", "Func"},
 		{"Variable", "Var"},
 		{"Property", "Prop"},
 		{"Template", "Tmpl"},
 		{"Private", "Priv"},
 		{"Boolean", "Bool"},
-		{"Number", "Num"},
-		{"String", "Str"},
-		{"Object", "Obj"},
-		{"Array", "Arr"},
 	}
 	for _, ab := range abbreviations {
 		name = strings.ReplaceAll(name, ab[0], ab[1])

@@ -2,7 +2,6 @@ package ext
 
 import (
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 // MayHaveSideEffectsStmt returns true if the statement may have side effects.
@@ -75,7 +74,18 @@ func MayHaveSideEffectsStmt(stmt ast.Statement) bool {
 		// TODO: Check in_strict mode like swc
 	case ast.StmtVarDecl:
 		s := stmt.MustVarDecl()
-		return s.Token == token.Var
+		if s.Kind == ast.VarKindVar {
+			return true
+		}
+		for _, decl := range s.List {
+			if decl.Target.IsPattern() {
+				return true
+			}
+			if decl.Initializer != nil && MayHaveSideEffects(decl.Initializer) {
+				return true
+			}
+		}
+		return false
 	case ast.StmtExpression:
 		s := stmt.MustExpression()
 		return MayHaveSideEffects(s.Expression)

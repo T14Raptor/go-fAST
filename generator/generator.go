@@ -50,11 +50,38 @@ type GenVisitor struct {
 	binaryStack []binaryExprEntry
 }
 
+// mergeable reports whether emitting next immediately after prev would form a
+// different token than intended: `++`/`+++` (a+ +b / a+ ++b), `--`, or a `//` or
+// `/*` comment after a division/regex. A separating space is inserted in those
+// cases. Over-spacing the harmless `a++ +b` case is acceptable; under-spacing is
+// a correctness bug.
+func mergeable(prev, next byte) bool {
+	switch prev {
+	case '+':
+		return next == '+'
+	case '-':
+		return next == '-'
+	case '/':
+		return next == '/' || next == '*'
+	}
+	return false
+}
+
 func (g *GenVisitor) writeByte(c byte) {
+	if n := len(g.buf); n > 0 && mergeable(g.buf[n-1], c) {
+		g.buf = append(g.buf, ' ', c)
+		return
+	}
 	g.buf = append(g.buf, c)
 }
 
 func (g *GenVisitor) writeString(s string) {
+	if s == "" {
+		return
+	}
+	if n := len(g.buf); n > 0 && mergeable(g.buf[n-1], s[0]) {
+		g.buf = append(g.buf, ' ')
+	}
 	g.buf = append(g.buf, s...)
 }
 
@@ -109,7 +136,7 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 		ctx &^= ctxForbidIn
 	}
 
-	g.genExpr(n.Left, ast.PrecedenceAssign, ctx)
+	g.gen(n.Left)
 	g.space()
 	g.writeString(n.Operator.String())
 	g.space()
@@ -254,16 +281,13 @@ func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
 		g.writeByte('(')
 	}
 
-	if opt, ok := n.Callee.Optional(); ok {
-		g.genOptionalBase(opt.Expr, ast.PrecedenceCall)
-		g.writeString("?.")
-	} else {
-		switch n.Callee.Kind() {
-		case ast.ExprArrowFuncLit, ast.ExprClassLit, ast.ExprFuncLit, ast.ExprObjLit:
-			g.genParenthesizedExpr(n.Callee)
-		default:
-			g.genExpr(n.Callee, ast.PrecedenceCall, 0)
-		}
+	switch n.Callee.Kind() {
+	case ast.ExprFuncLit, ast.ExprArrowFuncLit:
+		g.writeByte('(')
+		g.genExpr(n.Callee, ast.PrecedenceLowest, 0)
+		g.writeByte(')')
+	default:
+		g.genExpr(n.Callee, ast.PrecedenceCall, 0)
 	}
 	g.writeByte('(')
 	for i := range n.ArgumentList {
@@ -295,46 +319,15 @@ func (g *GenVisitor) VisitNewExpression(n *ast.NewExpression) {
 }
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
-	if opt, ok := n.Object.Optional(); ok {
-		g.genOptionalBase(opt.Expr, ast.PrecedenceMember)
-		g.genOptionalMemberProperty(n.Property)
-		return
-	}
-
 	switch n.Object.Kind() {
-	case ast.ExprNumLit, ast.ExprArrowFuncLit, ast.ExprClassLit, ast.ExprFuncLit, ast.ExprObjLit:
-		g.genParenthesizedExpr(n.Object)
+	case ast.ExprNumberLit:
+		g.writeByte('(')
+		g.genExpr(n.Object, ast.PrecedenceLowest, 0)
+		g.writeByte(')')
 	default:
 		g.genExpr(n.Object, ast.PrecedenceMember, 0)
 	}
 	g.gen(n.Property)
-}
-
-func (g *GenVisitor) genOptionalBase(expr *ast.Expression, prec ast.Precedence) {
-	switch expr.Kind() {
-	case ast.ExprArrowFuncLit, ast.ExprClassLit, ast.ExprFuncLit, ast.ExprObjLit:
-		g.genParenthesizedExpr(expr)
-	default:
-		g.genExpr(expr, prec, 0)
-	}
-}
-
-func (g *GenVisitor) genParenthesizedExpr(expr *ast.Expression) {
-	g.writeByte('(')
-	g.genExpr(expr, ast.PrecedenceLowest, 0)
-	g.writeByte(')')
-}
-
-func (g *GenVisitor) genOptionalMemberProperty(n *ast.MemberProperty) {
-	switch n.Kind() {
-	case ast.MemPropIdent:
-		g.writeString("?.")
-		g.gen(n.MustIdent())
-	case ast.MemPropComputed:
-		g.writeString("?.[")
-		g.genExpr(n.MustComputed().Expr, ast.PrecedenceAssign, 0)
-		g.writeByte(']')
-	}
 }
 
 func (g *GenVisitor) VisitPrivateDotExpression(n *ast.PrivateDotExpression) {
@@ -369,7 +362,7 @@ func (g *GenVisitor) VisitArrowFunctionLiteral(n *ast.ArrowFunctionLiteral) {
 		g.gen(n.Body)
 	case ast.ConciseBodyExpr:
 		body := n.Body.MustExpr()
-		if body.IsObjLit() {
+		if body.IsObjectLit() {
 			g.writeByte('(')
 			g.genExpr(body, ast.PrecedenceLowest, 0)
 			g.writeByte(')')
@@ -411,26 +404,47 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 	for _, element := range n.Body {
 		g.lineAndPad()
 		switch element.Kind() {
-		case ast.ClassElemMethod:
-			e := element.MustMethod()
+		case ast.ClassElemMethodDef:
+			e := element.MustMethodDef()
 			if e.Static {
 				g.writeString("static ")
 			}
-			if e.Kind == ast.PropertyKindGet {
+			switch e.Kind {
+			case ast.MethodKindGet:
 				g.writeString("get ")
-			} else if e.Kind == ast.PropertyKindSet {
+			case ast.MethodKindSet:
 				g.writeString("set ")
+			default:
+				if e.Body.Async {
+					g.writeString("async")
+					if !e.Body.Generator {
+						g.writeByte(' ')
+					}
+				}
+				if e.Body.Generator {
+					g.writeByte('*')
+				}
 			}
-			if e.Computed {
-				g.writeByte('[')
-				g.gen(e.Key)
-				g.writeByte(']')
-			} else {
-				g.gen(e.Key)
+			g.genPropertyName(e.Key)
+			g.genMethodBody(e.Body)
+		case ast.ClassElemFieldDef:
+			e := element.MustFieldDef()
+			if e.Static {
+				g.writeString("static ")
 			}
-			g.gen(e.Body.ParameterList)
+			g.genPropertyName(e.Key)
+			if e.Initializer != nil {
+				g.space()
+				g.writeByte('=')
+				g.space()
+				g.genExpr(e.Initializer, ast.PrecedenceAssign, 0)
+			}
+			g.writeByte(';')
+		case ast.ClassElemStaticBlock:
+			e := element.MustStaticBlock()
+			g.writeString("static")
 			g.space()
-			g.gen(e.Body.Body)
+			g.gen(e.Block)
 		}
 	}
 	g.indent--
@@ -561,12 +575,20 @@ func (g *GenVisitor) VisitArrayPattern(n *ast.ArrayPattern) {
 	for i := range n.Elements {
 		elem := &n.Elements[i]
 		if !elem.IsNone() {
-			g.genExpr(elem, ast.PrecedenceAssign, 0)
+			g.gen(elem)
 		}
 		if i < len(n.Elements)-1 {
 			g.writeByte(',')
 			g.space()
 		}
+	}
+	if n.Rest != nil {
+		if len(n.Elements) > 0 {
+			g.writeByte(',')
+			g.space()
+		}
+		g.writeString("...")
+		g.gen(n.Rest)
 	}
 	g.writeByte(']')
 }
@@ -597,9 +619,41 @@ func (g *GenVisitor) VisitMetaProperty(n *ast.MetaProperty) {
 	g.gen(n.Property)
 }
 
-func (g *GenVisitor) VisitBindingTarget(n *ast.BindingTarget) {
-	expr := ast.ExpressionFromBindingTarget(n)
-	g.genExpr(&expr, ast.PrecedenceLowest, 0)
+func (g *GenVisitor) VisitPattern(n *ast.Pattern) {
+	switch n.Kind() {
+	case ast.PatternArrayPat:
+		g.gen(n.MustArrayPat())
+	case ast.PatternObjectPat:
+		g.gen(n.MustObjectPat())
+	case ast.PatternAssign:
+		a := n.MustAssign()
+		g.gen(a.Left)
+		g.space()
+		g.writeByte('=')
+		g.space()
+		g.genExpr(a.Right, ast.PrecedenceAssign, 0)
+	default:
+		// identifier / member / private-dot / invalid
+		expr := ast.ExpressionFromPattern(n)
+		g.genExpr(&expr, ast.PrecedenceLowest, 0)
+	}
+}
+
+func (g *GenVisitor) VisitPatternKeyValue(n *ast.PatternKeyValue) {
+	g.genPropertyName(n.Key)
+	g.writeByte(':')
+	g.space()
+	g.gen(n.Value)
+}
+
+func (g *GenVisitor) VisitPatternShorthand(n *ast.PatternShorthand) {
+	g.gen(n.Name)
+	if n.Initializer != nil {
+		g.space()
+		g.writeByte('=')
+		g.space()
+		g.genExpr(n.Initializer, ast.PrecedenceAssign, 0)
+	}
 }
 
 func (g *GenVisitor) VisitProgram(n *ast.Program) {
@@ -631,13 +685,13 @@ func (g *GenVisitor) VisitBlockStatement(n *ast.BlockStatement) {
 
 func (g *GenVisitor) VisitExpressionStatement(n *ast.ExpressionStatement) {
 	switch n.Expression.Kind() {
-	case ast.ExprObjLit, ast.ExprFuncLit, ast.ExprClassLit:
+	case ast.ExprObjectLit, ast.ExprFuncLit, ast.ExprClassLit:
 		g.writeByte('(')
 		g.genExpr(n.Expression, ast.PrecedenceLowest, 0)
 		g.writeByte(')')
 	case ast.ExprAssign:
 		switch n.Expression.MustAssign().Left.Kind() {
-		case ast.ExprObjPat, ast.ExprArrPat:
+		case ast.PatternObjectPat, ast.PatternArrayPat:
 			g.writeByte('(')
 			g.genExpr(n.Expression, ast.PrecedenceLowest, 0)
 			g.writeByte(')')
@@ -654,7 +708,7 @@ func (g *GenVisitor) VisitExpressionStatement(n *ast.ExpressionStatement) {
 }
 
 func (g *GenVisitor) VisitVariableDeclaration(n *ast.VariableDeclaration) {
-	g.writeString(n.Token.String())
+	g.writeString(n.Kind.String())
 	g.writeByte(' ')
 	for i := range n.List {
 		g.gen(&n.List[i])
@@ -802,11 +856,11 @@ func (g *GenVisitor) VisitForInto(n *ast.ForInto) {
 	case ast.ForIntoVarDecl:
 		into := n.MustVarDecl()
 
-		g.writeString(into.Token.String())
+		g.writeString(into.Kind.String())
 		g.writeByte(' ')
 		g.gen(&into.List)
-	case ast.ForIntoExpr:
-		g.gen(n.MustExpr())
+	case ast.ForIntoPattern:
+		g.gen(n.MustPattern())
 	}
 }
 
@@ -962,6 +1016,10 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 	}
 
 	if n.Rest != nil {
+		if len(n.List) > 0 {
+			g.writeByte(',')
+			g.space()
+		}
 		g.writeString("...")
 		g.gen(n.Rest)
 	}
@@ -970,46 +1028,63 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 
 func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
 	switch n.Kind() {
-	case ast.MemPropIdent:
+	case ast.MemPropIdentifier:
 		g.writeByte('.')
-		g.gen(n.MustIdent())
+		g.gen(n.MustIdentifier())
 	case ast.MemPropComputed:
 		g.writeByte('[')
-		g.genExpr(n.MustComputed().Expr, ast.PrecedenceAssign, 0)
+		g.genExpr(n.MustComputed().Expr, ast.PrecedenceLowest, 0)
 		g.writeByte(']')
 	}
 }
 
-func (g *GenVisitor) VisitPropertyKeyed(n *ast.PropertyKeyed) {
-	if n.Kind == ast.PropertyKindGet || n.Kind == ast.PropertyKindSet {
-		switch n.Kind {
-		case ast.PropertyKindGet:
-			g.writeString("get")
-		case ast.PropertyKindSet:
-			g.writeString("set")
-		}
-		g.writeByte(' ')
-		if n.Computed {
-			g.writeByte('[')
-			g.genExpr(n.Key, ast.PrecedenceLowest, 0)
-			g.writeByte(']')
-		} else {
-			g.genExpr(n.Key, ast.PrecedenceLowest, 0)
-		}
-		f := n.Value.MustFuncLit()
-		g.gen(f.ParameterList)
-		g.space()
-		g.gen(f.Body)
+func (g *GenVisitor) genPropertyName(key *ast.PropertyName) {
+	if c, ok := key.Computed(); ok {
+		g.writeByte('[')
+		g.genExpr(c.Expr, ast.PrecedenceAssign, 0)
+		g.writeByte(']')
 		return
 	}
-	if n.Computed {
-		g.writeByte('[')
-		g.genExpr(n.Key, ast.PrecedenceAssign, 0)
-		g.writeByte(']')
-	} else {
-		g.genExpr(n.Key, ast.PrecedenceLowest, 0)
-	}
+	// Identifier/string/number/bigint/private key — emit the underlying node.
+	g.gen(key.Unwrap())
+}
+
+// genMethodBody emits the (params) body of a method/getter/setter.
+func (g *GenVisitor) genMethodBody(f *ast.FunctionLiteral) {
+	g.gen(f.ParameterList)
+	g.space()
+	g.gen(f.Body)
+}
+
+func (g *GenVisitor) VisitPropertyKeyValue(n *ast.PropertyKeyValue) {
+	g.genPropertyName(n.Key)
 	g.writeByte(':')
 	g.space()
 	g.genExpr(n.Value, ast.PrecedenceAssign, 0)
+}
+
+func (g *GenVisitor) VisitPropertyMethod(n *ast.PropertyMethod) {
+	if n.Body.Async {
+		g.writeString("async")
+		if !n.Body.Generator {
+			g.writeByte(' ')
+		}
+	}
+	if n.Body.Generator {
+		g.writeByte('*')
+	}
+	g.genPropertyName(n.Key)
+	g.genMethodBody(n.Body)
+}
+
+func (g *GenVisitor) VisitPropertyGetter(n *ast.PropertyGetter) {
+	g.writeString("get ")
+	g.genPropertyName(n.Key)
+	g.genMethodBody(n.Body)
+}
+
+func (g *GenVisitor) VisitPropertySetter(n *ast.PropertySetter) {
+	g.writeString("set ")
+	g.genPropertyName(n.Key)
+	g.genMethodBody(n.Body)
 }

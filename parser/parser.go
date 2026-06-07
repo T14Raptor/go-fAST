@@ -2,6 +2,7 @@ package parser
 
 import (
 	"sync"
+	"unsafe"
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/parser/scanner"
@@ -29,21 +30,25 @@ type parser struct {
 	// slices without per-call heap allocations. Each builder saves
 	// len(buf) as a mark, appends elements, copies the subslice to the
 	// arena, then restores buf to the saved mark.
-	exprBuf []ast.Expression
-	stmtBuf []ast.Statement
-	propBuf []ast.Property
-	elemBuf []ast.ClassElement
-	declBuf []ast.VariableDeclarator
+	exprBuf    []ast.Expression
+	stmtBuf    []ast.Statement
+	propBuf    []ast.Property
+	elemBuf    []ast.ClassElement
+	declBuf    []ast.VariableDeclarator
+	patBuf     []ast.Pattern
+	patPropBuf []ast.PatternProperty
 }
 
 var parserPool = sync.Pool{
 	New: func() any {
 		return &parser{
-			exprBuf: make([]ast.Expression, 0, 64),
-			stmtBuf: make([]ast.Statement, 0, 64),
-			propBuf: make([]ast.Property, 0, 16),
-			elemBuf: make([]ast.ClassElement, 0, 16),
-			declBuf: make([]ast.VariableDeclarator, 0, 16),
+			exprBuf:    make([]ast.Expression, 0, 64),
+			stmtBuf:    make([]ast.Statement, 0, 64),
+			propBuf:    make([]ast.Property, 0, 16),
+			elemBuf:    make([]ast.ClassElement, 0, 16),
+			declBuf:    make([]ast.VariableDeclarator, 0, 16),
+			patBuf:     make([]ast.Pattern, 0, 16),
+			patPropBuf: make([]ast.PatternProperty, 0, 16),
 		}
 	},
 }
@@ -69,16 +74,30 @@ func putParser(p *parser) {
 	p.propBuf = p.propBuf[:0]
 	p.elemBuf = p.elemBuf[:0]
 	p.declBuf = p.declBuf[:0]
+	p.patBuf = p.patBuf[:0]
+	p.patPropBuf = p.patPropBuf[:0]
 	parserPool.Put(p)
 }
 
-// ParseFile parses the source code of a single JavaScript/ECMAScript source file and returns
-// the corresponding ast.Program node.
-func ParseFile(src string) (*ast.Program, error) {
+// Parse parses src as an ECMAScript script and returns the program AST.
+// Errors are accumulated; on a non-nil error the returned [*ast.Program]
+// may still be partially populated.
+//
+// To recover byte positions from errors use [errors.As] against
+// [*Error] or [scanner.Error], or the shared [ast.Positioned] interface.
+func Parse(src string) (*ast.Program, error) {
 	p := getParser(src)
 	program, err := p.parse()
 	putParser(p)
 	return program, err
+}
+
+// ParseBytes is identical to [Parse] but accepts a byte slice. The slice's
+// contents must remain valid for the lifetime of the returned AST: the
+// parser stores no-copy references into src for identifier and literal
+// names.
+func ParseBytes(src []byte) (*ast.Program, error) {
+	return Parse(unsafe.String(unsafe.SliceData(src), len(src)))
 }
 
 // parse ...
@@ -150,6 +169,12 @@ func (p *parser) semicolon() bool {
 	return true
 }
 
+func (p *parser) requireSemicolon() {
+	if !p.semicolon() {
+		p.errorUnexpectedToken(p.currentKind())
+	}
+}
+
 func (p *parser) idxOf(offset int) ast.Idx {
 	return ast.Idx(1 + offset)
 }
@@ -173,6 +198,18 @@ func (p *parser) finishStmtBuf(mark int) ast.Statements {
 func (p *parser) finishPropBuf(mark int) ast.Properties {
 	result := p.alloc.CopyProperties(p.propBuf[mark:])
 	p.propBuf = p.propBuf[:mark]
+	return result
+}
+
+func (p *parser) finishPatBuf(mark int) ast.Patterns {
+	result := p.alloc.CopyPatterns(p.patBuf[mark:])
+	p.patBuf = p.patBuf[:mark]
+	return result
+}
+
+func (p *parser) finishPatPropBuf(mark int) ast.PatternProperties {
+	result := p.alloc.CopyPatternProperties(p.patPropBuf[mark:])
+	p.patPropBuf = p.patPropBuf[:mark]
 	return result
 }
 

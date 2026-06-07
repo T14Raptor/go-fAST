@@ -95,8 +95,6 @@ func main() {
 			return cmp.Compare(a, b)
 		})
 	}
-	fmt.Println(nodes)
-
 	var (
 		visitMethods []ast.Decl
 	)
@@ -272,7 +270,6 @@ func main() {
 
 	os.WriteFile("ast/clone.go", formatted, 0644)
 
-	fmt.Println(pkgs)
 }
 
 func generateUnionClone(buf *bytes.Buffer, node CloneableNodeType) {
@@ -412,13 +409,10 @@ func findCloneableNodes(f *ast.File) (types []CloneableNodeType) {
 func findStructChildren(fields []*ast.Field) (children []Child) {
 	for _, field := range fields {
 		optional := field.Tag != nil && field.Tag.Value == "`optional:\"true\"`"
-		if len(field.Names) != 0 {
-			fmt.Println(field.Names[0].Name)
-		}
 
 		switch fieldType := field.Type.(type) {
 		case *ast.SelectorExpr:
-			children = append(children, newChild(field.Names[0].Name, "", false, false, optional))
+			children = appendNamedChildren(children, field.Names, "", false, false, optional)
 		case *ast.Ident:
 			if len(field.Names) == 0 {
 				children = append(children, newChild(fieldType.Name, fieldType.Name, true, false, optional))
@@ -426,25 +420,32 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			}
 
 			switch fieldType.Name {
-			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "Token",
+			case "Idx", "any", "bool", "int", "ScopeContext", "string", "MethodKind", "Token", "VarKind",
 				"float64", "UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator":
-				children = append(children, newChild(field.Names[0].Name, fieldType.Name, false, false, optional))
+				children = appendNamedChildren(children, field.Names, fieldType.Name, false, false, optional)
 			default:
-				children = append(children, newChild(field.Names[0].Name, fieldType.Name, true, false, optional))
+				children = appendNamedChildren(children, field.Names, fieldType.Name, true, false, optional)
 			}
 		case *ast.StarExpr:
 			if ident, ok := fieldType.X.(*ast.Ident); ok {
 				if ident.Name == "string" {
-					children = append(children, newChild(field.Names[0].Name, ident.Name, false, false, optional))
+					children = appendNamedChildren(children, field.Names, ident.Name, false, false, optional)
 					continue
 				}
-				children = append(children, newChild(field.Names[0].Name, ident.Name, true, true, optional))
+				children = appendNamedChildren(children, field.Names, ident.Name, true, true, optional)
 			} else {
 				// Pointer to a type from another package (e.g. *big.Int).
 				// Shallow-copy the pointer — not a cloneable AST node.
-				children = append(children, newChild(field.Names[0].Name, "", false, false, optional))
+				children = appendNamedChildren(children, field.Names, "", false, false, optional)
 			}
 		}
+	}
+	return children
+}
+
+func appendNamedChildren(children []Child, names []*ast.Ident, fieldType string, cloneable, pointer, optional bool) []Child {
+	for _, name := range names {
+		children = append(children, newChild(name.Name, fieldType, cloneable, pointer, optional))
 	}
 	return children
 }
@@ -559,21 +560,32 @@ func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
 		return "ForInit", "ForInitKind", "ForInit"
 	case "ClassElement":
 		return "ClassElem", "ClassElemKind", "ClassElem"
+	case "PatternProperty":
+		return "PatProp", "PatPropKind", "PatProp"
+	case "PropertyName":
+		return "PropName", "PropNameKind", "PropName"
 	default:
 		return name, name + "Kind", name
 	}
 }
 
 var shortNameOverrides = map[string]string{
-	"OptionalChain":    "OptChain",
-	"Expression":       "Expr",
-	"Statement":        "Stmt",
-	"PropertyKeyed":    "Keyed",
-	"PropertyShort":    "Short",
-	"ComputedProperty": "Computed",
-	"ClassStaticBlock": "StaticBlock",
-	"FieldDefinition":  "Field",
-	"MethodDefinition": "Method",
+	"OptionalChain":     "OptionalChain",
+	"Expression":        "Expr",
+	"Statement":         "Stmt",
+	"PropertyKeyValue":  "KeyValue",
+	"PropertyMethod":    "Method",
+	"PropertyGetter":    "Getter",
+	"PropertySetter":    "Setter",
+	"PropertyShort":     "Short",
+	"ComputedProperty":  "Computed",
+	"ClassStaticBlock":  "StaticBlock",
+	"FieldDefinition":   "FieldDef",
+	"MethodDefinition":  "MethodDef",
+	"AssignmentPattern": "Assign",
+	"PatternKeyValue":   "KeyValue",
+	"PatternShorthand":  "Shorthand",
+	"Pattern":           "Pattern",
 }
 
 func deriveShortName(typeName string) string {
@@ -600,17 +612,12 @@ func deriveShortName(typeName string) string {
 
 	abbreviations := [][2]string{
 		{"ArrowFunction", "ArrowFunc"},
-		{"Identifier", "Ident"},
 		{"Function", "Func"},
 		{"Variable", "Var"},
 		{"Property", "Prop"},
 		{"Template", "Tmpl"},
 		{"Private", "Priv"},
 		{"Boolean", "Bool"},
-		{"Number", "Num"},
-		{"String", "Str"},
-		{"Object", "Obj"},
-		{"Array", "Arr"},
 	}
 	for _, ab := range abbreviations {
 		name = strings.ReplaceAll(name, ab[0], ab[1])

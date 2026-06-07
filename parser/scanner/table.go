@@ -537,12 +537,12 @@ func (s *Scanner) Next() {
 			case unicodeid.IsIDStartUnicode(c):
 				s.scanIdentifierTailAfterUnicode(s.src.Offset())
 				s.Token.Kind = token.Identifier
-			case unicode.IsSpace(c):
-				s.ConsumeRune()
-				continue
 			case isLineTerminator(c):
 				s.ConsumeRune()
 				s.Token.OnNewLine = true
+				continue
+			case unicode.IsSpace(c):
+				s.ConsumeRune()
 				continue
 			default:
 				start := s.src.Offset()

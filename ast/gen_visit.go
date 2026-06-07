@@ -65,8 +65,6 @@ func main() {
 	slices.SortFunc(nodes, func(a, b VisitableNodeType) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
-	fmt.Println(nodes)
-
 	var (
 		visitorMethods     []*ast.Field
 		noopVisitorMethods []ast.Decl
@@ -227,17 +225,14 @@ func main() {
 
 	os.WriteFile("ast/visit.go", formatted, 0644)
 
-	fmt.Println(pkgs)
 }
 
 func generateUnionVisit(buf *bytes.Buffer, node VisitableNodeType) {
 	fmt.Fprintf(buf, "\nfunc (n *%s) VisitWith(v Visitor) {\n", node.Name)
-	fmt.Fprintf(buf, "\tif n == nil { return }\n")
 	fmt.Fprintf(buf, "\tv.Visit%s(n)\n", node.Name)
 	fmt.Fprintf(buf, "}\n\n")
 
 	fmt.Fprintf(buf, "func (n *%s) VisitChildrenWith(v Visitor) {\n", node.Name)
-	fmt.Fprintf(buf, "\tif n == nil { return }\n")
 	fmt.Fprintf(buf, "\tswitch n.kind {\n")
 	for _, v := range node.Variants {
 		fmt.Fprintf(buf, "\tcase %s%s:\n", node.KindPrefix, v.ShortName)
@@ -303,10 +298,6 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 	for _, field := range fields {
 		optional := field.Tag != nil && field.Tag.Value == "`optional:\"true\"`"
 
-		if len(field.Names) != 0 {
-			fmt.Println(field.Names[0].Name)
-		}
-
 		switch fieldType := field.Type.(type) {
 		case *ast.Ident:
 			if len(field.Names) == 0 {
@@ -315,11 +306,12 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			}
 
 			switch fieldType.Name {
-			case "Idx", "any", "bool", "int", "ScopeContext", "string", "PropertyKind", "float64",
+			case "Idx", "any", "bool", "int", "ScopeContext", "string", "MethodKind", "VarKind", "float64",
 				"UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator":
 			default:
-				fmt.Println(fieldType.Name)
-				children = append(children, newChild(field.Names[0].Name, optional))
+				for _, name := range field.Names {
+					children = append(children, newChild(name.Name, optional))
+				}
 			}
 		case *ast.StarExpr:
 			ident, ok := fieldType.X.(*ast.Ident)
@@ -331,7 +323,9 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 			if ident.Name == "string" {
 				continue
 			}
-			children = append(children, newChild(field.Names[0].Name, optional))
+			for _, name := range field.Names {
+				children = append(children, newChild(name.Name, optional))
+			}
 		}
 	}
 	return children
@@ -385,21 +379,32 @@ func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
 		return "ForInit", "ForInitKind", "ForInit"
 	case "ClassElement":
 		return "ClassElem", "ClassElemKind", "ClassElem"
+	case "PatternProperty":
+		return "PatProp", "PatPropKind", "PatProp"
+	case "PropertyName":
+		return "PropName", "PropNameKind", "PropName"
 	default:
 		return name, name + "Kind", name
 	}
 }
 
 var shortNameOverrides = map[string]string{
-	"OptionalChain":    "OptChain",
-	"Expression":       "Expr",
-	"Statement":        "Stmt",
-	"PropertyKeyed":    "Keyed",
-	"PropertyShort":    "Short",
-	"ComputedProperty": "Computed",
-	"ClassStaticBlock": "StaticBlock",
-	"FieldDefinition":  "Field",
-	"MethodDefinition": "Method",
+	"OptionalChain":     "OptionalChain",
+	"Expression":        "Expr",
+	"Statement":         "Stmt",
+	"PropertyKeyValue":  "KeyValue",
+	"PropertyMethod":    "Method",
+	"PropertyGetter":    "Getter",
+	"PropertySetter":    "Setter",
+	"PropertyShort":     "Short",
+	"ComputedProperty":  "Computed",
+	"ClassStaticBlock":  "StaticBlock",
+	"FieldDefinition":   "FieldDef",
+	"MethodDefinition":  "MethodDef",
+	"AssignmentPattern": "Assign",
+	"PatternKeyValue":   "KeyValue",
+	"PatternShorthand":  "Shorthand",
+	"Pattern":           "Pattern",
 }
 
 func deriveShortName(typeName string) string {
@@ -426,17 +431,12 @@ func deriveShortName(typeName string) string {
 
 	abbreviations := [][2]string{
 		{"ArrowFunction", "ArrowFunc"},
-		{"Identifier", "Ident"},
 		{"Function", "Func"},
 		{"Variable", "Var"},
 		{"Property", "Prop"},
 		{"Template", "Tmpl"},
 		{"Private", "Priv"},
 		{"Boolean", "Bool"},
-		{"Number", "Num"},
-		{"String", "Str"},
-		{"Object", "Obj"},
-		{"Array", "Arr"},
 	}
 	for _, ab := range abbreviations {
 		name = strings.ReplaceAll(name, ab[0], ab[1])

@@ -5,13 +5,20 @@ func (n *ArrayLiteral) Clone() *ArrayLiteral {
 	return &ArrayLiteral{Value: *n.Value.Clone(), LeftBracket: n.LeftBracket, RightBracket: n.RightBracket}
 }
 func (n *ArrayPattern) Clone() *ArrayPattern {
-	return &ArrayPattern{Elements: *n.Elements.Clone(), Rest: n.Rest.Clone(), LeftBracket: n.LeftBracket, RightBracket: n.RightBracket}
+	var rest *Pattern
+	if n.Rest != nil {
+		rest = n.Rest.Clone()
+	}
+	return &ArrayPattern{Elements: *n.Elements.Clone(), Rest: rest, LeftBracket: n.LeftBracket, RightBracket: n.RightBracket}
 }
 func (n *ArrowFunctionLiteral) Clone() *ArrowFunctionLiteral {
 	return &ArrowFunctionLiteral{ParameterList: n.ParameterList.Clone(), Body: n.Body.Clone(), ScopeContext: n.ScopeContext, Start: n.Start, Async: n.Async}
 }
 func (n *AssignExpression) Clone() *AssignExpression {
 	return &AssignExpression{Left: n.Left.Clone(), Right: n.Right.Clone(), Operator: n.Operator}
+}
+func (n *AssignmentPattern) Clone() *AssignmentPattern {
+	return &AssignmentPattern{Left: n.Left.Clone(), Right: n.Right.Clone()}
 }
 func (n *AwaitExpression) Clone() *AwaitExpression {
 	return &AwaitExpression{Argument: n.Argument.Clone(), Await: n.Await}
@@ -56,7 +63,7 @@ func (n *CaseStatements) Clone() *CaseStatements {
 	return &ns
 }
 func (n *CatchStatement) Clone() *CatchStatement {
-	var parameter *BindingTarget
+	var parameter *Pattern
 	if n.Parameter != nil {
 		parameter = n.Parameter.Clone()
 	}
@@ -87,7 +94,7 @@ func (n *ClassStaticBlock) Clone() *ClassStaticBlock {
 	return &ClassStaticBlock{Block: n.Block.Clone(), Static: n.Static}
 }
 func (n *ComputedProperty) Clone() *ComputedProperty {
-	return &ComputedProperty{Expr: n.Expr.Clone()}
+	return &ComputedProperty{Expr: n.Expr.Clone(), LeftBracket: n.LeftBracket, RightBracket: n.RightBracket}
 }
 func (n *ConditionalExpression) Clone() *ConditionalExpression {
 	return &ConditionalExpression{Test: n.Test.Clone(), Consequent: n.Consequent.Clone(), Alternate: n.Alternate.Clone()}
@@ -123,7 +130,7 @@ func (n *FieldDefinition) Clone() *FieldDefinition {
 	if n.Initializer != nil {
 		initializer = n.Initializer.Clone()
 	}
-	return &FieldDefinition{Key: n.Key.Clone(), Initializer: initializer, Idx: n.Idx, Computed: n.Computed, Static: n.Static}
+	return &FieldDefinition{Key: n.Key.Clone(), Initializer: initializer, Idx: n.Idx, Static: n.Static}
 }
 func (n *ForInStatement) Clone() *ForInStatement {
 	return &ForInStatement{Into: n.Into.Clone(), Source: n.Source.Clone(), Body: n.Body.Clone(), For: n.For}
@@ -136,7 +143,15 @@ func (n *ForStatement) Clone() *ForStatement {
 	if n.Initializer != nil {
 		initializer = n.Initializer.Clone()
 	}
-	return &ForStatement{Initializer: initializer, Update: n.Update.Clone(), Test: n.Test.Clone(), Body: n.Body.Clone(), For: n.For}
+	var update *Expression
+	if n.Update != nil {
+		update = n.Update.Clone()
+	}
+	var test *Expression
+	if n.Test != nil {
+		test = n.Test.Clone()
+	}
+	return &ForStatement{Initializer: initializer, Update: update, Test: test, Body: n.Body.Clone(), For: n.For}
 }
 func (n *FunctionDeclaration) Clone() *FunctionDeclaration {
 	return &FunctionDeclaration{Function: n.Function.Clone()}
@@ -146,7 +161,7 @@ func (n *FunctionLiteral) Clone() *FunctionLiteral {
 	if n.Name != nil {
 		name = n.Name.Clone()
 	}
-	return &FunctionLiteral{Name: name, ParameterList: n.ParameterList.Clone(), Body: n.Body.Clone(), ScopeContext: n.ScopeContext, Function: n.Function, Async: n.Async}
+	return &FunctionLiteral{Name: name, ParameterList: n.ParameterList.Clone(), Body: n.Body.Clone(), ScopeContext: n.ScopeContext, Function: n.Function, Async: n.Async, Generator: n.Generator}
 }
 func (n *Identifier) Clone() *Identifier {
 	return &Identifier{Name: n.Name, ScopeContext: n.ScopeContext, Idx: n.Idx}
@@ -171,13 +186,13 @@ func (n *MemberExpression) Clone() *MemberExpression {
 	return &MemberExpression{Object: n.Object.Clone(), Property: n.Property.Clone()}
 }
 func (n *MetaProperty) Clone() *MetaProperty {
-	return &MetaProperty{Meta: n.Meta.Clone(), Idx: n.Idx}
+	return &MetaProperty{Meta: n.Meta.Clone(), Property: n.Property.Clone(), Idx: n.Idx}
 }
 func (n *MethodDefinition) Clone() *MethodDefinition {
-	return &MethodDefinition{Key: n.Key.Clone(), Kind: n.Kind, Body: n.Body.Clone(), Idx: n.Idx, Computed: n.Computed, Static: n.Static}
+	return &MethodDefinition{Key: n.Key.Clone(), Kind: n.Kind, Body: n.Body.Clone(), Idx: n.Idx, Static: n.Static}
 }
 func (n *NewExpression) Clone() *NewExpression {
-	return &NewExpression{ArgumentList: *n.ArgumentList.Clone(), Callee: n.Callee.Clone(), New: n.New, LeftParenthesis: n.LeftParenthesis, RightParenthesis: n.RightParenthesis}
+	return &NewExpression{Callee: n.Callee.Clone(), ArgumentList: *n.ArgumentList.Clone(), New: n.New, LeftParenthesis: n.LeftParenthesis, RightParenthesis: n.RightParenthesis}
 }
 func (n *NullLiteral) Clone() *NullLiteral {
 	return &NullLiteral{Idx: n.Idx}
@@ -189,7 +204,7 @@ func (n *ObjectLiteral) Clone() *ObjectLiteral {
 	return &ObjectLiteral{Value: *n.Value.Clone(), LeftBrace: n.LeftBrace, RightBrace: n.RightBrace}
 }
 func (n *ObjectPattern) Clone() *ObjectPattern {
-	var rest *Expression
+	var rest *Pattern
 	if n.Rest != nil {
 		rest = n.Rest.Clone()
 	}
@@ -202,11 +217,35 @@ func (n *OptionalChain) Clone() *OptionalChain {
 	return &OptionalChain{Base: n.Base.Clone()}
 }
 func (n *ParameterList) Clone() *ParameterList {
-	var rest *Expression
+	var rest *Pattern
 	if n.Rest != nil {
 		rest = n.Rest.Clone()
 	}
 	return &ParameterList{List: *n.List.Clone(), Rest: rest, Opening: n.Opening, Closing: n.Closing}
+}
+func (n *PatternKeyValue) Clone() *PatternKeyValue {
+	return &PatternKeyValue{Key: n.Key.Clone(), Value: n.Value.Clone()}
+}
+func (n *PatternProperties) Clone() *PatternProperties {
+	ns := make(PatternProperties, len(*n))
+	for i := range *n {
+		ns[i] = *(*n)[i].Clone()
+	}
+	return &ns
+}
+func (n *PatternShorthand) Clone() *PatternShorthand {
+	var initializer *Expression
+	if n.Initializer != nil {
+		initializer = n.Initializer.Clone()
+	}
+	return &PatternShorthand{Name: n.Name.Clone(), Initializer: initializer}
+}
+func (n *Patterns) Clone() *Patterns {
+	ns := make(Patterns, len(*n))
+	for i := range *n {
+		ns[i] = *(*n)[i].Clone()
+	}
+	return &ns
 }
 func (n *PrivateDotExpression) Clone() *PrivateDotExpression {
 	return &PrivateDotExpression{Left: n.Left.Clone(), Identifier: n.Identifier.Clone()}
@@ -224,11 +263,24 @@ func (n *Properties) Clone() *Properties {
 	}
 	return &ns
 }
-func (n *PropertyKeyed) Clone() *PropertyKeyed {
-	return &PropertyKeyed{Key: n.Key.Clone(), Kind: n.Kind, Value: n.Value.Clone(), Computed: n.Computed}
+func (n *PropertyGetter) Clone() *PropertyGetter {
+	return &PropertyGetter{Key: n.Key.Clone(), Body: n.Body.Clone()}
+}
+func (n *PropertyKeyValue) Clone() *PropertyKeyValue {
+	return &PropertyKeyValue{Key: n.Key.Clone(), Value: n.Value.Clone()}
+}
+func (n *PropertyMethod) Clone() *PropertyMethod {
+	return &PropertyMethod{Key: n.Key.Clone(), Body: n.Body.Clone()}
+}
+func (n *PropertySetter) Clone() *PropertySetter {
+	return &PropertySetter{Key: n.Key.Clone(), Body: n.Body.Clone()}
 }
 func (n *PropertyShort) Clone() *PropertyShort {
-	return &PropertyShort{Name: n.Name.Clone(), Initializer: n.Initializer.Clone()}
+	var initializer *Expression
+	if n.Initializer != nil {
+		initializer = n.Initializer.Clone()
+	}
+	return &PropertyShort{Name: n.Name.Clone(), Initializer: initializer}
 }
 func (n *RegExpLiteral) Clone() *RegExpLiteral {
 	return &RegExpLiteral{Literal: n.Literal, Pattern: n.Pattern, Flags: n.Flags, Idx: n.Idx}
@@ -303,7 +355,7 @@ func (n *UpdateExpression) Clone() *UpdateExpression {
 	return &UpdateExpression{Operand: n.Operand.Clone(), Idx: n.Idx, Operator: n.Operator, Postfix: n.Postfix}
 }
 func (n *VariableDeclaration) Clone() *VariableDeclaration {
-	return &VariableDeclaration{List: *n.List.Clone(), Comment: n.Comment, Idx: n.Idx, Token: n.Token}
+	return &VariableDeclaration{List: *n.List.Clone(), Comment: n.Comment, Idx: n.Idx, Kind: n.Kind}
 }
 func (n *VariableDeclarator) Clone() *VariableDeclarator {
 	var initializer *Expression
@@ -326,45 +378,22 @@ func (n *WithStatement) Clone() *WithStatement {
 	return &WithStatement{Object: n.Object.Clone(), Body: n.Body.Clone(), With: n.With}
 }
 func (n *YieldExpression) Clone() *YieldExpression {
-	return &YieldExpression{Argument: n.Argument.Clone(), Yield: n.Yield, Delegate: n.Delegate}
-}
-
-func (n *BindingTarget) Clone() *BindingTarget {
-	switch n.kind {
-	case BindingTargetArrPat:
-		c := (*ArrayPattern)(n.ptr).Clone()
-		r := NewArrPatBindingTarget(c)
-		return &r
-	case BindingTargetIdent:
-		c := (*Identifier)(n.ptr).Clone()
-		r := NewIdentBindingTarget(c)
-		return &r
-	case BindingTargetInvalid:
-		c := (*InvalidExpression)(n.ptr).Clone()
-		r := NewInvalidBindingTarget(c)
-		return &r
-	case BindingTargetMember:
-		c := (*MemberExpression)(n.ptr).Clone()
-		r := NewMemberBindingTarget(c)
-		return &r
-	case BindingTargetObjPat:
-		c := (*ObjectPattern)(n.ptr).Clone()
-		r := NewObjPatBindingTarget(c)
-		return &r
+	var argument *Expression
+	if n.Argument != nil {
+		argument = n.Argument.Clone()
 	}
-	r := BindingTarget{}
-	return &r
+	return &YieldExpression{Argument: argument, Yield: n.Yield, Delegate: n.Delegate}
 }
 
 func (n *ClassElement) Clone() *ClassElement {
 	switch n.kind {
-	case ClassElemField:
+	case ClassElemFieldDef:
 		c := (*FieldDefinition)(n.ptr).Clone()
-		r := NewFieldClassElem(c)
+		r := NewFieldDefClassElem(c)
 		return &r
-	case ClassElemMethod:
+	case ClassElemMethodDef:
 		c := (*MethodDefinition)(n.ptr).Clone()
-		r := NewMethodClassElem(c)
+		r := NewMethodDefClassElem(c)
 		return &r
 	case ClassElemStaticBlock:
 		c := (*ClassStaticBlock)(n.ptr).Clone()
@@ -392,13 +421,9 @@ func (n *ConciseBody) Clone() *ConciseBody {
 
 func (n *Expression) Clone() *Expression {
 	switch n.kind {
-	case ExprArrLit:
+	case ExprArrayLit:
 		c := (*ArrayLiteral)(n.ptr).Clone()
-		r := NewArrLitExpr(c)
-		return &r
-	case ExprArrPat:
-		c := (*ArrayPattern)(n.ptr).Clone()
-		r := NewArrPatExpr(c)
+		r := NewArrayLitExpr(c)
 		return &r
 	case ExprArrowFuncLit:
 		c := (*ArrowFunctionLiteral)(n.ptr).Clone()
@@ -440,17 +465,13 @@ func (n *Expression) Clone() *Expression {
 		c := (*FunctionLiteral)(n.ptr).Clone()
 		r := NewFuncLitExpr(c)
 		return &r
-	case ExprIdent:
+	case ExprIdentifier:
 		c := (*Identifier)(n.ptr).Clone()
-		r := NewIdentExpr(c)
+		r := NewIdentifierExpr(c)
 		return &r
 	case ExprInvalid:
 		c := (*InvalidExpression)(n.ptr).Clone()
 		r := NewInvalidExpr(c)
-		return &r
-	case ExprKeyed:
-		c := (*PropertyKeyed)(n.ptr).Clone()
-		r := NewKeyedExpr(c)
 		return &r
 	case ExprLogical:
 		c := (*LogicalExpression)(n.ptr).Clone()
@@ -472,33 +493,29 @@ func (n *Expression) Clone() *Expression {
 		c := (*NullLiteral)(n.ptr).Clone()
 		r := NewNullLitExpr(c)
 		return &r
-	case ExprNumLit:
+	case ExprNumberLit:
 		c := (*NumberLiteral)(n.ptr).Clone()
-		r := NewNumLitExpr(c)
+		r := NewNumberLitExpr(c)
 		return &r
-	case ExprObjLit:
+	case ExprObjectLit:
 		c := (*ObjectLiteral)(n.ptr).Clone()
-		r := NewObjLitExpr(c)
-		return &r
-	case ExprObjPat:
-		c := (*ObjectPattern)(n.ptr).Clone()
-		r := NewObjPatExpr(c)
-		return &r
-	case ExprOptChain:
-		c := (*OptionalChain)(n.ptr).Clone()
-		r := NewOptChainExpr(c)
+		r := NewObjectLitExpr(c)
 		return &r
 	case ExprOptional:
 		c := (*Optional)(n.ptr).Clone()
 		r := NewOptionalExpr(c)
 		return &r
+	case ExprOptionalChain:
+		c := (*OptionalChain)(n.ptr).Clone()
+		r := NewOptionalChainExpr(c)
+		return &r
 	case ExprPrivDot:
 		c := (*PrivateDotExpression)(n.ptr).Clone()
 		r := NewPrivDotExpr(c)
 		return &r
-	case ExprPrivIdent:
+	case ExprPrivIdentifier:
 		c := (*PrivateIdentifier)(n.ptr).Clone()
-		r := NewPrivIdentExpr(c)
+		r := NewPrivIdentifierExpr(c)
 		return &r
 	case ExprRegExpLit:
 		c := (*RegExpLiteral)(n.ptr).Clone()
@@ -508,17 +525,13 @@ func (n *Expression) Clone() *Expression {
 		c := (*SequenceExpression)(n.ptr).Clone()
 		r := NewSequenceExpr(c)
 		return &r
-	case ExprShort:
-		c := (*PropertyShort)(n.ptr).Clone()
-		r := NewShortExpr(c)
-		return &r
 	case ExprSpread:
 		c := (*SpreadElement)(n.ptr).Clone()
 		r := NewSpreadExpr(c)
 		return &r
-	case ExprStrLit:
+	case ExprStringLit:
 		c := (*StringLiteral)(n.ptr).Clone()
-		r := NewStrLitExpr(c)
+		r := NewStringLitExpr(c)
 		return &r
 	case ExprSuper:
 		c := (*SuperExpression)(n.ptr).Clone()
@@ -555,9 +568,9 @@ func (n *Expression) Clone() *Expression {
 
 func (n *ForInto) Clone() *ForInto {
 	switch n.kind {
-	case ForIntoExpr:
-		c := (*Expression)(n.ptr).Clone()
-		r := NewExprForInto(c)
+	case ForIntoPattern:
+		c := (*Pattern)(n.ptr).Clone()
+		r := NewPatternForInto(c)
 		return &r
 	case ForIntoVarDecl:
 		c := (*VariableDeclaration)(n.ptr).Clone()
@@ -589,20 +602,82 @@ func (n *MemberProperty) Clone() *MemberProperty {
 		c := (*ComputedProperty)(n.ptr).Clone()
 		r := NewComputedMemProp(c)
 		return &r
-	case MemPropIdent:
+	case MemPropIdentifier:
 		c := (*Identifier)(n.ptr).Clone()
-		r := NewIdentMemProp(c)
+		r := NewIdentifierMemProp(c)
 		return &r
 	}
 	r := MemberProperty{}
 	return &r
 }
 
+func (n *Pattern) Clone() *Pattern {
+	switch n.kind {
+	case PatternArrayPat:
+		c := (*ArrayPattern)(n.ptr).Clone()
+		r := NewArrayPatPattern(c)
+		return &r
+	case PatternAssign:
+		c := (*AssignmentPattern)(n.ptr).Clone()
+		r := NewAssignPattern(c)
+		return &r
+	case PatternIdentifier:
+		c := (*Identifier)(n.ptr).Clone()
+		r := NewIdentifierPattern(c)
+		return &r
+	case PatternInvalid:
+		c := (*InvalidExpression)(n.ptr).Clone()
+		r := NewInvalidPattern(c)
+		return &r
+	case PatternMember:
+		c := (*MemberExpression)(n.ptr).Clone()
+		r := NewMemberPattern(c)
+		return &r
+	case PatternObjectPat:
+		c := (*ObjectPattern)(n.ptr).Clone()
+		r := NewObjectPatPattern(c)
+		return &r
+	case PatternPrivDot:
+		c := (*PrivateDotExpression)(n.ptr).Clone()
+		r := NewPrivDotPattern(c)
+		return &r
+	}
+	r := Pattern{}
+	return &r
+}
+
+func (n *PatternProperty) Clone() *PatternProperty {
+	switch n.kind {
+	case PatPropKeyValue:
+		c := (*PatternKeyValue)(n.ptr).Clone()
+		r := NewKeyValuePatProp(c)
+		return &r
+	case PatPropShorthand:
+		c := (*PatternShorthand)(n.ptr).Clone()
+		r := NewShorthandPatProp(c)
+		return &r
+	}
+	r := PatternProperty{}
+	return &r
+}
+
 func (n *Property) Clone() *Property {
 	switch n.kind {
-	case PropKeyed:
-		c := (*PropertyKeyed)(n.ptr).Clone()
-		r := NewKeyedProp(c)
+	case PropGetter:
+		c := (*PropertyGetter)(n.ptr).Clone()
+		r := NewGetterProp(c)
+		return &r
+	case PropKeyValue:
+		c := (*PropertyKeyValue)(n.ptr).Clone()
+		r := NewKeyValueProp(c)
+		return &r
+	case PropMethod:
+		c := (*PropertyMethod)(n.ptr).Clone()
+		r := NewMethodProp(c)
+		return &r
+	case PropSetter:
+		c := (*PropertySetter)(n.ptr).Clone()
+		r := NewSetterProp(c)
 		return &r
 	case PropShort:
 		c := (*PropertyShort)(n.ptr).Clone()
@@ -614,6 +689,33 @@ func (n *Property) Clone() *Property {
 		return &r
 	}
 	r := Property{}
+	return &r
+}
+
+func (n *PropertyName) Clone() *PropertyName {
+	switch n.kind {
+	case PropNameBigIntLit:
+		c := (*BigIntLiteral)(n.ptr).Clone()
+		r := NewBigIntLitPropName(c)
+		return &r
+	case PropNameComputed:
+		c := (*ComputedProperty)(n.ptr).Clone()
+		r := NewComputedPropName(c)
+		return &r
+	case PropNameNumberLit:
+		c := (*NumberLiteral)(n.ptr).Clone()
+		r := NewNumberLitPropName(c)
+		return &r
+	case PropNamePrivIdentifier:
+		c := (*PrivateIdentifier)(n.ptr).Clone()
+		r := NewPrivIdentifierPropName(c)
+		return &r
+	case PropNameStringLit:
+		c := (*StringLiteral)(n.ptr).Clone()
+		r := NewStringLitPropName(c)
+		return &r
+	}
+	r := PropertyName{}
 	return &r
 }
 
