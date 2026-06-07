@@ -281,13 +281,10 @@ func (g *GenVisitor) VisitCallExpression(n *ast.CallExpression) {
 		g.writeByte('(')
 	}
 
-	switch n.Callee.Kind() {
-	case ast.ExprFuncLit, ast.ExprArrowFuncLit:
-		g.writeByte('(')
-		g.genExpr(n.Callee, ast.PrecedenceLowest, 0)
-		g.writeByte(')')
-	default:
-		g.genExpr(n.Callee, ast.PrecedenceCall, 0)
+	callee, optional := optionalBase(n.Callee)
+	g.genAccessHead(callee, ast.PrecedenceCall, false)
+	if optional {
+		g.writeString("?.")
 	}
 	g.writeByte('(')
 	for i := range n.ArgumentList {
@@ -319,21 +316,50 @@ func (g *GenVisitor) VisitNewExpression(n *ast.NewExpression) {
 }
 
 func (g *GenVisitor) VisitMemberExpression(n *ast.MemberExpression) {
-	switch n.Object.Kind() {
-	case ast.ExprNumberLit:
-		g.writeByte('(')
-		g.genExpr(n.Object, ast.PrecedenceLowest, 0)
-		g.writeByte(')')
-	default:
-		g.genExpr(n.Object, ast.PrecedenceMember, 0)
-	}
-	g.gen(n.Property)
+	object, optional := optionalBase(n.Object)
+	g.genAccessHead(object, ast.PrecedenceMember, true)
+	g.genMemberProperty(n.Property, optional)
 }
 
 func (g *GenVisitor) VisitPrivateDotExpression(n *ast.PrivateDotExpression) {
-	g.genExpr(n.Left, ast.PrecedenceMember, 0)
+	left, optional := optionalBase(n.Left)
+	g.genAccessHead(left, ast.PrecedenceMember, true)
+	if optional {
+		g.writeByte('?')
+	}
 	g.writeString(".#")
 	g.writeString(n.Identifier.Identifier.Name)
+}
+
+// optionalBase unwraps an Optional operand — the object/callee sitting just
+// before an optional `?.` access — reporting whether one was present.
+func optionalBase(expr *ast.Expression) (*ast.Expression, bool) {
+	if o, ok := expr.Optional(); ok {
+		return o.Expr, true
+	}
+	return expr, false
+}
+
+// genAccessHead emits the object/callee of a member or call, parenthesizing it
+// when a bare emission would misparse or change meaning: an object/function/
+// class literal (block or declaration at statement start), a nested optional
+// chain (its short-circuit must stay bounded, so (a?.b).c != a?.b.c), or — for
+// member access (wrapNumber) — a numeric literal (the dot in `5 .x`).
+func (g *GenVisitor) genAccessHead(expr *ast.Expression, prec ast.Precedence, wrapNumber bool) {
+	wrap := false
+	switch expr.Kind() {
+	case ast.ExprObjectLit, ast.ExprFuncLit, ast.ExprClassLit, ast.ExprOptionalChain:
+		wrap = true
+	case ast.ExprNumberLit:
+		wrap = wrapNumber
+	}
+	if wrap {
+		g.writeByte('(')
+		g.genExpr(expr, ast.PrecedenceLowest, 0)
+		g.writeByte(')')
+		return
+	}
+	g.genExpr(expr, prec, 0)
 }
 
 func (g *GenVisitor) VisitOptionalChain(n *ast.OptionalChain) {
@@ -1027,13 +1053,28 @@ func (g *GenVisitor) VisitParameterList(n *ast.ParameterList) {
 }
 
 func (g *GenVisitor) VisitMemberProperty(n *ast.MemberProperty) {
+	g.genMemberProperty(n, false)
+}
+
+// genMemberProperty emits the property part of a member access. When optional
+// is set (the access was reached through Optional), the connector becomes the
+// optional-chaining form: `.x` -> `?.x` and `[x]` -> `?.[x]`.
+func (g *GenVisitor) genMemberProperty(n *ast.MemberProperty, optional bool) {
 	switch n.Kind() {
 	case ast.MemPropIdentifier:
-		g.writeByte('.')
+		if optional {
+			g.writeString("?.")
+		} else {
+			g.writeByte('.')
+		}
 		g.gen(n.MustIdentifier())
 	case ast.MemPropComputed:
+		if optional {
+			g.writeString("?.")
+		}
 		g.writeByte('[')
-		g.genExpr(n.MustComputed().Expr, ast.PrecedenceLowest, 0)
+		// Assignment precedence keeps a comma sequence wrapped: a[(b,c)].
+		g.genExpr(n.MustComputed().Expr, ast.PrecedenceAssign, 0)
 		g.writeByte(']')
 	}
 }
