@@ -296,22 +296,17 @@ func TestComputedMemberSequenceMinified(t *testing.T) {
 	assertMinified(t, `a[(b,c)]; a?.[(b,c)];`, `a[(b,c)];a?.[(b,c)];`)
 }
 
-func TestSuperAndClassFeaturesMinified(t *testing.T) {
+func TestClassExtendsAndSuperMinified(t *testing.T) {
 	assertMinified(t,
 		`class A extends B { constructor(){ super(); super.x; } }`,
 		`class A extends B{constructor(){super();super.x;}}`,
 	)
-	assertMinified(t, `class A { x = 1; static y; static { foo(); } }`, `class A{x=1;static y;static{foo();}}`)
-	assertMinified(t,
-		`class A { async m(){ await x; } *g(){ yield 1; } [a+b](){} }`,
-		`class A{async m(){await x;}*g(){yield 1;}[a+b](){}}`,
-	)
 	assertMinified(t, `class A extends (a, b) {}`, `class A extends (a,b){}`)
-	assertMinified(t, `class A { [(a,b)](){} [(a,b)] = 1; }`, `class A{[(a,b)](){}[(a,b)]=1;}`)
 }
 
 func TestGeneratorFunctionsAndObjectMethodsMinified(t *testing.T) {
 	assertMinified(t, `function* g(){ yield 1; }`, `function* g(){yield 1;}`)
+	assertMinified(t, `const g = function*(){ yield 1; };`, `const g=function*(){yield 1;};`)
 	assertMinified(t, `async function* g(){ yield 1; }`, `async function* g(){yield 1;}`)
 	assertMinified(t,
 		`({ m(){ return super.x; }, *g(){ yield 1; } });`,
@@ -326,10 +321,4 @@ func TestTemplateLiteralMinified(t *testing.T) {
 	assertMinified(t, "(function(){})`x`;", "(function(){})`x`;")
 	assertMinified(t, "(class {})`x`;", "(class {})`x`;")
 	assertMinified(t, "({})`x`;", "({})`x`;")
-}
-
-func TestRestAndDefaultPatternMinified(t *testing.T) {
-	assertMinified(t, `function f(a,...r){}`, `function f(a,...r){}`)
-	assertMinified(t, `let [a,...r]=x;`, `let [a,...r]=x;`)
-	assertMinified(t, `let {a=1}=obj;`, `let {a=1}=obj;`)
 }

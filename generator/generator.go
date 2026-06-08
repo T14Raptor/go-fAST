@@ -433,11 +433,11 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 	g.writeByte('{')
 
 	g.indent++
-	for i := range n.Body {
+	for _, element := range n.Body {
 		g.lineAndPad()
-		switch n.Body[i].Kind() {
+		switch element.Kind() {
 		case ast.ClassElemMethodDef:
-			e := n.Body[i].MustMethodDef()
+			e := element.MustMethodDef()
 			if e.Static {
 				g.writeString("static ")
 			}
@@ -460,7 +460,7 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			g.genPropertyName(e.Key)
 			g.genMethodBody(e.Body)
 		case ast.ClassElemFieldDef:
-			e := n.Body[i].MustFieldDef()
+			e := element.MustFieldDef()
 			if e.Static {
 				g.writeString("static ")
 			}
@@ -473,7 +473,7 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			}
 			g.writeByte(';')
 		case ast.ClassElemStaticBlock:
-			e := n.Body[i].MustStaticBlock()
+			e := element.MustStaticBlock()
 			g.writeString("static")
 			g.space()
 			g.gen(e.Block)
