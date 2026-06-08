@@ -2,7 +2,6 @@ package ext
 
 import (
 	"fmt"
-	"github.com/t14raptor/go-fast/resolver"
 	"math"
 	"slices"
 	"strings"
@@ -13,36 +12,39 @@ import (
 
 // IsString returns true if the expression is a potential string value.
 func IsString(n *ast.Expression) bool {
-	switch n := n.Expr.(type) {
-	case *ast.StringLiteral, *ast.TemplateLiteral:
+	switch n.Kind() {
+	case ast.ExprStringLit, ast.ExprTmplLit:
 		return true
-	case *ast.UnaryExpression:
-		if n.Operator == ast.UnaryTypeof {
+	case ast.ExprUnary:
+		if n.MustUnary().Operator == ast.UnaryTypeof {
 			return true
 		}
-	case *ast.BinaryExpression:
-		if n.Operator == ast.BinaryAddition {
-			return IsString(n.Left) || IsString(n.Right)
+	case ast.ExprBinary:
+		e := n.MustBinary()
+		if e.Operator == ast.BinaryAddition {
+			return IsString(e.Left) || IsString(e.Right)
 		}
-	case *ast.AssignExpression:
-		if n.Operator == ast.AssignmentAssign || n.Operator == ast.AssignmentAddition {
-			return IsString(n.Right)
+	case ast.ExprAssign:
+		e := n.MustAssign()
+		if e.Operator == ast.AssignmentAssign || e.Operator == ast.AssignmentAddition {
+			return IsString(e.Right)
 		}
-	case *ast.SequenceExpression:
-		if len(n.Sequence) == 0 {
+	case ast.ExprSequence:
+		e := n.MustSequence()
+		if len(e.Sequence) == 0 {
 			return false
 		}
-		return IsString(&n.Sequence[len(n.Sequence)-1])
-	case *ast.ConditionalExpression:
-		return IsString(n.Consequent) && IsString(n.Alternate)
+		return IsString(&e.Sequence[len(e.Sequence)-1])
+	case ast.ExprConditional:
+		e := n.MustConditional()
+		return IsString(e.Consequent) && IsString(e.Alternate)
 	}
 	return false
 }
 
 // IsArrayLiteral returns true if the expression is an array literal.
 func IsArrayLiteral(n *ast.Expression) bool {
-	_, ok := n.Expr.(*ast.ArrayLiteral)
-	return ok
+	return n.IsArrayLit()
 }
 
 // IsNaN returns true if expr is a global reference to NaN.
@@ -57,16 +59,16 @@ func IsUndefined(expr *ast.Expression) bool {
 
 // IsVoid returns true if expr is a void operator.
 func IsVoid(expr *ast.Expression) bool {
-	if unary, ok := expr.Expr.(*ast.UnaryExpression); ok {
-		return unary.Operator == ast.UnaryVoid
+	if e, ok := expr.Unary(); ok {
+		return e.Operator == ast.UnaryVoid
 	}
 	return false
 }
 
 // IsGlobalRefTo returns true if id references a global object.
 func IsGlobalRefTo(expr *ast.Expression, id string) bool {
-	if ident, ok := expr.Expr.(*ast.Identifier); ok {
-		return ident.Name == id && ident.ScopeContext == resolver.TopLevelMark
+	if ident, ok := expr.Identifier(); ok {
+		return ident.Name == id && ident.ScopeContext == ast.TopLevelContext
 	}
 	return false
 }
@@ -85,13 +87,15 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 		return BoolValue{}, true
 	}
 
-	switch e := expr.Expr.(type) {
-	case *ast.AssignExpression:
+	switch expr.Kind() {
+	case ast.ExprAssign:
+		e := expr.MustAssign()
 		if e.Operator == ast.AssignmentAssign {
 			v, _ := CastToBool(e.Right)
 			return v, false
 		}
-	case *ast.UnaryExpression:
+	case ast.ExprUnary:
+		e := expr.MustUnary()
 		switch e.Operator {
 		case ast.UnaryNegation:
 			if n := AsPureNumber(e.Operand); n.Known() {
@@ -105,11 +109,13 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 		case ast.UnaryVoid:
 			value = BoolValue{}
 		}
-	case *ast.SequenceExpression:
+	case ast.ExprSequence:
+		e := expr.MustSequence()
 		if len(e.Sequence) != 0 {
 			value, _ = CastToBool(&e.Sequence[len(e.Sequence)-1])
 		}
-	case *ast.BinaryExpression:
+	case ast.ExprBinary:
+		e := expr.MustBinary()
 		switch e.Operator {
 		case ast.BinarySubtraction:
 			ln, lp := CastToNumber(e.Left)
@@ -155,17 +161,18 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 			}
 			value = v
 		case ast.BinaryAddition:
-			if strLit, ok := e.Left.Expr.(*ast.StringLiteral); ok && strLit.Value != "" {
+			if s, ok := e.Left.StringLit(); ok && s.Value != "" {
 				return BoolValue{Known(true)}, false
 			}
-			if strLit, ok := e.Right.Expr.(*ast.StringLiteral); ok && strLit.Value != "" {
+			if s, ok := e.Right.StringLit(); ok && s.Value != "" {
 				return BoolValue{Known(true)}, false
 			}
 			value = BoolValue{Unknown[bool]()}
 		default:
 			value = BoolValue{Unknown[bool]()}
 		}
-	case *ast.LogicalExpression:
+	case ast.ExprLogical:
+		e := expr.MustLogical()
 		switch e.Operator {
 		case ast.LogicalOr:
 			lv, lp := CastToBool(e.Left)
@@ -188,25 +195,27 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 			}
 			value = BoolValue{Unknown[bool]()}
 		}
-	case *ast.FunctionLiteral, *ast.ClassLiteral, *ast.NewExpression, *ast.ArrayLiteral, *ast.ObjectLiteral:
+	case ast.ExprFuncLit, ast.ExprClassLit, ast.ExprNew, ast.ExprArrayLit, ast.ExprObjectLit:
 		value = BoolValue{Known(true)}
-	case *ast.NumberLiteral:
+	case ast.ExprNumberLit:
+		e := expr.MustNumberLit()
 		if e.Value == 0.0 || math.IsNaN(e.Value) {
 			return BoolValue{}, true
 		}
 		return BoolValue{Known(true)}, true
-	case *ast.BigIntLiteral:
+	case ast.ExprBigIntLit:
+		e := expr.MustBigIntLit()
 		if e.Value == nil || e.Value.Sign() == 0 {
 			return BoolValue{}, true
 		}
 		return BoolValue{Known(true)}, true
-	case *ast.BooleanLiteral:
-		return BoolValue{Known(e.Value)}, true
-	case *ast.StringLiteral:
-		return BoolValue{Known(e.Value != "")}, true
-	case *ast.NullLiteral:
+	case ast.ExprBoolLit:
+		return BoolValue{Known(expr.MustBoolLit().Value)}, true
+	case ast.ExprStringLit:
+		return BoolValue{Known(expr.MustStringLit().Value != "")}, true
+	case ast.ExprNullLit:
 		return BoolValue{}, true
-	case *ast.RegExpLiteral:
+	case ast.ExprRegExpLit:
 		return BoolValue{Known(true)}, true
 	default:
 		value = BoolValue{Unknown[bool]()}
@@ -229,33 +238,36 @@ func AsPureNumber(expr *ast.Expression) Value[float64] {
 
 // CastToNumber emulates the Number() JavaScript cast function.
 func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
-	switch e := expr.Expr.(type) {
-	case *ast.BooleanLiteral:
+	switch expr.Kind() {
+	case ast.ExprBoolLit:
+		e := expr.MustBoolLit()
 		if e.Value {
 			return Known(1.0), true
 		}
 		return Known(0.0), true
-	case *ast.NumberLiteral:
-		return Known(e.Value), true
-	case *ast.StringLiteral:
-		return numFromStr(e.Value), true
-	case *ast.NullLiteral:
+	case ast.ExprNumberLit:
+		return Known(expr.MustNumberLit().Value), true
+	case ast.ExprStringLit:
+		return numFromStr(expr.MustStringLit().Value), true
+	case ast.ExprNullLit:
 		return Known(0.0), true
-	case *ast.ArrayLiteral:
+	case ast.ExprArrayLit:
 		s := AsPureString(expr)
 		if s.Unknown() {
 			return Unknown[float64](), false
 		}
 		return numFromStr(s.Val()), true
-	case *ast.Identifier:
-		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == resolver.TopLevelMark {
+	case ast.ExprIdentifier:
+		e := expr.MustIdentifier()
+		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == ast.TopLevelContext {
 			return Known(math.NaN()), true
 		}
-		if e.Name == "Infinity" && e.ScopeContext == resolver.TopLevelMark {
+		if e.Name == "Infinity" && e.ScopeContext == ast.TopLevelContext {
 			return Known(math.Inf(1)), true
 		}
 		return Unknown[float64](), true
-	case *ast.UnaryExpression:
+	case ast.ExprUnary:
+		e := expr.MustUnary()
 		switch e.Operator {
 		case ast.UnaryNegation:
 			if n, pure := CastToNumber(e.Operand); n.Known() && pure {
@@ -277,11 +289,12 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 				return Known(math.NaN()), true
 			}
 		}
-	case *ast.TemplateLiteral:
+	case ast.ExprTmplLit:
 		if s := AsPureString(expr); s.Known() {
 			return numFromStr(s.Val()), true
 		}
-	case *ast.SequenceExpression:
+	case ast.ExprSequence:
+		e := expr.MustSequence()
 		if len(e.Sequence) != 0 {
 			v, _ := CastToNumber(&e.Sequence[len(e.Sequence)-1])
 			return v, false
@@ -299,23 +312,25 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		return fmt.Sprintf("function %s() { [native code] }", name)
 	}
 
-	switch e := expr.Expr.(type) {
-	case *ast.StringLiteral:
-		return Known(e.Value)
-	case *ast.NumberLiteral:
+	switch expr.Kind() {
+	case ast.ExprStringLit:
+		return Known(expr.MustStringLit().Value)
+	case ast.ExprNumberLit:
+		e := expr.MustNumberLit()
 		if e.Value == 0.0 {
 			return Known("0")
 		}
 		return Known(ftoa.FormatFloat(e.Value, 'g', -1, 64))
-	case *ast.BooleanLiteral:
-		return Known(fmt.Sprint(e.Value))
-	case *ast.NullLiteral:
+	case ast.ExprBoolLit:
+		return Known(fmt.Sprint(expr.MustBoolLit().Value))
+	case ast.ExprNullLit:
 		return Known("null")
-	case *ast.TemplateLiteral:
+	case ast.ExprTmplLit:
 		// TODO:
 		// Only convert a template literal if all its expressions can be
 		// converted.
-	case *ast.Identifier:
+	case ast.ExprIdentifier:
+		e := expr.MustIdentifier()
 		switch e.Name {
 		case "undefined", "Infinity", "NaN":
 			return Known(e.Name)
@@ -324,7 +339,8 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		case "Date":
 			return Known(funcToStr(e.Name))
 		}
-	case *ast.UnaryExpression:
+	case ast.ExprUnary:
+		e := expr.MustUnary()
 		switch e.Operator {
 		case ast.UnaryVoid:
 			return Known("undefined")
@@ -333,28 +349,30 @@ func AsPureString(expr *ast.Expression) Value[string] {
 				return Known(fmt.Sprint(!b.Val()))
 			}
 		}
-	case *ast.ArrayLiteral:
+	case ast.ExprArrayLit:
+		e := expr.MustArrayLit()
 		var sb strings.Builder
 		// null, undefined is "" in array literal.
 		for idx, elem := range e.Value {
 			if idx > 0 {
 				sb.WriteString(",")
 			}
-			switch e := elem.Expr.(type) {
-			case *ast.NullLiteral:
+			switch elem.Kind() {
+			case ast.ExprNullLit:
 				sb.WriteString("")
-			case *ast.UnaryExpression:
-				if e.Operator == ast.UnaryVoid {
-					if MayHaveSideEffects(e.Operand) {
+			case ast.ExprUnary:
+				ue := elem.MustUnary()
+				if ue.Operator == ast.UnaryVoid {
+					if MayHaveSideEffects(ue.Operand) {
 						return Unknown[string]()
 					}
 					sb.WriteString("")
 				}
-			case *ast.Identifier:
-				if e.Name == "undefined" {
+			case ast.ExprIdentifier:
+				if elem.MustIdentifier().Name == "undefined" {
 					sb.WriteString("")
 				}
-			case nil:
+			case ast.ExprNone:
 				sb.WriteString("")
 			default:
 				if s := AsPureString(&elem); s.Known() {
@@ -365,21 +383,23 @@ func AsPureString(expr *ast.Expression) Value[string] {
 			}
 		}
 		return Known(sb.String())
-	case *ast.MemberExpression:
+	case ast.ExprMember:
+		e := expr.MustMember()
 		var sym string
-		switch prop := e.Property.Prop.(type) {
-		case *ast.Identifier:
-			sym = prop.Name
-		case *ast.ComputedProperty:
-			if strLit, ok := prop.Expr.Expr.(*ast.StringLiteral); ok {
-				sym = strLit.Value
+		switch e.Property.Kind() {
+		case ast.MemPropIdentifier:
+			sym = e.Property.MustIdentifier().Name
+		case ast.MemPropComputed:
+			if s, ok := e.Property.MustComputed().Expr.StringLit(); ok {
+				sym = s.Value
 			}
 		default:
 			return Unknown[string]()
 		}
 		// Convert some built-in funcs to string.
-		switch obj := e.Object.Expr.(type) {
-		case *ast.Identifier:
+		switch e.Object.Kind() {
+		case ast.ExprIdentifier:
+			obj := e.Object.MustIdentifier()
 			switch obj.Name {
 			case "Math":
 				if slices.Contains([]string{"abs", "acos", "acosh", "asin", "asinh", "atan", "atan2", "atanh", "cbrt", "ceil", "clz32", "cos", "cosh", "exp", "expm1", "floor", "fround", "hypot", "imul", "log", "log10", "log1p", "log2", "max", "min", "pow", "random", "round", "sign", "sin", "sinh", "sqrt", "tan", "tanh", "trunc"}, sym) {
@@ -394,23 +414,23 @@ func AsPureString(expr *ast.Expression) Value[string] {
 					return Known(funcToStr(sym))
 				}
 			}
-		case *ast.StringLiteral:
+		case ast.ExprStringLit:
 			if slices.Contains([]string{"anchor", "at", "big", "blink", "bold", "charAt", "charCodeAt", "codePointAt", "concat", "endsWith", "fixed", "fontcolor", "fontsize", "includes", "indexOf", "isWellFormed", "italics", "lastIndexOf", "link", "localeCompare", "match", "matchAll", "normalize", "padEnd", "padStart", "repeat", "replace", "replaceAll", "search", "slice", "small", "split", "startsWith", "strike", "sub", "substr", "substring", "sup", "toLocaleLowerCase", "toLocaleUpperCase", "toLowerCase", "toString", "toUpperCase", "toWellFormed", "trim", "trimEnd", "trimStart", "valueOf"}, sym) {
 				return Known(funcToStr(sym))
 			}
-		case *ast.NumberLiteral:
+		case ast.ExprNumberLit:
 			if slices.Contains([]string{"toExponential", "toFixed", "toLocaleString", "toPrecision", "toString", "valueOf"}, sym) {
 				return Known(funcToStr(sym))
 			}
-		case *ast.BooleanLiteral:
+		case ast.ExprBoolLit:
 			if slices.Contains([]string{"toString", "valueOf"}, sym) {
 				return Known(funcToStr(sym))
 			}
-		case *ast.ArrayLiteral:
+		case ast.ExprArrayLit:
 			if slices.Contains([]string{"at", "concat", "copyWithin", "entries", "every", "fill", "filter", "find", "findIndex", "findLast", "findLastIndex", "flat", "flatMap", "forEach", "includes", "indexOf", "join", "keys", "lastIndexOf", "map", "pop", "push", "reduce", "reduceRight", "reverse", "shift", "slice", "some", "sort", "splice", "toLocaleString", "toReversed", "toSorted", "toSpliced", "toString", "unshift", "values", "with"}, sym) {
 				return Known(funcToStr(sym))
 			}
-		case *ast.ObjectLiteral:
+		case ast.ExprObjectLit:
 			if slices.Contains([]string{"hasOwnProperty", "isPrototypeOf", "propertyIsEnumerable", "toLocaleString", "toString", "valueOf"}, sym) {
 				return Known(funcToStr(sym))
 			}
@@ -421,8 +441,9 @@ func AsPureString(expr *ast.Expression) Value[string] {
 
 // GetType returns the type of the expression.
 func GetType(expr *ast.Expression) TypeValue {
-	switch e := expr.Expr.(type) {
-	case *ast.AssignExpression:
+	switch expr.Kind() {
+	case ast.ExprAssign:
+		e := expr.MustAssign()
 		switch e.Operator {
 		case ast.AssignmentAssign:
 			return GetType(e.Right)
@@ -435,24 +456,27 @@ func GetType(expr *ast.Expression) TypeValue {
 			ast.AssignmentMultiplication, ast.AssignmentExponential, ast.AssignmentDivision, ast.AssignmentRemainder:
 			return TypeValue{Known[Type](NumberType{})}
 		}
-	case *ast.MemberExpression:
-		if ident, ok := e.Property.Prop.(*ast.Identifier); ok {
+	case ast.ExprMember:
+		e := expr.MustMember()
+		if ident, ok := e.Property.Identifier(); ok {
 			if ident.Name == "length" {
-				switch obj := e.Object.Expr.(type) {
-				case *ast.ArrayLiteral, *ast.StringLiteral:
+				switch e.Object.Kind() {
+				case ast.ExprArrayLit, ast.ExprStringLit:
 					return TypeValue{Known[Type](NumberType{})}
-				case *ast.Identifier:
-					if obj.Name == "arguments" {
+				case ast.ExprIdentifier:
+					if e.Object.MustIdentifier().Name == "arguments" {
 						return TypeValue{Known[Type](NumberType{})}
 					}
 				}
 			}
 		}
-	case *ast.SequenceExpression:
+	case ast.ExprSequence:
+		e := expr.MustSequence()
 		if len(e.Sequence) != 0 {
 			return GetType(&e.Sequence[len(e.Sequence)-1])
 		}
-	case *ast.BinaryExpression:
+	case ast.ExprBinary:
+		e := expr.MustBinary()
 		switch e.Operator {
 		case ast.BinaryAddition:
 			rt := GetType(e.Right)
@@ -485,21 +509,24 @@ func GetType(expr *ast.Expression) TypeValue {
 			ast.BinaryIn, ast.BinaryInstanceof:
 			return TypeValue{Known[Type](BoolType{})}
 		}
-	case *ast.LogicalExpression:
+	case ast.ExprLogical:
+		e := expr.MustLogical()
 		switch e.Operator {
 		case ast.LogicalAnd, ast.LogicalOr:
 			if lt, rt := GetType(e.Left), GetType(e.Right); !lt.Unknown() && !rt.Unknown() && lt == rt {
 				return lt
 			}
 		}
-	case *ast.ConditionalExpression:
+	case ast.ExprConditional:
+		e := expr.MustConditional()
 		ct := GetType(e.Consequent)
 		at := GetType(e.Alternate)
 		if ct == at {
 			return ct
 		}
 		return TypeValue{Unknown[Type]()}
-	case *ast.Identifier:
+	case ast.ExprIdentifier:
+		e := expr.MustIdentifier()
 		switch e.Name {
 		case "undefined":
 			return TypeValue{Known[Type](UndefinedType{})}
@@ -508,9 +535,10 @@ func GetType(expr *ast.Expression) TypeValue {
 		default:
 			return TypeValue{Unknown[Type]()}
 		}
-	case *ast.NumberLiteral:
+	case ast.ExprNumberLit:
 		return TypeValue{Known[Type](NumberType{})}
-	case *ast.UnaryExpression:
+	case ast.ExprUnary:
+		e := expr.MustUnary()
 		switch e.Operator {
 		case ast.UnaryNegation, ast.UnaryPlus, ast.UnaryBitwiseNot:
 			return TypeValue{Known[Type](NumberType{})}
@@ -521,18 +549,19 @@ func GetType(expr *ast.Expression) TypeValue {
 		case ast.UnaryVoid:
 			return TypeValue{Known[Type](UndefinedType{})}
 		}
-	case *ast.UpdateExpression:
+	case ast.ExprUpdate:
+		e := expr.MustUpdate()
 		switch e.Operator {
 		case ast.UpdateIncrement, ast.UpdateDecrement:
 			return TypeValue{Known[Type](NumberType{})}
 		}
-	case *ast.BooleanLiteral:
+	case ast.ExprBoolLit:
 		return TypeValue{Known[Type](BoolType{})}
-	case *ast.StringLiteral, *ast.TemplateLiteral:
+	case ast.ExprStringLit, ast.ExprTmplLit:
 		return TypeValue{Known[Type](StringType{})}
-	case *ast.NullLiteral:
+	case ast.ExprNullLit:
 		return TypeValue{Known[Type](NullType{})}
-	case *ast.FunctionLiteral, *ast.NewExpression, *ast.ArrayLiteral, *ast.ObjectLiteral, *ast.RegExpLiteral:
+	case ast.ExprFuncLit, ast.ExprNew, ast.ExprArrayLit, ast.ExprObjectLit, ast.ExprRegExpLit:
 		return TypeValue{Known[Type](ObjectType{})}
 	}
 	return TypeValue{Unknown[Type]()}
@@ -543,13 +572,14 @@ func IsPureCallee(expr *ast.Expression) bool {
 	if IsGlobalRefTo(expr, "Date") {
 		return true
 	}
-	switch e := expr.Expr.(type) {
-	case *ast.MemberExpression:
+	switch expr.Kind() {
+	case ast.ExprMember:
+		e := expr.MustMember()
 		if IsGlobalRefTo(e.Object, "Math") {
 			return true
 		}
 		// Some methods of string are pure
-		if ident, ok := e.Property.Prop.(*ast.Identifier); ok {
+		if ident, ok := e.Property.Identifier(); ok {
 			if slices.Contains([]string{"charAt", "charCodeAt", "concat", "endsWith",
 				"includes", "indexOf", "lastIndexOf", "localeCompare", "slice", "split",
 				"startsWith", "substr", "substring", "toLocaleLowerCase", "toLocaleUpperCase",
@@ -557,10 +587,11 @@ func IsPureCallee(expr *ast.Expression) bool {
 				return true
 			}
 		}
-	case *ast.FunctionLiteral:
+	case ast.ExprFuncLit:
+		e := expr.MustFuncLit()
 		all := true
 		for _, decl := range e.ParameterList.List {
-			_, ok := decl.Target.Target.(*ast.Identifier)
+			_, ok := decl.Target.Identifier()
 			if !ok {
 				all = false
 				break
@@ -579,72 +610,86 @@ func IsPureCallee(expr *ast.Expression) bool {
 
 // MayHaveSideEffects returns true if the expression may have side effects.
 func MayHaveSideEffects(expr *ast.Expression) bool {
+	if expr == nil || expr.IsNone() {
+		return false
+	}
 	if IsPureCallee(expr) {
 		return false
 	}
-	switch e := expr.Expr.(type) {
-	case *ast.Identifier:
-		if e.ScopeContext == resolver.UnresolvedMark &&
+	switch expr.Kind() {
+	case ast.ExprIdentifier:
+		e := expr.MustIdentifier()
+		if e.ScopeContext == ast.UnresolvedContext &&
 			!slices.Contains([]string{"Infinity", "NaN", "Math", "undefined",
 				"Object", "Array", "Promise", "Boolean", "Number", "String",
 				"BigInt", "Error", "RegExp", "Function", "document"}, e.Name) {
 			return true
 		}
 		return false
-	case *ast.StringLiteral, *ast.NumberLiteral, *ast.BigIntLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.RegExpLiteral:
+	case ast.ExprStringLit, ast.ExprNumberLit, ast.ExprBigIntLit, ast.ExprBoolLit, ast.ExprNullLit, ast.ExprRegExpLit:
 		return false
 	// Function expression does not have any side effect if it's not used.
-	case *ast.FunctionLiteral, *ast.ArrowFunctionLiteral:
+	case ast.ExprFuncLit, ast.ExprArrowFuncLit:
 		return false
-	case *ast.ClassLiteral:
-		return classHasSideEffect(e)
-	case *ast.ArrayLiteral:
+	case ast.ExprClassLit:
+		return classHasSideEffect(expr.MustClassLit())
+	case ast.ExprArrayLit:
+		e := expr.MustArrayLit()
 		for _, elem := range e.Value {
 			if MayHaveSideEffects(&elem) {
 				return true
 			}
 		}
 		return false
-	case *ast.UnaryExpression:
+	case ast.ExprUnary:
+		e := expr.MustUnary()
 		if e.Operator == ast.UnaryDelete {
 			return true
 		}
 		return MayHaveSideEffects(e.Operand)
-	case *ast.BinaryExpression:
+	case ast.ExprBinary:
+		e := expr.MustBinary()
 		return MayHaveSideEffects(e.Left) || MayHaveSideEffects(e.Right)
-	case *ast.MemberExpression:
-		switch e.Object.Expr.(type) {
-		case *ast.ObjectLiteral, *ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.ClassLiteral:
+	case ast.ExprMember:
+		e := expr.MustMember()
+		switch e.Object.Kind() {
+		case ast.ExprObjectLit, ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprClassLit:
 			if MayHaveSideEffects(e.Object) {
 				return true
 			}
-			switch obj := e.Object.Expr.(type) {
-			case *ast.ClassLiteral:
+			switch e.Object.Kind() {
+			case ast.ExprClassLit:
+				obj := e.Object.MustClassLit()
 				for _, elem := range obj.Body {
-					if elem, ok := elem.Element.(*ast.MethodDefinition); ok && elem.Static {
-						if elem.Kind == ast.PropertyKindGet || elem.Kind == ast.PropertyKindSet {
+					if method, ok := elem.MethodDef(); ok && method.Static {
+						if method.Kind == ast.MethodKindGet || method.Kind == ast.MethodKindSet {
 							return true
 						}
 					}
 				}
 				return false
-			case *ast.ObjectLiteral:
+			case ast.ExprObjectLit:
+				obj := e.Object.MustObjectLit()
 				for _, prop := range obj.Value {
-					switch p := prop.Prop.(type) {
-					case *ast.SpreadElement:
+					switch prop.Kind() {
+					case ast.PropSpread:
 						return true
-					case *ast.PropertyShort:
+					case ast.PropShort:
+						p := prop.MustShort()
 						if p.Name.Name == "__proto__" {
 							return true
 						}
-					case *ast.PropertyKeyed:
-						if strLit, ok := p.Key.Expr.(*ast.StringLiteral); ok && strLit.Value == "__proto__" {
+					case ast.PropKeyValue:
+						p := prop.MustKeyValue()
+						if s, ok := p.Key.StringLit(); ok && s.Value == "__proto__" {
 							return true
 						}
-						if ident, ok := p.Key.Expr.(*ast.Identifier); ok && ident.Name == "__proto__" {
+						if _, ok := p.Key.Computed(); ok {
 							return true
 						}
-						if p.Computed {
+					case ast.PropMethod, ast.PropGetter, ast.PropSetter:
+						key, _ := propName(prop)
+						if _, ok := key.Computed(); ok {
 							return true
 						}
 					}
@@ -652,24 +697,26 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 				return false
 			}
 
-			switch prop := e.Property.Prop.(type) {
-			case *ast.Identifier:
+			switch e.Property.Kind() {
+			case ast.MemPropIdentifier:
 				return false
-			case *ast.ComputedProperty:
-				return MayHaveSideEffects(prop.Expr)
+			case ast.MemPropComputed:
+				return MayHaveSideEffects(e.Property.MustComputed().Expr)
 			}
 		}
 
-	case *ast.TemplateLiteral:
-	case *ast.MetaProperty:
-	case *ast.AwaitExpression, *ast.YieldExpression, *ast.SuperExpression, *ast.UpdateExpression, *ast.AssignExpression:
+	case ast.ExprTmplLit:
+	case ast.ExprMetaProp:
+	case ast.ExprAwait, ast.ExprYield, ast.ExprSuper, ast.ExprUpdate, ast.ExprAssign:
 
-	case *ast.NewExpression:
+	case ast.ExprNew:
 
-	case *ast.OptionalChain:
-		switch base := e.Base.Expr.(type) {
-		case *ast.MemberExpression:
-		case *ast.CallExpression:
+	case ast.ExprOptionalChain:
+		e := expr.MustOptionalChain()
+		switch e.Base.Kind() {
+		case ast.ExprMember:
+		case ast.ExprCall:
+			base := e.Base.MustCall()
 			if IsPureCallee(base.Callee) {
 				for _, arg := range base.ArgumentList {
 					if MayHaveSideEffects(&arg) {
@@ -679,7 +726,8 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 				return false
 			}
 		}
-	case *ast.CallExpression:
+	case ast.ExprCall:
+		e := expr.MustCall()
 		if IsPureCallee(e.Callee) {
 			for _, arg := range e.ArgumentList {
 				if MayHaveSideEffects(&arg) {
@@ -688,35 +736,42 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 			}
 			return false
 		}
-	case *ast.SequenceExpression:
+	case ast.ExprSequence:
+		e := expr.MustSequence()
 		for _, expr := range e.Sequence {
 			if MayHaveSideEffects(&expr) {
 				return true
 			}
 		}
 		return false
-	case *ast.ConditionalExpression:
+	case ast.ExprConditional:
+		e := expr.MustConditional()
 		return MayHaveSideEffects(e.Test) || MayHaveSideEffects(e.Consequent) || MayHaveSideEffects(e.Alternate)
-	case *ast.ObjectLiteral:
+	case ast.ExprObjectLit:
+		e := expr.MustObjectLit()
 		for _, prop := range e.Value {
-			switch p := prop.Prop.(type) {
-			case *ast.SpreadElement:
+			switch prop.Kind() {
+			case ast.PropSpread:
 				return true
-			case *ast.PropertyShort:
-			case *ast.PropertyKeyed:
-				if p.Computed && MayHaveSideEffects(p.Key) {
+			case ast.PropShort:
+			case ast.PropKeyValue:
+				p := prop.MustKeyValue()
+				if e, ok := computedKeyExpr(p.Key); ok && MayHaveSideEffects(e) {
 					return true
 				}
 				if MayHaveSideEffects(p.Value) {
 					return true
 				}
+			case ast.PropMethod, ast.PropGetter, ast.PropSetter:
+				key, _ := propName(prop)
+				if e, ok := computedKeyExpr(key); ok && MayHaveSideEffects(e) {
+					return true
+				}
 			}
 		}
 		return false
-	case *ast.InvalidExpression:
+	case ast.ExprInvalid:
 		return true
-	case nil:
-		return false
 	}
 	return true
 }

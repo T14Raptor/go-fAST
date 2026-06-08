@@ -1,6 +1,9 @@
 package parser
 
 import (
+	"sync"
+	"unsafe"
+
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/parser/scanner"
 	"github.com/t14raptor/go-fast/parser/scanner/token"
@@ -27,33 +30,74 @@ type parser struct {
 	// slices without per-call heap allocations. Each builder saves
 	// len(buf) as a mark, appends elements, copies the subslice to the
 	// arena, then restores buf to the saved mark.
-	exprBuf []ast.Expression
-	stmtBuf []ast.Statement
-	propBuf []ast.Property
-	elemBuf []ast.ClassElement
-	declBuf []ast.VariableDeclarator
+	exprBuf    []ast.Expression
+	stmtBuf    []ast.Statement
+	propBuf    []ast.Property
+	elemBuf    []ast.ClassElement
+	declBuf    []ast.VariableDeclarator
+	patBuf     []ast.Pattern
+	patPropBuf []ast.PatternProperty
 }
 
-// newParser ...
-func newParser(src string) *parser {
-	p := &parser{
-		str: src,
+var parserPool = sync.Pool{
+	New: func() any {
+		return &parser{
+			exprBuf:    make([]ast.Expression, 0, 64),
+			stmtBuf:    make([]ast.Statement, 0, 64),
+			propBuf:    make([]ast.Property, 0, 16),
+			elemBuf:    make([]ast.ClassElement, 0, 16),
+			declBuf:    make([]ast.VariableDeclarator, 0, 16),
+			patBuf:     make([]ast.Pattern, 0, 16),
+			patPropBuf: make([]ast.PatternProperty, 0, 16),
+		}
+	},
+}
 
-		alloc:   newNodeAllocator(),
-		exprBuf: make([]ast.Expression, 0, 64),
-		stmtBuf: make([]ast.Statement, 0, 64),
-		propBuf: make([]ast.Property, 0, 16),
-		elemBuf: make([]ast.ClassElement, 0, 16),
-		declBuf: make([]ast.VariableDeclarator, 0, 16),
-	}
+func getParser(src string) *parser {
+	p := parserPool.Get().(*parser)
+	p.str = src
+	p.alloc = newNodeAllocator()
 	p.scanner = scanner.NewScanner(src, &p.errors)
 	return p
 }
 
-// ParseFile parses the source code of a single JavaScript/ECMAScript source file and returns
-// the corresponding ast.Program node.
-func ParseFile(src string) (*ast.Program, error) {
-	return newParser(src).parse()
+func putParser(p *parser) {
+	p.str = ""
+	p.alloc = nodeAllocator{}
+	p.scanner = scanner.Scanner{}
+	p.scope = nil
+	p.errors = nil
+	p.recover.idx = 0
+	p.recover.count = 0
+	p.exprBuf = p.exprBuf[:0]
+	p.stmtBuf = p.stmtBuf[:0]
+	p.propBuf = p.propBuf[:0]
+	p.elemBuf = p.elemBuf[:0]
+	p.declBuf = p.declBuf[:0]
+	p.patBuf = p.patBuf[:0]
+	p.patPropBuf = p.patPropBuf[:0]
+	parserPool.Put(p)
+}
+
+// Parse parses src as an ECMAScript script and returns the program AST.
+// Errors are accumulated; on a non-nil error the returned [*ast.Program]
+// may still be partially populated.
+//
+// To recover byte positions from errors use [errors.As] against
+// [*Error] or [scanner.Error], or the shared [ast.Positioned] interface.
+func Parse(src string) (*ast.Program, error) {
+	p := getParser(src)
+	program, err := p.parse()
+	putParser(p)
+	return program, err
+}
+
+// ParseBytes is identical to [Parse] but accepts a byte slice. The slice's
+// contents must remain valid for the lifetime of the returned AST: the
+// parser stores no-copy references into src for identifier and literal
+// names.
+func ParseBytes(src []byte) (*ast.Program, error) {
+	return Parse(unsafe.String(unsafe.SliceData(src), len(src)))
 }
 
 // parse ...
@@ -125,6 +169,12 @@ func (p *parser) semicolon() bool {
 	return true
 }
 
+func (p *parser) requireSemicolon() {
+	if !p.semicolon() {
+		p.errorUnexpectedToken(p.currentKind())
+	}
+}
+
 func (p *parser) idxOf(offset int) ast.Idx {
 	return ast.Idx(1 + offset)
 }
@@ -145,46 +195,34 @@ func (p *parser) finishStmtBuf(mark int) ast.Statements {
 	return result
 }
 
-// finishPropBuf copies propBuf[mark:] into a heap-allocated Properties slice
-// and restores the scratch buffer to the saved mark.
 func (p *parser) finishPropBuf(mark int) ast.Properties {
-	src := p.propBuf[mark:]
-	if len(src) == 0 {
-		p.propBuf = p.propBuf[:mark]
-		return nil
-	}
-	dst := make(ast.Properties, len(src))
-	copy(dst, src)
+	result := p.alloc.CopyProperties(p.propBuf[mark:])
 	p.propBuf = p.propBuf[:mark]
-	return dst
+	return result
 }
 
-// finishDeclBuf copies declBuf[mark:] into a heap-allocated VariableDeclarators slice
-// and restores the scratch buffer to the saved mark.
+func (p *parser) finishPatBuf(mark int) ast.Patterns {
+	result := p.alloc.CopyPatterns(p.patBuf[mark:])
+	p.patBuf = p.patBuf[:mark]
+	return result
+}
+
+func (p *parser) finishPatPropBuf(mark int) ast.PatternProperties {
+	result := p.alloc.CopyPatternProperties(p.patPropBuf[mark:])
+	p.patPropBuf = p.patPropBuf[:mark]
+	return result
+}
+
 func (p *parser) finishDeclBuf(mark int) ast.VariableDeclarators {
-	src := p.declBuf[mark:]
-	if len(src) == 0 {
-		p.declBuf = p.declBuf[:mark]
-		return nil
-	}
-	dst := make(ast.VariableDeclarators, len(src))
-	copy(dst, src)
+	result := p.alloc.CopyDeclarators(p.declBuf[mark:])
 	p.declBuf = p.declBuf[:mark]
-	return dst
+	return result
 }
 
-// finishElemBuf copies elemBuf[mark:] into a heap-allocated ClassElements slice
-// and restores the scratch buffer to the saved mark.
 func (p *parser) finishElemBuf(mark int) ast.ClassElements {
-	src := p.elemBuf[mark:]
-	if len(src) == 0 {
-		p.elemBuf = p.elemBuf[:mark]
-		return nil
-	}
-	dst := make(ast.ClassElements, len(src))
-	copy(dst, src)
+	result := p.alloc.CopyClassElements(p.elemBuf[mark:])
 	p.elemBuf = p.elemBuf[:mark]
-	return dst
+	return result
 }
 
 func (p *parser) expect(value token.Token) ast.Idx {

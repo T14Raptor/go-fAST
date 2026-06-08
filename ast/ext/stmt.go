@@ -2,24 +2,26 @@ package ext
 
 import (
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 // MayHaveSideEffectsStmt returns true if the statement may have side effects.
 func MayHaveSideEffectsStmt(stmt ast.Statement) bool {
-	switch s := stmt.Stmt.(type) {
-	case *ast.BlockStatement:
+	switch stmt.Kind() {
+	case ast.StmtBlock:
+		s := stmt.MustBlock()
 		for _, stmt := range s.List {
 			if MayHaveSideEffectsStmt(stmt) {
 				return true
 			}
 		}
 		return false
-	case *ast.EmptyStatement:
+	case ast.StmtEmpty:
 		return false
-	case *ast.LabelledStatement:
+	case ast.StmtLabelled:
+		s := stmt.MustLabelled()
 		return MayHaveSideEffectsStmt(*s.Statement)
-	case *ast.IfStatement:
+	case ast.StmtIf:
+		s := stmt.MustIf()
 		if MayHaveSideEffects(s.Test) || MayHaveSideEffectsStmt(*s.Consequent) {
 			return true
 		}
@@ -27,7 +29,8 @@ func MayHaveSideEffectsStmt(stmt ast.Statement) bool {
 			return true
 		}
 		return false
-	case *ast.SwitchStatement:
+	case ast.StmtSwitch:
+		s := stmt.MustSwitch()
 		if MayHaveSideEffects(s.Discriminant) {
 			return true
 		}
@@ -42,7 +45,8 @@ func MayHaveSideEffectsStmt(stmt ast.Statement) bool {
 			}
 		}
 		return false
-	case *ast.TryStatement:
+	case ast.StmtTry:
+		s := stmt.MustTry()
 		for _, stmt := range s.Body.List {
 			if MayHaveSideEffectsStmt(stmt) {
 				return true
@@ -63,13 +67,27 @@ func MayHaveSideEffectsStmt(stmt ast.Statement) bool {
 			}
 		}
 		return false
-	case *ast.ClassDeclaration:
+	case ast.StmtClassDecl:
+		s := stmt.MustClassDecl()
 		return classHasSideEffect(s.Class)
-	case *ast.FunctionDeclaration:
+	case ast.StmtFuncDecl:
 		// TODO: Check in_strict mode like swc
-	case *ast.VariableDeclaration:
-		return s.Token == token.Var
-	case *ast.ExpressionStatement:
+	case ast.StmtVarDecl:
+		s := stmt.MustVarDecl()
+		if s.Kind == ast.VarKindVar {
+			return true
+		}
+		for _, decl := range s.List {
+			if decl.Target.IsPattern() {
+				return true
+			}
+			if decl.Initializer != nil && MayHaveSideEffects(decl.Initializer) {
+				return true
+			}
+		}
+		return false
+	case ast.StmtExpression:
+		s := stmt.MustExpression()
 		return MayHaveSideEffects(s.Expression)
 	}
 	return true

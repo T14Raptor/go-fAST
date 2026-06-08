@@ -1,5 +1,18 @@
 package ast
 
+import "unsafe"
+
+// MethodKind distinguishes the kinds of class/object method definitions. The
+// zero value is intentionally unused so it can mark "not a method" during
+// parsing.
+type MethodKind uint8
+
+const (
+	MethodKindMethod MethodKind = iota + 1
+	MethodKindGet
+	MethodKindSet
+)
+
 type (
 	ClassLiteral struct {
 		Name       *Identifier `optional:"true"`
@@ -12,33 +25,28 @@ type (
 
 	ClassElements []ClassElement
 
+	//union:ClassStaticBlock,FieldDefinition,MethodDefinition
 	ClassElement struct {
-		Element Element
-	}
-
-	Element interface {
-		VisitableNode
-		_classElement()
+		ptr  unsafe.Pointer
+		kind ClassElemKind
 	}
 
 	FieldDefinition struct {
-		Key         *Expression
+		Key         *PropertyName
 		Initializer *Expression `optional:"true"`
 
 		Idx Idx
 
-		Computed bool
-		Static   bool
+		Static bool
 	}
 
 	MethodDefinition struct {
-		Key  *Expression
-		Kind PropertyKind // "method", "get" or "set"
+		Key  *PropertyName
+		Kind MethodKind
 		Body *FunctionLiteral
 
-		Idx      Idx
-		Computed bool
-		Static   bool
+		Idx    Idx
+		Static bool
 	}
 
 	ClassStaticBlock struct {
@@ -48,10 +56,19 @@ type (
 	}
 )
 
-func (*ClassLiteral) _expr()  {}
-func (*PropertyShort) _expr() {}
-func (*PropertyKeyed) _expr() {}
+func (c *ClassLiteral) Idx0() Idx { return c.Class }
+func (c *ClassLiteral) Idx1() Idx { return c.RightBrace + 1 }
 
-func (*FieldDefinition) _classElement()  {}
-func (*MethodDefinition) _classElement() {}
-func (*ClassStaticBlock) _classElement() {}
+func (n *FieldDefinition) Idx0() Idx { return n.Idx }
+func (n *FieldDefinition) Idx1() Idx {
+	if n.Initializer != nil {
+		return n.Initializer.Idx1()
+	}
+	return n.Key.Idx1()
+}
+
+func (n *MethodDefinition) Idx0() Idx { return n.Idx }
+func (n *MethodDefinition) Idx1() Idx { return n.Body.Idx1() }
+
+func (n *ClassStaticBlock) Idx0() Idx { return n.Static }
+func (n *ClassStaticBlock) Idx1() Idx { return n.Block.Idx1() }

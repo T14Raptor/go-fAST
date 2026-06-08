@@ -2,6 +2,7 @@ package scanner
 
 import (
 	"fmt"
+
 	"github.com/t14raptor/go-fast/ast"
 )
 
@@ -13,6 +14,11 @@ type Error struct {
 
 func (d Error) Error() string {
 	return d.Message
+}
+
+// Pos implements [ast.Positioned].
+func (d Error) Pos() (start, end ast.Idx) {
+	return d.Start, d.End
 }
 
 func invalidCharacter(c rune, start, end ast.Idx) Error {

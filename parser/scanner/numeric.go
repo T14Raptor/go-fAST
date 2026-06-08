@@ -140,7 +140,8 @@ func (s *Scanner) decimalDigitsAfterFirstDigit() {
 	// Fast path: scan pure digit runs with direct memory access.
 	for pos < end {
 		b := *(*byte)(unsafe.Add(base, pos))
-		if b >= '0' && b <= '9' {
+		switch b {
+		case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			pos++
 			continue
 		}
@@ -218,16 +219,20 @@ func (s *Scanner) checkAfterNumericLiteral(kind token.Token) token.Token {
 }
 
 func isDecimalDigit(chr byte) bool {
-	return '0' <= chr && chr <= '9'
+	switch chr {
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+		return true
+	}
+	return false
 }
 
 func digitValue(chr byte) int {
-	switch {
-	case '0' <= chr && chr <= '9':
+	switch chr {
+	case '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		return int(chr - '0')
-	case 'a' <= chr && chr <= 'f':
+	case 'a', 'b', 'c', 'd', 'e', 'f':
 		return int(chr - 'a' + 10)
-	case 'A' <= chr && chr <= 'F':
+	case 'A', 'B', 'C', 'D', 'E', 'F':
 		return int(chr - 'A' + 10)
 	}
 	return 16 // Larger than any legal digit value

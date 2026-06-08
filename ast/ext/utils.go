@@ -17,20 +17,23 @@ func classHasSideEffect(class *ast.ClassLiteral) bool {
 		}
 	}
 	for _, elem := range class.Body {
-		switch elem := elem.Element.(type) {
-		case *ast.MethodDefinition:
-			if elem.Computed && MayHaveSideEffects(elem.Key) {
+		switch elem.Kind() {
+		case ast.ClassElemMethodDef:
+			method := elem.MustMethodDef()
+			if e, ok := computedKeyExpr(method.Key); ok && MayHaveSideEffects(e) {
 				return true
 			}
-		case *ast.FieldDefinition:
-			if elem.Computed && MayHaveSideEffects(elem.Key) {
+		case ast.ClassElemFieldDef:
+			field := elem.MustFieldDef()
+			if e, ok := computedKeyExpr(field.Key); ok && MayHaveSideEffects(e) {
 				return true
 			}
-			if elem.Initializer != nil && MayHaveSideEffects(elem.Initializer) {
+			if field.Initializer != nil && MayHaveSideEffects(field.Initializer) {
 				return true
 			}
-		case *ast.ClassStaticBlock:
-			for _, stmt := range elem.Block.List {
+		case ast.ClassElemStaticBlock:
+			sb := elem.MustStaticBlock()
+			for _, stmt := range sb.Block.List {
 				if MayHaveSideEffectsStmt(stmt) {
 					return true
 				}
@@ -128,7 +131,7 @@ func (v *literalVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 	v.cost += 2 + len(n.Value)
 	n.VisitChildrenWith(v)
 	for _, elem := range n.Value {
-		if !v.allowNonJsonValue && elem.Expr == nil {
+		if !v.allowNonJsonValue && elem.IsNone() {
 			v.isLit = false
 		}
 	}
@@ -144,11 +147,11 @@ func (v *literalVisitor) VisitExpression(n *ast.Expression) {
 	if !v.isLit {
 		return
 	}
-	switch e := n.Expr.(type) {
-	case *ast.Identifier, *ast.RegExpLiteral:
+	switch n.Kind() {
+	case ast.ExprIdentifier, ast.ExprRegExpLit:
 		v.isLit = false
-	case *ast.TemplateLiteral:
-		if e.Expressions != nil {
+	case ast.ExprTmplLit:
+		if n.MustTmplLit().Expressions != nil {
 			v.isLit = false
 		}
 	default:
@@ -167,26 +170,52 @@ func (v *literalVisitor) VisitNumberLiteral(n *ast.NumberLiteral) {
 }
 func (v *literalVisitor) VisitOptionalChain(n *ast.OptionalChain)         { v.isLit = false }
 func (v *literalVisitor) VisitPrivateIdentifier(n *ast.PrivateIdentifier) { v.isLit = false }
+
+// propName returns the key of a key-bearing property variant (key/value,
+// method, getter, setter).
+func propName(prop ast.Property) (*ast.PropertyName, bool) {
+	switch prop.Kind() {
+	case ast.PropKeyValue:
+		return prop.MustKeyValue().Key, true
+	case ast.PropMethod:
+		return prop.MustMethod().Key, true
+	case ast.PropGetter:
+		return prop.MustGetter().Key, true
+	case ast.PropSetter:
+		return prop.MustSetter().Key, true
+	}
+	return nil, false
+}
+
+// computedKeyExpr returns the key's expression when it is a computed key.
+func computedKeyExpr(key *ast.PropertyName) (*ast.Expression, bool) {
+	if c, ok := key.Computed(); ok {
+		return c.Expr, true
+	}
+	return nil, false
+}
+
 func (v *literalVisitor) VisitProperty(n *ast.Property) {
 	if !v.isLit {
 		return
 	}
 	n.VisitChildrenWith(v)
-	switch p := n.Prop.(type) {
-	case *ast.PropertyKeyed:
-		switch p := p.Key.Expr.(type) {
-		case *ast.StringLiteral:
-			v.cost += 2 + len(p.Value)
-		case *ast.Identifier:
-			v.cost += 2 + len(p.Name)
-		case *ast.NumberLiteral:
-			v.cost += 2 + len(strconv.FormatFloat(p.Value, 'f', -1, 64))
+	switch n.Kind() {
+	case ast.PropKeyValue:
+		switch p := n.MustKeyValue(); p.Key.Kind() {
+		case ast.PropNameStringLit:
+			v.cost += 2 + len(p.Key.MustStringLit().Value)
+		case ast.PropNameNumberLit:
+			v.cost += 2 + len(strconv.FormatFloat(p.Key.MustNumberLit().Value, 'f', -1, 64))
+		case ast.PropNameBigIntLit:
+			v.cost += 2
+		default:
+			// Computed/private keys are not plain object literals.
+			v.isLit = false
 		}
-	}
-	switch n.Prop.(type) {
-	case *ast.PropertyKeyed:
 		v.cost++
 	default:
+		// Methods, getters, setters and spreads make the object non-literal.
 		v.isLit = false
 	}
 }
@@ -218,70 +247,81 @@ func PreserveEffects(val ast.Expression, exprs []ast.Expression) ast.Expression 
 		return val
 	} else {
 		exprs2 = append(exprs2, val)
-		return ast.Expression{Expr: &ast.SequenceExpression{Sequence: exprs2}}
+		return ast.NewSequenceExpr(&ast.SequenceExpression{Sequence: exprs2})
 	}
 }
 
 // ExtractSideEffectsTo adds side effects of expr to to.
 func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
-	switch e := expr.Expr.(type) {
-	case *ast.StringLiteral, *ast.BooleanLiteral, *ast.NullLiteral, *ast.NumberLiteral, *ast.BigIntLiteral, *ast.RegExpLiteral,
-		*ast.ThisExpression, *ast.FunctionLiteral, *ast.ArrowFunctionLiteral, *ast.PrivateIdentifier:
-	case *ast.Identifier:
+	if expr == nil || expr.IsNone() {
+		return
+	}
+	switch expr.Kind() {
+	case ast.ExprStringLit, ast.ExprBoolLit, ast.ExprNullLit, ast.ExprNumberLit, ast.ExprBigIntLit, ast.ExprRegExpLit,
+		ast.ExprThis, ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprPrivIdentifier:
+	case ast.ExprIdentifier:
 		if MayHaveSideEffects(expr) {
 			*to = append(*to, *expr)
 		}
-	// In most case, we can do nothing for this.
-	case *ast.UpdateExpression, *ast.AssignExpression, *ast.YieldExpression, *ast.AwaitExpression:
+	case ast.ExprUpdate, ast.ExprAssign, ast.ExprYield, ast.ExprAwait:
 		*to = append(*to, *expr)
-	// TODO
-	case *ast.MetaProperty:
+	case ast.ExprMetaProp:
 		*to = append(*to, *expr)
-	case *ast.CallExpression:
+	case ast.ExprCall:
 		*to = append(*to, *expr)
-	case *ast.NewExpression:
-		// Known constructors
-		if ident, ok := e.Callee.Expr.(*ast.Identifier); ok && ident.Name == "Date" && len(e.ArgumentList) == 0 {
+	case ast.ExprNew:
+		e := expr.MustNew()
+		if id, ok := e.Callee.Identifier(); ok && id.Name == "Date" && len(e.ArgumentList) == 0 {
 			return
 		}
 		*to = append(*to, *expr)
-	case *ast.MemberExpression, *ast.SuperExpression:
+	case ast.ExprMember, ast.ExprSuper:
 		*to = append(*to, *expr)
-	// We are at here because we could not determine value of test.
-	//TODO: Drop values if it does not have side effects.
-	case *ast.ConditionalExpression:
+	case ast.ExprConditional:
 		*to = append(*to, *expr)
-	case *ast.UnaryExpression:
+	case ast.ExprUnary:
+		e := expr.MustUnary()
 		if e.Operator == ast.UnaryTypeof {
-			if _, ok := e.Operand.Expr.(*ast.Identifier); ok {
+			if _, ok := e.Operand.Identifier(); ok {
 				return
 			}
 		}
 		ExtractSideEffectsTo(to, e.Operand)
-	case *ast.BinaryExpression:
+	case ast.ExprBinary:
+		e := expr.MustBinary()
 		ExtractSideEffectsTo(to, e.Left)
 		ExtractSideEffectsTo(to, e.Right)
-	case *ast.LogicalExpression:
+	case ast.ExprLogical:
+		e := expr.MustLogical()
 		switch e.Operator {
 		case ast.LogicalCoalesce, ast.LogicalOr, ast.LogicalAnd:
 			*to = append(*to, *expr)
 		}
-	case *ast.SequenceExpression:
+	case ast.ExprSequence:
+		e := expr.MustSequence()
 		for _, expr := range e.Sequence {
 			ExtractSideEffectsTo(to, &expr)
 		}
-	case *ast.ObjectLiteral:
+	case ast.ExprObjectLit:
+		e := expr.MustObjectLit()
 		var hasSpread bool
 		e.Value = slices.DeleteFunc(e.Value, func(prop ast.Property) bool {
-			switch p := prop.Prop.(type) {
-			case *ast.PropertyShort:
+			switch prop.Kind() {
+			case ast.PropShort:
 				return true
-			case *ast.PropertyKeyed:
-				if p.Computed && MayHaveSideEffects(p.Key) {
+			case ast.PropKeyValue:
+				p := prop.MustKeyValue()
+				if e, ok := computedKeyExpr(p.Key); ok && MayHaveSideEffects(e) {
 					return false
 				}
 				return !MayHaveSideEffects(p.Value)
-			case *ast.SpreadElement:
+			case ast.PropMethod, ast.PropGetter, ast.PropSetter:
+				// The function literal itself is side-effect-free; only a
+				// computed key can have side effects.
+				key, _ := propName(prop)
+				e, ok := computedKeyExpr(key)
+				return !(ok && MayHaveSideEffects(e))
+			case ast.PropSpread:
 				hasSpread = true
 				return false
 			}
@@ -291,40 +331,48 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 			*to = append(*to, *expr)
 		} else {
 			for _, prop := range e.Value {
-				switch p := prop.Prop.(type) {
-				case *ast.PropertyShort:
-				case *ast.PropertyKeyed:
-					if p.Computed {
-						ExtractSideEffectsTo(to, p.Key)
+				switch prop.Kind() {
+				case ast.PropShort:
+				case ast.PropKeyValue:
+					p := prop.MustKeyValue()
+					if e, ok := computedKeyExpr(p.Key); ok {
+						ExtractSideEffectsTo(to, e)
 					}
 					ExtractSideEffectsTo(to, p.Value)
+				case ast.PropMethod, ast.PropGetter, ast.PropSetter:
+					key, _ := propName(prop)
+					if e, ok := computedKeyExpr(key); ok {
+						ExtractSideEffectsTo(to, e)
+					}
 				}
 			}
 		}
-	case *ast.ArrayLiteral:
+	case ast.ExprArrayLit:
+		e := expr.MustArrayLit()
 		for _, elem := range e.Value {
 			ExtractSideEffectsTo(to, &elem)
 		}
-	case *ast.TemplateLiteral:
+	case ast.ExprTmplLit:
+		e := expr.MustTmplLit()
 		for _, elem := range e.Expressions {
 			ExtractSideEffectsTo(to, &elem)
 		}
-	case *ast.ClassLiteral:
+	case ast.ExprClassLit:
 		panic("add_effects for class expression")
-	case *ast.OptionalChain:
+	case ast.ExprOptionalChain:
 		*to = append(*to, *expr)
 	}
 }
 
 // PropNameEq returns true if the property name of the expression is equal to key.
 func PropNameEq(p *ast.Expression, key string) bool {
-	switch p := p.Expr.(type) {
-	case *ast.Identifier:
-		return p.Name == key
-	case *ast.StringLiteral:
-		return p.Value == key
-	case *ast.NumberLiteral:
-		return strconv.FormatFloat(p.Value, 'f', -1, 64) == key
+	switch p.Kind() {
+	case ast.ExprIdentifier:
+		return p.MustIdentifier().Name == key
+	case ast.ExprStringLit:
+		return p.MustStringLit().Value == key
+	case ast.ExprNumberLit:
+		return strconv.FormatFloat(p.MustNumberLit().Value, 'f', -1, 64) == key
 	}
 	return false
 }

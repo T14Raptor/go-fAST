@@ -4,7 +4,6 @@ import (
 	"math/big"
 
 	"github.com/t14raptor/go-fast/ast"
-	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
 // nodeAllocator encapsulates typed arenas for all frequently allocated AST
@@ -13,102 +12,114 @@ import (
 // parser.
 type nodeAllocator struct {
 	// Wrapper types (previously on the parser struct directly).
-	expr miniArena[ast.Expression]
-	stmt miniArena[ast.Statement]
+	expr arena[ast.Expression]
+	stmt arena[ast.Statement]
 
 	// Slice backing arenas — separate from the per-element arenas so that
 	// contiguous slice allocations don't fragment with individual node allocs.
-	exprSlice miniArena[ast.Expression]
-	stmtSlice miniArena[ast.Statement]
+	exprSlice arena[ast.Expression]
+	stmtSlice arena[ast.Statement]
+	propSlice arena[ast.Property]
+	declSlice arena[ast.VariableDeclarator]
+	elemSlice arena[ast.ClassElement]
+	patSlice  arena[ast.Pattern]
+	patPrpSlc arena[ast.PatternProperty]
 
 	// Concrete expression nodes.
-	ident     miniArena[ast.Identifier]
-	strLit    miniArena[ast.StringLiteral]
-	numLit    miniArena[ast.NumberLiteral]
-	bigIntLit miniArena[ast.BigIntLiteral]
-	boolLit   miniArena[ast.BooleanLiteral]
-	nullLit   miniArena[ast.NullLiteral]
-	regexpLit miniArena[ast.RegExpLiteral]
-	binExpr   miniArena[ast.BinaryExpression]
-	logExpr   miniArena[ast.LogicalExpression]
-	unaryExpr miniArena[ast.UnaryExpression]
-	updateExp miniArena[ast.UpdateExpression]
-	assignExp miniArena[ast.AssignExpression]
-	condExpr  miniArena[ast.ConditionalExpression]
-	seqExpr   miniArena[ast.SequenceExpression]
-	memberExp miniArena[ast.MemberExpression]
-	memberPrp miniArena[ast.MemberProperty]
-	compProp  miniArena[ast.ComputedProperty]
-	callExpr  miniArena[ast.CallExpression]
-	newExpr   miniArena[ast.NewExpression]
-	spread    miniArena[ast.SpreadElement]
-	privIdent miniArena[ast.PrivateIdentifier]
-	privDot   miniArena[ast.PrivateDotExpression]
-	metaProp  miniArena[ast.MetaProperty]
-	optional  miniArena[ast.Optional]
-	optChain  miniArena[ast.OptionalChain]
-	objLit    miniArena[ast.ObjectLiteral]
-	arrLit    miniArena[ast.ArrayLiteral]
-	arrPat    miniArena[ast.ArrayPattern]
-	objPat    miniArena[ast.ObjectPattern]
-	tmplLit   miniArena[ast.TemplateLiteral]
-	thisExpr  miniArena[ast.ThisExpression]
-	superExpr miniArena[ast.SuperExpression]
-	awaitExpr miniArena[ast.AwaitExpression]
-	yieldExpr miniArena[ast.YieldExpression]
-	arrowFn   miniArena[ast.ArrowFunctionLiteral]
-	funcLit   miniArena[ast.FunctionLiteral]
-	invalidEx miniArena[ast.InvalidExpression]
+	ident     arena[ast.Identifier]
+	strLit    arena[ast.StringLiteral]
+	numLit    arena[ast.NumberLiteral]
+	bigIntLit arena[ast.BigIntLiteral]
+	boolLit   arena[ast.BooleanLiteral]
+	nullLit   arena[ast.NullLiteral]
+	regexpLit arena[ast.RegExpLiteral]
+	binExpr   arena[ast.BinaryExpression]
+	logExpr   arena[ast.LogicalExpression]
+	unaryExpr arena[ast.UnaryExpression]
+	updateExp arena[ast.UpdateExpression]
+	assignExp arena[ast.AssignExpression]
+	condExpr  arena[ast.ConditionalExpression]
+	seqExpr   arena[ast.SequenceExpression]
+	memberExp arena[ast.MemberExpression]
+	memberPrp arena[ast.MemberProperty]
+	compProp  arena[ast.ComputedProperty]
+	propName  arena[ast.PropertyName]
+	callExpr  arena[ast.CallExpression]
+	newExpr   arena[ast.NewExpression]
+	spread    arena[ast.SpreadElement]
+	privIdent arena[ast.PrivateIdentifier]
+	privDot   arena[ast.PrivateDotExpression]
+	metaProp  arena[ast.MetaProperty]
+	optional  arena[ast.Optional]
+	optChain  arena[ast.OptionalChain]
+	objLit    arena[ast.ObjectLiteral]
+	arrLit    arena[ast.ArrayLiteral]
+	arrPat    arena[ast.ArrayPattern]
+	objPat    arena[ast.ObjectPattern]
+	tmplLit   arena[ast.TemplateLiteral]
+	thisExpr  arena[ast.ThisExpression]
+	superExpr arena[ast.SuperExpression]
+	awaitExpr arena[ast.AwaitExpression]
+	yieldExpr arena[ast.YieldExpression]
+	arrowFn   arena[ast.ArrowFunctionLiteral]
+	funcLit   arena[ast.FunctionLiteral]
+	invalidEx arena[ast.InvalidExpression]
 
 	// Property nodes.
-	propKeyed miniArena[ast.PropertyKeyed]
-	propShort miniArena[ast.PropertyShort]
+	propKeyVal arena[ast.PropertyKeyValue]
+	propMethod arena[ast.PropertyMethod]
+	propGetter arena[ast.PropertyGetter]
+	propSetter arena[ast.PropertySetter]
+	propShort  arena[ast.PropertyShort]
+	patKeyVal  arena[ast.PatternKeyValue]
+	patShort   arena[ast.PatternShorthand]
+	assignPat  arena[ast.AssignmentPattern]
 
 	// Statement nodes.
-	exprStmt  miniArena[ast.ExpressionStatement]
-	blockStmt miniArena[ast.BlockStatement]
-	retStmt   miniArena[ast.ReturnStatement]
-	ifStmt    miniArena[ast.IfStatement]
-	throwStmt miniArena[ast.ThrowStatement]
-	switchStm miniArena[ast.SwitchStatement]
-	withStmt  miniArena[ast.WithStatement]
-	tryStmt   miniArena[ast.TryStatement]
-	catchStmt miniArena[ast.CatchStatement]
-	forStmt   miniArena[ast.ForStatement]
-	forInStmt miniArena[ast.ForInStatement]
-	forOfStmt miniArena[ast.ForOfStatement]
-	whileStmt miniArena[ast.WhileStatement]
-	doWhile   miniArena[ast.DoWhileStatement]
-	debugStmt miniArena[ast.DebuggerStatement]
-	emptyStmt miniArena[ast.EmptyStatement]
-	badStmt   miniArena[ast.BadStatement]
-	labelStmt miniArena[ast.LabelledStatement]
-	breakStmt miniArena[ast.BreakStatement]
-	contStmt  miniArena[ast.ContinueStatement]
+	exprStmt  arena[ast.ExpressionStatement]
+	blockStmt arena[ast.BlockStatement]
+	retStmt   arena[ast.ReturnStatement]
+	ifStmt    arena[ast.IfStatement]
+	throwStmt arena[ast.ThrowStatement]
+	switchStm arena[ast.SwitchStatement]
+	withStmt  arena[ast.WithStatement]
+	tryStmt   arena[ast.TryStatement]
+	catchStmt arena[ast.CatchStatement]
+	forStmt   arena[ast.ForStatement]
+	forInStmt arena[ast.ForInStatement]
+	forOfStmt arena[ast.ForOfStatement]
+	whileStmt arena[ast.WhileStatement]
+	doWhile   arena[ast.DoWhileStatement]
+	debugStmt arena[ast.DebuggerStatement]
+	emptyStmt arena[ast.EmptyStatement]
+	badStmt   arena[ast.BadStatement]
+	labelStmt arena[ast.LabelledStatement]
+	breakStmt arena[ast.BreakStatement]
+	contStmt  arena[ast.ContinueStatement]
 
 	// Declaration nodes.
-	varDecl  miniArena[ast.VariableDeclaration]
-	varDeclr miniArena[ast.VariableDeclarator]
-	funcDecl miniArena[ast.FunctionDeclaration]
-	classLit miniArena[ast.ClassLiteral]
-	classDcl miniArena[ast.ClassDeclaration]
-	methDef  miniArena[ast.MethodDefinition]
-	fieldDef miniArena[ast.FieldDefinition]
-	staticBl miniArena[ast.ClassStaticBlock]
-
-	paramList miniArena[ast.ParameterList]
+	varDecl  arena[ast.VariableDeclaration]
+	varDeclr arena[ast.VariableDeclarator]
+	funcDecl arena[ast.FunctionDeclaration]
+	classLit arena[ast.ClassLiteral]
+	classDcl arena[ast.ClassDeclaration]
+	methDef  arena[ast.MethodDefinition]
+	fieldDef arena[ast.FieldDefinition]
+	staticBl arena[ast.ClassStaticBlock]
 
 	// Wrapper/helper types.
-	bindTgt  miniArena[ast.BindingTarget]
-	concBody miniArena[ast.ConciseBody]
-	forInit  miniArena[ast.ForLoopInitializer]
-	forInto  miniArena[ast.ForInto]
+	pattern   arena[ast.Pattern]
+	patProp   arena[ast.PatternProperty]
+	concBody  arena[ast.ConciseBody]
+	forInit   arena[ast.ForLoopInitializer]
+	forInto   arena[ast.ForInto]
+	paramList arena[ast.ParameterList]
 
 	// String pointers (for Raw fields on StringLiteral/NumberLiteral).
-	str miniArena[string]
+	str arena[string]
 
 	// Scopes.
-	scopes miniArena[scope]
+	scopes arena[scope]
 }
 
 func newNodeAllocator() nodeAllocator {
@@ -120,6 +131,11 @@ func newNodeAllocator() nodeAllocator {
 		// Slice backing arenas.
 		exprSlice: newArena[ast.Expression](1024),
 		stmtSlice: newArena[ast.Statement](1024),
+		propSlice: newArena[ast.Property](256),
+		declSlice: newArena[ast.VariableDeclarator](256),
+		elemSlice: newArena[ast.ClassElement](64),
+		patSlice:  newArena[ast.Pattern](256),
+		patPrpSlc: newArena[ast.PatternProperty](128),
 
 		// Identifiers are the most frequent node.
 		ident: newArena[ast.Identifier](1024),
@@ -143,6 +159,7 @@ func newNodeAllocator() nodeAllocator {
 		memberExp: newArena[ast.MemberExpression](256),
 		memberPrp: newArena[ast.MemberProperty](256),
 		compProp:  newArena[ast.ComputedProperty](64),
+		propName:  newArena[ast.PropertyName](64),
 		callExpr:  newArena[ast.CallExpression](256),
 		newExpr:   newArena[ast.NewExpression](32),
 		spread:    newArena[ast.SpreadElement](64),
@@ -165,8 +182,14 @@ func newNodeAllocator() nodeAllocator {
 		invalidEx: newArena[ast.InvalidExpression](32),
 
 		// Properties.
-		propKeyed: newArena[ast.PropertyKeyed](128),
-		propShort: newArena[ast.PropertyShort](64),
+		propKeyVal: newArena[ast.PropertyKeyValue](128),
+		propMethod: newArena[ast.PropertyMethod](32),
+		propGetter: newArena[ast.PropertyGetter](8),
+		propSetter: newArena[ast.PropertySetter](8),
+		propShort:  newArena[ast.PropertyShort](64),
+		patKeyVal:  newArena[ast.PatternKeyValue](64),
+		patShort:   newArena[ast.PatternShorthand](64),
+		assignPat:  newArena[ast.AssignmentPattern](32),
 
 		// Statements.
 		exprStmt:  newArena[ast.ExpressionStatement](256),
@@ -184,7 +207,7 @@ func newNodeAllocator() nodeAllocator {
 		whileStmt: newArena[ast.WhileStatement](32),
 		doWhile:   newArena[ast.DoWhileStatement](16),
 		debugStmt: newArena[ast.DebuggerStatement](8),
-		emptyStmt: newArena[ast.EmptyStatement](16),
+		emptyStmt: newArena[ast.EmptyStatement](32),
 		badStmt:   newArena[ast.BadStatement](8),
 		labelStmt: newArena[ast.LabelledStatement](16),
 		breakStmt: newArena[ast.BreakStatement](16),
@@ -193,20 +216,20 @@ func newNodeAllocator() nodeAllocator {
 		// Declarations.
 		varDecl:  newArena[ast.VariableDeclaration](64),
 		varDeclr: newArena[ast.VariableDeclarator](128),
-		funcDecl: newArena[ast.FunctionDeclaration](64),
+		funcDecl: newArena[ast.FunctionDeclaration](32),
 		classLit: newArena[ast.ClassLiteral](16),
 		classDcl: newArena[ast.ClassDeclaration](16),
 		methDef:  newArena[ast.MethodDefinition](32),
 		fieldDef: newArena[ast.FieldDefinition](32),
 		staticBl: newArena[ast.ClassStaticBlock](8),
 
-		paramList: newArena[ast.ParameterList](64),
-
 		// Wrappers.
-		bindTgt:  newArena[ast.BindingTarget](128),
-		concBody: newArena[ast.ConciseBody](64),
-		forInit:  newArena[ast.ForLoopInitializer](32),
-		forInto:  newArena[ast.ForInto](16),
+		pattern:   newArena[ast.Pattern](128),
+		patProp:   newArena[ast.PatternProperty](64),
+		concBody:  newArena[ast.ConciseBody](64),
+		forInit:   newArena[ast.ForLoopInitializer](32),
+		forInto:   newArena[ast.ForInto](16),
+		paramList: newArena[ast.ParameterList](64),
 
 		// String pointers.
 		str: newArena[string](256),
@@ -220,15 +243,15 @@ func newNodeAllocator() nodeAllocator {
 // Wrapper constructors
 // ---------------------------------------------------------------------------
 
-func (a *nodeAllocator) Expression(expr ast.Expr) *ast.Expression {
+func (a *nodeAllocator) Expression(e ast.Expression) *ast.Expression {
 	n := a.expr.make()
-	n.Expr = expr
+	*n = e
 	return n
 }
 
-func (a *nodeAllocator) Statement(stmt ast.Stmt) *ast.Statement {
+func (a *nodeAllocator) Statement(s ast.Statement) *ast.Statement {
 	n := a.stmt.make()
-	n.Stmt = stmt
+	*n = s
 	return n
 }
 
@@ -250,6 +273,33 @@ func (a *nodeAllocator) CopyStatements(src []ast.Statement) ast.Statements {
 		return nil
 	}
 	dst := a.stmtSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (a *nodeAllocator) CopyProperties(src []ast.Property) ast.Properties {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.propSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (a *nodeAllocator) CopyDeclarators(src []ast.VariableDeclarator) ast.VariableDeclarators {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.declSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (a *nodeAllocator) CopyClassElements(src []ast.ClassElement) ast.ClassElements {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.elemSlice.makeSlice(len(src))
 	copy(dst, src)
 	return dst
 }
@@ -283,6 +333,12 @@ func (a *nodeAllocator) NumberLiteral(idx ast.Idx, value float64, raw string) *a
 	return n
 }
 
+func (a *nodeAllocator) RegExpLiteral(idx ast.Idx, literal, pattern, flags string) *ast.RegExpLiteral {
+	n := a.regexpLit.make()
+	*n = ast.RegExpLiteral{Idx: idx, Literal: literal, Pattern: pattern, Flags: flags}
+	return n
+}
+
 func (a *nodeAllocator) BigIntLiteral(idx ast.Idx, value *big.Int, raw string) *ast.BigIntLiteral {
 	n := a.bigIntLit.make()
 	*n = ast.BigIntLiteral{Idx: idx, Value: value, Raw: a.stringPtr(raw)}
@@ -301,9 +357,21 @@ func (a *nodeAllocator) NullLiteral(idx ast.Idx) *ast.NullLiteral {
 	return n
 }
 
-func (a *nodeAllocator) RegExpLiteral(idx ast.Idx, literal, pattern, flags string) *ast.RegExpLiteral {
-	n := a.regexpLit.make()
-	*n = ast.RegExpLiteral{Idx: idx, Literal: literal, Pattern: pattern, Flags: flags}
+func (a *nodeAllocator) ThisExpression(idx ast.Idx) *ast.ThisExpression {
+	n := a.thisExpr.make()
+	*n = ast.ThisExpression{Idx: idx}
+	return n
+}
+
+func (a *nodeAllocator) SuperExpression(idx ast.Idx) *ast.SuperExpression {
+	n := a.superExpr.make()
+	*n = ast.SuperExpression{Idx: idx}
+	return n
+}
+
+func (a *nodeAllocator) InvalidExpression(from, to ast.Idx) *ast.InvalidExpression {
+	n := a.invalidEx.make()
+	*n = ast.InvalidExpression{From: from, To: to}
 	return n
 }
 
@@ -331,7 +399,7 @@ func (a *nodeAllocator) UpdateExpression(op ast.UpdateOperator, idx ast.Idx, ope
 	return n
 }
 
-func (a *nodeAllocator) AssignExpression(op ast.AssignmentOperator, left, right *ast.Expression) *ast.AssignExpression {
+func (a *nodeAllocator) AssignExpression(op ast.AssignmentOperator, left *ast.Pattern, right *ast.Expression) *ast.AssignExpression {
 	n := a.assignExp.make()
 	*n = ast.AssignExpression{Operator: op, Left: left, Right: right}
 	return n
@@ -355,15 +423,15 @@ func (a *nodeAllocator) MemberExpression(object *ast.Expression, property *ast.M
 	return n
 }
 
-func (a *nodeAllocator) MemberProperty(prop ast.MemberProp) *ast.MemberProperty {
+func (a *nodeAllocator) MemberProperty(mp ast.MemberProperty) *ast.MemberProperty {
 	n := a.memberPrp.make()
-	*n = ast.MemberProperty{Prop: prop}
+	*n = mp
 	return n
 }
 
-func (a *nodeAllocator) ComputedProperty(expr *ast.Expression) *ast.ComputedProperty {
+func (a *nodeAllocator) ComputedProperty(left ast.Idx, expr *ast.Expression, right ast.Idx) *ast.ComputedProperty {
 	n := a.compProp.make()
-	*n = ast.ComputedProperty{Expr: expr}
+	*n = ast.ComputedProperty{Expr: expr, LeftBracket: left, RightBracket: right}
 	return n
 }
 
@@ -427,33 +495,75 @@ func (a *nodeAllocator) ArrayLiteral(lb, rb ast.Idx, value ast.Expressions) *ast
 	return n
 }
 
-func (a *nodeAllocator) ArrayPattern(lb, rb ast.Idx, elems ast.Expressions, rest *ast.Expression) *ast.ArrayPattern {
+func (a *nodeAllocator) ArrayPattern(lb, rb ast.Idx, elems ast.Patterns, rest *ast.Pattern) *ast.ArrayPattern {
 	n := a.arrPat.make()
 	*n = ast.ArrayPattern{LeftBracket: lb, RightBracket: rb, Elements: elems, Rest: rest}
 	return n
 }
 
-func (a *nodeAllocator) ObjectPattern(lb, rb ast.Idx, props ast.Properties, rest ast.Expr) *ast.ObjectPattern {
+func (a *nodeAllocator) ObjectPattern(lb, rb ast.Idx, props ast.PatternProperties, rest *ast.Pattern) *ast.ObjectPattern {
 	n := a.objPat.make()
 	*n = ast.ObjectPattern{LeftBrace: lb, RightBrace: rb, Properties: props, Rest: rest}
 	return n
 }
 
+func (a *nodeAllocator) Pattern(p ast.Pattern) *ast.Pattern {
+	n := a.pattern.make()
+	*n = p
+	return n
+}
+
+func (a *nodeAllocator) PatternProperty(p ast.PatternProperty) *ast.PatternProperty {
+	n := a.patProp.make()
+	*n = p
+	return n
+}
+
+func (a *nodeAllocator) AssignmentPattern(left *ast.Pattern, right *ast.Expression) *ast.AssignmentPattern {
+	n := a.assignPat.make()
+	*n = ast.AssignmentPattern{Left: left, Right: right}
+	return n
+}
+
+func (a *nodeAllocator) PropertyName(n ast.PropertyName) *ast.PropertyName {
+	p := a.propName.make()
+	*p = n
+	return p
+}
+
+func (a *nodeAllocator) PatternKeyValue(key *ast.PropertyName, value *ast.Pattern) *ast.PatternKeyValue {
+	n := a.patKeyVal.make()
+	*n = ast.PatternKeyValue{Key: key, Value: value}
+	return n
+}
+
+func (a *nodeAllocator) PatternShorthand(name *ast.Identifier, initializer *ast.Expression) *ast.PatternShorthand {
+	n := a.patShort.make()
+	*n = ast.PatternShorthand{Name: name, Initializer: initializer}
+	return n
+}
+
+func (a *nodeAllocator) CopyPatterns(src []ast.Pattern) ast.Patterns {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.patSlice.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
+func (a *nodeAllocator) CopyPatternProperties(src []ast.PatternProperty) ast.PatternProperties {
+	if len(src) == 0 {
+		return nil
+	}
+	dst := a.patPrpSlc.makeSlice(len(src))
+	copy(dst, src)
+	return dst
+}
+
 func (a *nodeAllocator) TemplateLiteral(openQuote ast.Idx) *ast.TemplateLiteral {
 	n := a.tmplLit.make()
 	*n = ast.TemplateLiteral{OpenQuote: openQuote}
-	return n
-}
-
-func (a *nodeAllocator) ThisExpression(idx ast.Idx) *ast.ThisExpression {
-	n := a.thisExpr.make()
-	*n = ast.ThisExpression{Idx: idx}
-	return n
-}
-
-func (a *nodeAllocator) SuperExpression(idx ast.Idx) *ast.SuperExpression {
-	n := a.superExpr.make()
-	*n = ast.SuperExpression{Idx: idx}
 	return n
 }
 
@@ -475,21 +585,39 @@ func (a *nodeAllocator) ArrowFunctionLiteral(start ast.Idx, params *ast.Paramete
 	return n
 }
 
+func (a *nodeAllocator) ParameterList(pl ast.ParameterList) *ast.ParameterList {
+	n := a.paramList.make()
+	*n = pl
+	return n
+}
+
 func (a *nodeAllocator) FunctionLiteral(start ast.Idx, async bool) *ast.FunctionLiteral {
 	n := a.funcLit.make()
 	*n = ast.FunctionLiteral{Function: start, Async: async}
 	return n
 }
 
-func (a *nodeAllocator) InvalidExpression(from, to ast.Idx) *ast.InvalidExpression {
-	n := a.invalidEx.make()
-	*n = ast.InvalidExpression{From: from, To: to}
+func (a *nodeAllocator) PropertyKeyValue(key *ast.PropertyName, value *ast.Expression) *ast.PropertyKeyValue {
+	n := a.propKeyVal.make()
+	*n = ast.PropertyKeyValue{Key: key, Value: value}
 	return n
 }
 
-func (a *nodeAllocator) PropertyKeyed(key *ast.Expression, kind ast.PropertyKind, value *ast.Expression, computed bool) *ast.PropertyKeyed {
-	n := a.propKeyed.make()
-	*n = ast.PropertyKeyed{Key: key, Kind: kind, Value: value, Computed: computed}
+func (a *nodeAllocator) PropertyMethod(key *ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertyMethod {
+	n := a.propMethod.make()
+	*n = ast.PropertyMethod{Key: key, Body: body}
+	return n
+}
+
+func (a *nodeAllocator) PropertyGetter(key *ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertyGetter {
+	n := a.propGetter.make()
+	*n = ast.PropertyGetter{Key: key, Body: body}
+	return n
+}
+
+func (a *nodeAllocator) PropertySetter(key *ast.PropertyName, body *ast.FunctionLiteral) *ast.PropertySetter {
+	n := a.propSetter.make()
+	*n = ast.PropertySetter{Key: key, Body: body}
 	return n
 }
 
@@ -507,6 +635,24 @@ func (a *nodeAllocator) ExpressionStatement(expr *ast.Expression) *ast.Expressio
 
 func (a *nodeAllocator) BlockStatement() *ast.BlockStatement {
 	return a.blockStmt.make()
+}
+
+func (a *nodeAllocator) EmptyStatement(idx ast.Idx) *ast.EmptyStatement {
+	n := a.emptyStmt.make()
+	*n = ast.EmptyStatement{Semicolon: idx}
+	return n
+}
+
+func (a *nodeAllocator) DebuggerStatement(idx ast.Idx) *ast.DebuggerStatement {
+	n := a.debugStmt.make()
+	*n = ast.DebuggerStatement{Debugger: idx}
+	return n
+}
+
+func (a *nodeAllocator) BadStatement(from, to ast.Idx) *ast.BadStatement {
+	n := a.badStmt.make()
+	*n = ast.BadStatement{From: from, To: to}
+	return n
 }
 
 func (a *nodeAllocator) ReturnStatement(idx ast.Idx) *ast.ReturnStatement {
@@ -545,7 +691,7 @@ func (a *nodeAllocator) TryStatement(idx ast.Idx, body *ast.BlockStatement) *ast
 	return n
 }
 
-func (a *nodeAllocator) CatchStatement(idx ast.Idx, param *ast.BindingTarget, body *ast.BlockStatement) *ast.CatchStatement {
+func (a *nodeAllocator) CatchStatement(idx ast.Idx, param *ast.Pattern, body *ast.BlockStatement) *ast.CatchStatement {
 	n := a.catchStmt.make()
 	*n = ast.CatchStatement{Catch: idx, Parameter: param, Body: body}
 	return n
@@ -579,24 +725,6 @@ func (a *nodeAllocator) DoWhileStatement() *ast.DoWhileStatement {
 	return a.doWhile.make()
 }
 
-func (a *nodeAllocator) DebuggerStatement(idx ast.Idx) *ast.DebuggerStatement {
-	n := a.debugStmt.make()
-	*n = ast.DebuggerStatement{Debugger: idx}
-	return n
-}
-
-func (a *nodeAllocator) EmptyStatement(idx ast.Idx) *ast.EmptyStatement {
-	n := a.emptyStmt.make()
-	*n = ast.EmptyStatement{Semicolon: idx}
-	return n
-}
-
-func (a *nodeAllocator) BadStatement(from, to ast.Idx) *ast.BadStatement {
-	n := a.badStmt.make()
-	*n = ast.BadStatement{From: from, To: to}
-	return n
-}
-
 func (a *nodeAllocator) LabelledStatement(label *ast.Identifier, colon ast.Idx, stmt *ast.Statement) *ast.LabelledStatement {
 	n := a.labelStmt.make()
 	*n = ast.LabelledStatement{Label: label, Colon: colon, Statement: stmt}
@@ -615,13 +743,13 @@ func (a *nodeAllocator) ContinueStatement(idx ast.Idx, label *ast.Identifier) *a
 	return n
 }
 
-func (a *nodeAllocator) VariableDeclaration(idx ast.Idx, tok token.Token, list ast.VariableDeclarators) *ast.VariableDeclaration {
+func (a *nodeAllocator) VariableDeclaration(idx ast.Idx, kind ast.VarKind, list ast.VariableDeclarators) *ast.VariableDeclaration {
 	n := a.varDecl.make()
-	*n = ast.VariableDeclaration{Idx: idx, Token: tok, List: list}
+	*n = ast.VariableDeclaration{Idx: idx, Kind: kind, List: list}
 	return n
 }
 
-func (a *nodeAllocator) VariableDeclarator(target *ast.BindingTarget) *ast.VariableDeclarator {
+func (a *nodeAllocator) VariableDeclarator(target *ast.Pattern) *ast.VariableDeclarator {
 	n := a.varDeclr.make()
 	*n = ast.VariableDeclarator{Target: target}
 	return n
@@ -645,15 +773,15 @@ func (a *nodeAllocator) ClassDeclaration(class *ast.ClassLiteral) *ast.ClassDecl
 	return n
 }
 
-func (a *nodeAllocator) MethodDefinition(idx ast.Idx, key *ast.Expression, kind ast.PropertyKind, body *ast.FunctionLiteral, static, computed bool) *ast.MethodDefinition {
+func (a *nodeAllocator) MethodDefinition(idx ast.Idx, key *ast.PropertyName, kind ast.MethodKind, body *ast.FunctionLiteral, static bool) *ast.MethodDefinition {
 	n := a.methDef.make()
-	*n = ast.MethodDefinition{Idx: idx, Key: key, Kind: kind, Body: body, Static: static, Computed: computed}
+	*n = ast.MethodDefinition{Idx: idx, Key: key, Kind: kind, Body: body, Static: static}
 	return n
 }
 
-func (a *nodeAllocator) FieldDefinition(idx ast.Idx, key, initializer *ast.Expression, static, computed bool) *ast.FieldDefinition {
+func (a *nodeAllocator) FieldDefinition(idx ast.Idx, key *ast.PropertyName, initializer *ast.Expression, static bool) *ast.FieldDefinition {
 	n := a.fieldDef.make()
-	*n = ast.FieldDefinition{Idx: idx, Key: key, Initializer: initializer, Static: static, Computed: computed}
+	*n = ast.FieldDefinition{Idx: idx, Key: key, Initializer: initializer, Static: static}
 	return n
 }
 
@@ -663,32 +791,20 @@ func (a *nodeAllocator) ClassStaticBlock(idx ast.Idx) *ast.ClassStaticBlock {
 	return n
 }
 
-func (a *nodeAllocator) BindingTarget(target ast.Target) *ast.BindingTarget {
-	n := a.bindTgt.make()
-	*n = ast.BindingTarget{Target: target}
-	return n
-}
-
-func (a *nodeAllocator) ConciseBody(body ast.Body) *ast.ConciseBody {
+func (a *nodeAllocator) ConciseBody(cb ast.ConciseBody) *ast.ConciseBody {
 	n := a.concBody.make()
-	*n = ast.ConciseBody{Body: body}
+	*n = cb
 	return n
 }
 
-func (a *nodeAllocator) ForLoopInitializer(init ast.ForLoopInit) *ast.ForLoopInitializer {
+func (a *nodeAllocator) ForLoopInitializer(fli ast.ForLoopInitializer) *ast.ForLoopInitializer {
 	n := a.forInit.make()
-	*n = ast.ForLoopInitializer{Initializer: init}
+	*n = fli
 	return n
 }
 
-func (a *nodeAllocator) ForIntoPtr(into ast.Into) *ast.ForInto {
+func (a *nodeAllocator) ForIntoPtr(fi ast.ForInto) *ast.ForInto {
 	n := a.forInto.make()
-	*n = ast.ForInto{Into: into}
-	return n
-}
-
-func (a *nodeAllocator) ParameterList(list ast.VariableDeclarators, rest ast.Expr, opening, closing ast.Idx) *ast.ParameterList {
-	n := a.paramList.make()
-	*n = ast.ParameterList{List: list, Rest: rest, Opening: opening, Closing: closing}
+	*n = fi
 	return n
 }
