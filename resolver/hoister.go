@@ -135,6 +135,41 @@ func (h *hoister) VisitPattern(n *ast.Pattern) {
 	n.VisitWith(&h.binder)
 }
 
+func (h *hoister) VisitForStatement(n *ast.ForStatement) {
+	if n.Initializer != nil {
+		if decl, ok := n.Initializer.VarDecl(); ok && decl.Kind == ast.VarKindVar {
+			decl.VisitWith(h)
+		}
+	}
+
+	old := h.inBlock
+	h.inBlock = true
+	n.Body.VisitWith(h)
+	h.inBlock = old
+}
+
+func (h *hoister) VisitForInStatement(n *ast.ForInStatement) {
+	if decl, ok := n.Into.VarDecl(); ok && decl.Kind == ast.VarKindVar {
+		decl.VisitWith(h)
+	}
+
+	old := h.inBlock
+	h.inBlock = true
+	n.Body.VisitWith(h)
+	h.inBlock = old
+}
+
+func (h *hoister) VisitForOfStatement(n *ast.ForOfStatement) {
+	if decl, ok := n.Into.VarDecl(); ok && decl.Kind == ast.VarKindVar {
+		decl.VisitWith(h)
+	}
+
+	old := h.inBlock
+	h.inBlock = true
+	n.Body.VisitWith(h)
+	h.inBlock = old
+}
+
 func (h *hoister) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 	if _, ok := h.catchParamDecls[n.Function.Name.Name]; ok {
 		return

@@ -144,10 +144,14 @@ func (r *resolver) VisitForStatement(n *ast.ForStatement) {
 
 	// Handle test expression
 	r.identType = identTypeRef
-	n.Test.VisitWith(r)
+	if n.Test != nil {
+		n.Test.VisitWith(r)
+	}
 
 	// Handle update expression
-	n.Update.VisitWith(r)
+	if n.Update != nil {
+		n.Update.VisitWith(r)
+	}
 
 	// Handle body
 	r.identType = oldIdentType
@@ -157,11 +161,10 @@ func (r *resolver) VisitForStatement(n *ast.ForStatement) {
 }
 
 func (r *resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
+	r.pushScope(scopeKindFunction)
 	if n.Name != nil {
 		r.modify(n.Name, declKindFunction)
 	}
-
-	r.pushScope(scopeKindFunction)
 
 	n.ScopeContext = r.current.ctx
 
@@ -177,6 +180,30 @@ func (r *resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	r.identType = oldIdentType
 
 	r.popScope()
+}
+
+func (r *resolver) VisitClassDeclaration(n *ast.ClassDeclaration) {
+	if n.Class.Name != nil {
+		r.modify(n.Class.Name, declKindClass)
+	}
+	n.Class.VisitWith(r)
+}
+
+func (r *resolver) VisitClassLiteral(n *ast.ClassLiteral) {
+	needsInnerNameScope := n.Name != nil && n.Name.ScopeContext == ast.UnresolvedContext
+	if needsInnerNameScope {
+		r.pushScope(scopeKindBlock)
+		r.modify(n.Name, declKindClass)
+	}
+
+	if n.SuperClass != nil {
+		n.SuperClass.VisitWith(r)
+	}
+	n.Body.VisitWith(r)
+
+	if needsInnerNameScope {
+		r.popScope()
+	}
 }
 
 func (r *resolver) VisitParameterList(n *ast.ParameterList) {
