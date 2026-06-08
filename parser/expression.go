@@ -211,22 +211,150 @@ func (p *parser) tokenToBindingId() {
 	}
 }
 
+// parsePattern parses a binding pattern in declaration/parameter/catch
+// position and returns an arena-allocated *Pattern.
 func (p *parser) parsePattern() *ast.Pattern {
+	return p.alloc.Pattern(p.parseBindingTarget())
+}
+
+// parseBindingTarget parses a binding target — an identifier, array binding
+// pattern, or object binding pattern — directly, without round-tripping
+// through the expression cover grammar. This avoids allocating an intermediate
+// ArrayLiteral/ObjectLiteral (plus its Expression nodes) only to convert it to
+// a pattern, which is the dominant cost of binding-pattern parsing.
+//
+// A trailing `= default` is NOT consumed here; see parseBindingElement.
+func (p *parser) parseBindingTarget() ast.Pattern {
 	p.tokenToBindingId()
 	switch p.currentKind() {
 	case token.Identifier:
 		pat := ast.NewIdentifierPattern(p.alloc.Identifier(p.currentOffset(), p.currentString()))
 		p.next()
-		return p.alloc.Pattern(pat)
+		return pat
 	case token.LeftBracket:
-		return p.alloc.Pattern(p.arrayPatternFromLiteral(p.parseArrayLiteral(), patBinding))
+		return p.parseArrayBindingPattern()
 	case token.LeftBrace:
-		return p.alloc.Pattern(p.objectPatternFromLiteral(p.parseObjectLiteral(), patBinding))
+		return p.parseObjectBindingPattern()
 	default:
 		idx := p.expect(token.Identifier)
 		p.nextStatement()
-		return p.alloc.Pattern(ast.NewInvalidPattern(p.alloc.InvalidExpression(idx, p.currentOffset())))
+		return ast.NewInvalidPattern(p.alloc.InvalidExpression(idx, p.currentOffset()))
 	}
+}
+
+// parseBindingElement parses a binding target followed by an optional default
+// initializer (`target = expr`), as found in array binding patterns and the
+// value position of object binding properties.
+func (p *parser) parseBindingElement() ast.Pattern {
+	target := p.parseBindingTarget()
+	if p.currentKind() == token.Assign {
+		p.next()
+		left := p.alloc.Pattern(target)
+		right := p.alloc.Expression(p.parseAssignmentExpression())
+		return ast.NewAssignPattern(p.alloc.AssignmentPattern(left, right))
+	}
+	return target
+}
+
+// parseArrayBindingPattern parses `[ ... ]` directly into an ArrayPattern.
+// Elisions become zero-value Pattern holes; a `...` rest element (which may be
+// a nested pattern but never has a default) must be last.
+func (p *parser) parseArrayBindingPattern() ast.Pattern {
+	lb := p.expect(token.LeftBracket)
+	mark := len(p.patBuf)
+	var rest *ast.Pattern
+	for p.currentKind() != token.RightBracket && p.currentKind() != token.Eof {
+		if p.currentKind() == token.Comma {
+			p.next()
+			p.patBuf = append(p.patBuf, ast.Pattern{}) // elision hole
+			continue
+		}
+		if p.currentKind() == token.Ellipsis {
+			p.next()
+			rest = p.alloc.Pattern(p.parseBindingTarget())
+			break
+		}
+		p.patBuf = append(p.patBuf, p.parseBindingElement())
+		if p.currentKind() != token.RightBracket {
+			p.expect(token.Comma)
+		}
+	}
+	rb := p.expect(token.RightBracket)
+	return ast.NewArrayPatPattern(p.alloc.ArrayPattern(lb, rb, p.finishPatBuf(mark), rest))
+}
+
+// parseObjectBindingPattern parses `{ ... }` directly into an ObjectPattern.
+// A `...` rest property must be a plain identifier in binding position and must
+// be last (a single trailing comma after it is tolerated, matching the prior
+// cover-grammar behavior).
+func (p *parser) parseObjectBindingPattern() ast.Pattern {
+	lb := p.expect(token.LeftBrace)
+	mark := len(p.patPropBuf)
+	var rest *ast.Pattern
+	for p.currentKind() != token.RightBrace && p.currentKind() != token.Eof {
+		if p.currentKind() == token.Ellipsis {
+			p.next()
+			rest = p.alloc.Pattern(p.parseObjectRestBinding())
+			if p.currentKind() == token.Comma {
+				p.next()
+			}
+			break
+		}
+		prop := p.parseBindingProperty()
+		if !prop.IsNone() {
+			p.patPropBuf = append(p.patPropBuf, prop)
+		}
+		if p.currentKind() != token.RightBrace {
+			p.expect(token.Comma)
+		}
+	}
+	rb := p.expect(token.RightBrace)
+	return ast.NewObjectPatPattern(p.alloc.ObjectPattern(lb, rb, p.finishPatPropBuf(mark), rest))
+}
+
+// parseBindingProperty parses a single object-binding property: either a
+// shorthand (`a` / `a = default`) or a keyed element (`key: target` /
+// `[computed]: target`). Key parsing is shared with object literals so that
+// numeric, string, computed, and private keys behave identically.
+func (p *parser) parseBindingProperty() ast.PatternProperty {
+	keyStartIdx := p.currentOffset()
+	_, parsedLiteral, key, tkn := p.parseObjectPropertyKey()
+	if key.IsNone() {
+		return ast.PatternProperty{}
+	}
+	if p.currentKind() == token.Colon {
+		p.next()
+		val := p.alloc.Pattern(p.parseBindingElement())
+		return ast.NewKeyValuePatProp(p.alloc.PatternKeyValue(key, val))
+	}
+	kind := p.currentKind()
+	if p.isBindingId(tkn) && (kind == token.Comma || kind == token.RightBrace || kind == token.Assign) {
+		var initializer *ast.Expression
+		if kind == token.Assign {
+			p.next()
+			initializer = p.alloc.Expression(p.parseAssignmentExpression())
+		}
+		return ast.NewShorthandPatProp(p.alloc.PatternShorthand(
+			p.alloc.Identifier(keyStartIdx, parsedLiteral),
+			initializer,
+		))
+	}
+	p.errorUnexpectedToken(kind)
+	return ast.PatternProperty{}
+}
+
+// parseObjectRestBinding parses the target of an object `...rest` in binding
+// position, which must be a plain identifier.
+func (p *parser) parseObjectRestBinding() ast.Pattern {
+	p.tokenToBindingId()
+	if p.currentKind() == token.Identifier {
+		pat := ast.NewIdentifierPattern(p.alloc.Identifier(p.currentOffset(), p.currentString()))
+		p.next()
+		return pat
+	}
+	idx := p.currentOffset()
+	p.errorf("Invalid destructuring binding target")
+	return ast.NewInvalidPattern(p.alloc.InvalidExpression(idx, p.currentOffset()))
 }
 
 func (p *parser) parseVariableDeclaration() ast.VariableDeclarator {

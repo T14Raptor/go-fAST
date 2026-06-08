@@ -149,7 +149,7 @@ func (p *parser) parseTryStatement() ast.Statement {
 
 func (p *parser) parseFunctionParameterList() *ast.ParameterList {
 	opening := p.expect(token.LeftParenthesis)
-	var list ast.VariableDeclarators
+	mark := len(p.declBuf)
 	var rest *ast.Pattern
 	savedFuncParams := p.scope.inFuncParams
 	if !savedFuncParams {
@@ -161,7 +161,7 @@ func (p *parser) parseFunctionParameterList() *ast.ParameterList {
 			rest = p.alloc.Pattern(p.patternFromExpression(p.alloc.Expression(p.parseAssignmentExpression()), patBinding))
 			break
 		}
-		list = append(list, p.parseVariableDeclaration())
+		p.declBuf = append(p.declBuf, p.parseVariableDeclaration())
 		if p.currentKind() != token.RightParenthesis {
 			p.expect(token.Comma)
 		}
@@ -171,7 +171,7 @@ func (p *parser) parseFunctionParameterList() *ast.ParameterList {
 
 	return p.alloc.ParameterList(ast.ParameterList{
 		Opening: opening,
-		List:    list,
+		List:    p.finishDeclBuf(mark),
 		Rest:    rest,
 		Closing: closing,
 	})
