@@ -1057,10 +1057,10 @@ func (p *parser) parseAssignmentExpression() ast.Expression {
 		var target *ast.Pattern
 		switch left.Kind() {
 		case ast.ExprIdentifier, ast.ExprPrivDot, ast.ExprMember:
-			target = p.alloc.Pattern(p.patternFromExpression(&left, patAssign))
+			target = p.alloc.Pattern(p.patternFromExpression(p.alloc.Expression(left), patAssign))
 		case ast.ExprArrayLit, ast.ExprObjectLit:
 			if !parenthesis && operator == ast.AssignmentAssign {
-				target = p.alloc.Pattern(p.patternFromExpression(&left, patAssign))
+				target = p.alloc.Pattern(p.patternFromExpression(p.alloc.Expression(left), patAssign))
 			}
 		}
 		if target != nil {
