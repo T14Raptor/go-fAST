@@ -292,3 +292,119 @@ func TestDestructuredVarDeclarationIsHoisted(t *testing.T) {
 		t.Fatalf("pre-declaration var use was not hoisted: use=%+v binding=%+v", preUse, binding)
 	}
 }
+
+func TestNamedFunctionExpressionNameIsFunctionLocal(t *testing.T) {
+	ids := idsForName(t, `let g; const fn = function g() { return g; }; g;`, "g")
+	requireIDCount(t, ids, 4)
+
+	outer := ids[0]
+	name := ids[1]
+	selfUse := ids[2]
+	outerUse := ids[3]
+
+	if name.ScopeContext == outer.ScopeContext {
+		t.Fatalf("function expression name resolved to outer binding: name=%+v outer=%+v", name, outer)
+	}
+	if selfUse.ScopeContext != name.ScopeContext {
+		t.Fatalf("function self-reference resolved to wrong binding: use=%+v name=%+v", selfUse, name)
+	}
+	if outerUse.ScopeContext != outer.ScopeContext {
+		t.Fatalf("outer function-name use resolved to wrong binding: use=%+v outer=%+v", outerUse, outer)
+	}
+}
+
+func TestClassDeclarationCreatesBlockScopeBinding(t *testing.T) {
+	ids := idsForName(t, `let C; { class C {} C; } C;`, "C")
+	requireIDCount(t, ids, 4)
+
+	outer := ids[0]
+	className := ids[1]
+	blockUse := ids[2]
+	outerUse := ids[3]
+
+	if className.ScopeContext == outer.ScopeContext {
+		t.Fatalf("class declaration resolved to outer binding: class=%+v outer=%+v", className, outer)
+	}
+	if blockUse.ScopeContext != className.ScopeContext {
+		t.Fatalf("block class use resolved to wrong binding: use=%+v class=%+v", blockUse, className)
+	}
+	if outerUse.ScopeContext != outer.ScopeContext {
+		t.Fatalf("outer class-name use resolved to wrong binding: use=%+v outer=%+v", outerUse, outer)
+	}
+}
+
+func TestNamedClassExpressionNameIsClassLocal(t *testing.T) {
+	ids := idsForName(t, `let C; const X = class C { m() { return C; } }; C;`, "C")
+	requireIDCount(t, ids, 4)
+
+	outer := ids[0]
+	name := ids[1]
+	selfUse := ids[2]
+	outerUse := ids[3]
+
+	if name.ScopeContext == outer.ScopeContext {
+		t.Fatalf("class expression name resolved to outer binding: name=%+v outer=%+v", name, outer)
+	}
+	if selfUse.ScopeContext != name.ScopeContext {
+		t.Fatalf("class self-reference resolved to wrong binding: use=%+v name=%+v", selfUse, name)
+	}
+	if outerUse.ScopeContext != outer.ScopeContext {
+		t.Fatalf("outer class-name use resolved to wrong binding: use=%+v outer=%+v", outerUse, outer)
+	}
+}
+
+func TestForLetInitializerDoesNotHoistToFunctionScope(t *testing.T) {
+	ids := idsForName(t, `let i; function f() { for (let i = 0; i < 1; i++) {} return i; }`, "i")
+	requireIDCount(t, ids, 5)
+
+	outer := ids[0]
+	loopBinding := ids[1]
+	testUse := ids[2]
+	updateUse := ids[3]
+	returnUse := ids[4]
+
+	if loopBinding.ScopeContext == outer.ScopeContext {
+		t.Fatalf("loop let binding resolved to outer scope: loop=%+v outer=%+v", loopBinding, outer)
+	}
+	if testUse.ScopeContext != loopBinding.ScopeContext || updateUse.ScopeContext != loopBinding.ScopeContext {
+		t.Fatalf("loop uses resolved outside loop binding: test=%+v update=%+v loop=%+v", testUse, updateUse, loopBinding)
+	}
+	if returnUse.ScopeContext != outer.ScopeContext {
+		t.Fatalf("post-loop use resolved to loop/function scope, want outer: use=%+v outer=%+v", returnUse, outer)
+	}
+}
+
+func TestResolveForStatementOptionalParts(t *testing.T) {
+	for _, src := range []string{
+		`for (;;) {}`,
+		`for (; x;) {}`,
+		`for (;; i++) {}`,
+	} {
+		program, err := parser.Parse(src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.Resolve(program)
+	}
+}
+
+func TestForInOfLetInitializerDoesNotHoistToFunctionScope(t *testing.T) {
+	for _, src := range []string{
+		`let x; function f(obj) { for (let x in obj) {} return x; }`,
+		`let x; function f(arr) { for (let x of arr) {} return x; }`,
+	} {
+		ids := idsForName(t, src, "x")
+		requireIDCount(t, ids, 3)
+
+		outer := ids[0]
+		loopBinding := ids[1]
+		returnUse := ids[2]
+
+		if loopBinding.ScopeContext == outer.ScopeContext {
+			t.Fatalf("loop lexical binding resolved to outer scope in %q: loop=%+v outer=%+v", src, loopBinding, outer)
+		}
+		if returnUse.ScopeContext != outer.ScopeContext {
+			t.Fatalf("post-loop use resolved to loop/function scope in %q: use=%+v outer=%+v", src, returnUse, outer)
+		}
+	}
+}

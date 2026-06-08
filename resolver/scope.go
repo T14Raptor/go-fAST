@@ -16,6 +16,7 @@ const (
 
 	declKindVar      declKind = 0
 	declKindFunction declKind = 1
+	declKindClass    declKind = 2
 
 	identTypeRef     identType = 0 // Reference (read)
 	identTypeBinding identType = 1 // Binding (declaration)
