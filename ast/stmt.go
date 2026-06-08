@@ -179,13 +179,31 @@ func (n *BlockStatement) Idx0() Idx { return n.LeftBrace }
 func (n *BlockStatement) Idx1() Idx { return n.RightBrace + 1 }
 
 func (n *BreakStatement) Idx0() Idx { return n.Idx }
-func (n *BreakStatement) Idx1() Idx { return n.Idx }
+func (n *BreakStatement) Idx1() Idx {
+	if n.Label != nil {
+		return n.Label.Idx1()
+	}
+	return n.Idx + 5 // "break"
+}
 
 func (n *ContinueStatement) Idx0() Idx { return n.Idx }
-func (n *ContinueStatement) Idx1() Idx { return n.Idx }
+func (n *ContinueStatement) Idx1() Idx {
+	if n.Label != nil {
+		return n.Label.Idx1()
+	}
+	return n.Idx + 8 // "continue"
+}
 
 func (n *CaseStatement) Idx0() Idx { return n.Case }
-func (n *CaseStatement) Idx1() Idx { return n.Consequent[len(n.Consequent)-1].Idx1() }
+func (n *CaseStatement) Idx1() Idx {
+	if len(n.Consequent) > 0 {
+		return n.Consequent[len(n.Consequent)-1].Idx1()
+	}
+	if n.Test != nil {
+		return n.Test.Idx1() // `case <test>:` with no body
+	}
+	return n.Case + 7 // bare `default`
+}
 
 func (n *CatchStatement) Idx0() Idx { return n.Catch }
 func (n *CatchStatement) Idx1() Idx { return n.Body.Idx1() }
@@ -211,13 +229,23 @@ func (n *IfStatement) Idx1() Idx {
 }
 
 func (n *LabelledStatement) Idx0() Idx { return n.Label.Idx0() }
-func (n *LabelledStatement) Idx1() Idx { return n.Colon + 1 }
+func (n *LabelledStatement) Idx1() Idx { return n.Statement.Idx1() }
 
 func (n *ReturnStatement) Idx0() Idx { return n.Return }
-func (n *ReturnStatement) Idx1() Idx { return n.Return + 6 }
+func (n *ReturnStatement) Idx1() Idx {
+	if n.Argument != nil {
+		return n.Argument.Idx1()
+	}
+	return n.Return + 6 // "return"
+}
 
 func (n *SwitchStatement) Idx0() Idx { return n.Switch }
-func (n *SwitchStatement) Idx1() Idx { return n.Body[len(n.Body)-1].Idx1() }
+func (n *SwitchStatement) Idx1() Idx {
+	if len(n.Body) > 0 {
+		return n.Body[len(n.Body)-1].Idx1()
+	}
+	return n.Discriminant.Idx1() // empty `switch (x) {}`
+}
 
 func (n *ThrowStatement) Idx0() Idx { return n.Throw }
 func (n *ThrowStatement) Idx1() Idx { return n.Argument.Idx1() }

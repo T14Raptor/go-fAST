@@ -23,5 +23,15 @@ type Program struct {
 	Body Statements
 }
 
-func (n *Program) Idx0() Idx { return n.Body[0].Idx0() }
-func (n *Program) Idx1() Idx { return n.Body[len(n.Body)-1].Idx1() }
+func (n *Program) Idx0() Idx {
+	if len(n.Body) == 0 {
+		return 0
+	}
+	return n.Body[0].Idx0()
+}
+func (n *Program) Idx1() Idx {
+	if len(n.Body) == 0 {
+		return 0
+	}
+	return n.Body[len(n.Body)-1].Idx1()
+}

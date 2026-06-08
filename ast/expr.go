@@ -241,7 +241,7 @@ func (n *CallExpression) Idx0() Idx { return n.Callee.Idx0() }
 func (n *CallExpression) Idx1() Idx { return n.RightParenthesis + 1 }
 
 func (n *ConditionalExpression) Idx0() Idx { return n.Test.Idx0() }
-func (n *ConditionalExpression) Idx1() Idx { return n.Test.Idx1() }
+func (n *ConditionalExpression) Idx1() Idx { return n.Alternate.Idx1() }
 
 func (p *PrivateDotExpression) Idx0() Idx { return p.Left.Idx0() }
 func (p *PrivateDotExpression) Idx1() Idx { return p.Identifier.Idx1() }
@@ -292,8 +292,8 @@ func (n *UpdateExpression) Idx1() Idx {
 func (n *MetaProperty) Idx0() Idx { return n.Idx }
 func (n *MetaProperty) Idx1() Idx { return n.Property.Idx1() }
 
-func (m *MemberExpression) Idx0() Idx { return 0 }
-func (m *MemberExpression) Idx1() Idx { return 0 }
+func (m *MemberExpression) Idx0() Idx { return m.Object.Idx0() }
+func (m *MemberExpression) Idx1() Idx { return m.Property.Idx1() }
 
 func (n *SpreadElement) Idx0() Idx { return n.Expression.Idx0() }
 func (n *SpreadElement) Idx1() Idx { return n.Expression.Idx1() }

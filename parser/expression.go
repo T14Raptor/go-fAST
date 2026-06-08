@@ -993,7 +993,7 @@ func (p *parser) parseExpression() ast.Expression {
 }
 
 func (p *parser) checkComma(from, to ast.Idx) {
-	if pos := strings.IndexByte(p.str[int(from)-1:int(to)-1], ','); pos >= 0 {
+	if pos := strings.IndexByte(p.str[int(from):int(to)], ','); pos >= 0 {
 		p.errorf("Comma is not allowed here")
 	}
 }

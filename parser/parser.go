@@ -225,8 +225,12 @@ func (p *parser) finishElemBuf(mark int) ast.ClassElements {
 	return result
 }
 
+// expect consumes the current token, which must be value, and returns its
+// start offset. Node position fields populated from expect (brackets, braces,
+// parentheses, and keyword indices) are token starts; the Idx1 methods add the
+// token/keyword length to obtain the exclusive end.
 func (p *parser) expect(value token.Token) ast.Idx {
-	idx := p.scanner.Offset()
+	idx := p.scanner.Token.Idx0
 	if p.scanner.Token.Kind != value {
 		p.errorUnexpectedToken(p.scanner.Token.Kind)
 	}

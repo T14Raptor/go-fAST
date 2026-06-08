@@ -54,7 +54,12 @@ type (
 )
 
 func (n *BooleanLiteral) Idx0() Idx { return n.Idx }
-func (n *BooleanLiteral) Idx1() Idx { return Idx(int(n.Idx) + 4) }
+func (n *BooleanLiteral) Idx1() Idx {
+	if n.Value {
+		return n.Idx + 4 // "true"
+	}
+	return n.Idx + 5 // "false"
+}
 
 func (n *NullLiteral) Idx0() Idx { return n.Idx }
 func (n *NullLiteral) Idx1() Idx { return Idx(int(n.Idx) + 4) } // "null"
