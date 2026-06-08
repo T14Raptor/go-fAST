@@ -406,11 +406,13 @@ func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	if n.Async {
 		g.writeString("async ")
 	}
+	g.writeString("function")
+	if n.Generator {
+		g.writeByte('*')
+	}
 	if n.Name != nil {
-		g.writeString("function ")
+		g.writeByte(' ')
 		g.gen(n.Name)
-	} else {
-		g.writeString("function")
 	}
 	g.gen(n.ParameterList)
 	g.space()
@@ -423,15 +425,19 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 		g.writeByte(' ')
 		g.gen(n.Name)
 	}
+	if n.SuperClass != nil {
+		g.writeString(" extends ")
+		g.genExpr(n.SuperClass, ast.PrecedenceAssign, 0)
+	}
 	g.space()
 	g.writeByte('{')
 
 	g.indent++
-	for _, element := range n.Body {
+	for i := range n.Body {
 		g.lineAndPad()
-		switch element.Kind() {
+		switch n.Body[i].Kind() {
 		case ast.ClassElemMethodDef:
-			e := element.MustMethodDef()
+			e := n.Body[i].MustMethodDef()
 			if e.Static {
 				g.writeString("static ")
 			}
@@ -454,7 +460,7 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			g.genPropertyName(e.Key)
 			g.genMethodBody(e.Body)
 		case ast.ClassElemFieldDef:
-			e := element.MustFieldDef()
+			e := n.Body[i].MustFieldDef()
 			if e.Static {
 				g.writeString("static ")
 			}
@@ -467,7 +473,7 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 			}
 			g.writeByte(';')
 		case ast.ClassElemStaticBlock:
-			e := element.MustStaticBlock()
+			e := n.Body[i].MustStaticBlock()
 			g.writeString("static")
 			g.space()
 			g.gen(e.Block)
@@ -492,6 +498,10 @@ func (g *GenVisitor) VisitPrivateIdentifier(n *ast.PrivateIdentifier) {
 
 func (g *GenVisitor) VisitThisExpression(n *ast.ThisExpression) {
 	g.writeString("this")
+}
+
+func (g *GenVisitor) VisitSuperExpression(n *ast.SuperExpression) {
+	g.writeString("super")
 }
 
 func (g *GenVisitor) VisitNullLiteral(n *ast.NullLiteral) {
@@ -551,9 +561,12 @@ func (g *GenVisitor) VisitRegExpLiteral(n *ast.RegExpLiteral) {
 }
 
 func (g *GenVisitor) VisitTemplateLiteral(n *ast.TemplateLiteral) {
+	if n.Tag != nil {
+		g.genAccessHead(n.Tag, ast.PrecedenceCall, false)
+	}
 	g.writeByte('`')
 	for i, e := range n.Elements {
-		g.writeString(e.Parsed)
+		g.writeString(e.Literal)
 		if i < len(n.Expressions) {
 			g.writeString("${")
 			g.genExpr(&n.Expressions[i], ast.PrecedenceLowest, 0)
