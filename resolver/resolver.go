@@ -162,7 +162,7 @@ func (r *resolver) VisitForStatement(n *ast.ForStatement) {
 
 func (r *resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	r.pushScope(scopeKindFunction)
-	if n.Name != nil && n.Name.ScopeContext == ast.UnresolvedContext {
+	if n.Name != nil {
 		r.modify(n.Name, declKindFunction)
 	}
 
