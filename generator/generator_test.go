@@ -295,3 +295,30 @@ func TestLiteralMemberAndCallBasesMinified(t *testing.T) {
 func TestComputedMemberSequenceMinified(t *testing.T) {
 	assertMinified(t, `a[(b,c)]; a?.[(b,c)];`, `a[(b,c)];a?.[(b,c)];`)
 }
+
+func TestClassExtendsAndSuperMinified(t *testing.T) {
+	assertMinified(t,
+		`class A extends B { constructor(){ super(); super.x; } }`,
+		`class A extends B{constructor(){super();super.x;}}`,
+	)
+	assertMinified(t, `class A extends (a, b) {}`, `class A extends (a,b){}`)
+}
+
+func TestGeneratorFunctionsAndObjectMethodsMinified(t *testing.T) {
+	assertMinified(t, `function* g(){ yield 1; }`, `function* g(){yield 1;}`)
+	assertMinified(t, `const g = function*(){ yield 1; };`, `const g=function*(){yield 1;};`)
+	assertMinified(t, `async function* g(){ yield 1; }`, `async function* g(){yield 1;}`)
+	assertMinified(t,
+		`({ m(){ return super.x; }, *g(){ yield 1; } });`,
+		`({m(){return super.x;},*g(){yield 1;}});`,
+	)
+}
+
+func TestTemplateLiteralMinified(t *testing.T) {
+	assertMinified(t, "tag`x${y}`;", "tag`x${y}`;")
+	assertMinified(t, "`\\${x}`;", "`\\${x}`;")
+	assertMinified(t, "`\\n`;", "`\\n`;")
+	assertMinified(t, "(function(){})`x`;", "(function(){})`x`;")
+	assertMinified(t, "(class {})`x`;", "(class {})`x`;")
+	assertMinified(t, "({})`x`;", "({})`x`;")
+}

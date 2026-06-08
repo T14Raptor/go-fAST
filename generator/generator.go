@@ -406,11 +406,13 @@ func (g *GenVisitor) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	if n.Async {
 		g.writeString("async ")
 	}
+	g.writeString("function")
+	if n.Generator {
+		g.writeByte('*')
+	}
 	if n.Name != nil {
-		g.writeString("function ")
+		g.writeByte(' ')
 		g.gen(n.Name)
-	} else {
-		g.writeString("function")
 	}
 	g.gen(n.ParameterList)
 	g.space()
@@ -422,6 +424,10 @@ func (g *GenVisitor) VisitClassLiteral(n *ast.ClassLiteral) {
 	if n.Name != nil {
 		g.writeByte(' ')
 		g.gen(n.Name)
+	}
+	if n.SuperClass != nil {
+		g.writeString(" extends ")
+		g.genExpr(n.SuperClass, ast.PrecedenceAssign, 0)
 	}
 	g.space()
 	g.writeByte('{')
@@ -494,6 +500,10 @@ func (g *GenVisitor) VisitThisExpression(n *ast.ThisExpression) {
 	g.writeString("this")
 }
 
+func (g *GenVisitor) VisitSuperExpression(n *ast.SuperExpression) {
+	g.writeString("super")
+}
+
 func (g *GenVisitor) VisitNullLiteral(n *ast.NullLiteral) {
 	g.writeString("null")
 }
@@ -551,9 +561,12 @@ func (g *GenVisitor) VisitRegExpLiteral(n *ast.RegExpLiteral) {
 }
 
 func (g *GenVisitor) VisitTemplateLiteral(n *ast.TemplateLiteral) {
+	if n.Tag != nil {
+		g.genAccessHead(n.Tag, ast.PrecedenceCall, false)
+	}
 	g.writeByte('`')
 	for i, e := range n.Elements {
-		g.writeString(e.Parsed)
+		g.writeString(e.Literal)
 		if i < len(n.Expressions) {
 			g.writeString("${")
 			g.genExpr(&n.Expressions[i], ast.PrecedenceLowest, 0)
