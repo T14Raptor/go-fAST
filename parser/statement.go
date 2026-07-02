@@ -463,7 +463,7 @@ func (p *parser) parseSwitchStatement() ast.Statement {
 			break
 		}
 
-		clause := p.parseCaseStatement()
+		clause := p.parseSwitchCase()
 		if clause.Test == nil {
 			if node.Default != -1 {
 				p.errorf("Already saw a default in switch")
