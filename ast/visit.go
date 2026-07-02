@@ -35,8 +35,8 @@ type Visitor interface {
 	VisitExpressions(n *Expressions)
 	VisitFieldDefinition(n *FieldDefinition)
 	VisitForInStatement(n *ForInStatement)
+	VisitForInit(n *ForInit)
 	VisitForInto(n *ForInto)
-	VisitForLoopInitializer(n *ForLoopInitializer)
 	VisitForOfStatement(n *ForOfStatement)
 	VisitForStatement(n *ForStatement)
 	VisitFunctionDeclaration(n *FunctionDeclaration)
@@ -202,10 +202,10 @@ func (nv *NoopVisitor) VisitFieldDefinition(n *FieldDefinition) {
 func (nv *NoopVisitor) VisitForInStatement(n *ForInStatement) {
 	n.VisitChildrenWith(nv.V)
 }
-func (nv *NoopVisitor) VisitForInto(n *ForInto) {
+func (nv *NoopVisitor) VisitForInit(n *ForInit) {
 	n.VisitChildrenWith(nv.V)
 }
-func (nv *NoopVisitor) VisitForLoopInitializer(n *ForLoopInitializer) {
+func (nv *NoopVisitor) VisitForInto(n *ForInto) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitForOfStatement(n *ForOfStatement) {
@@ -688,8 +688,6 @@ func (n *MetaProperty) VisitWith(v Visitor) {
 	v.VisitMetaProperty(n)
 }
 func (n *MetaProperty) VisitChildrenWith(v Visitor) {
-	n.Meta.VisitWith(v)
-	n.Property.VisitWith(v)
 }
 func (n *MethodDefinition) VisitWith(v Visitor) {
 	v.VisitMethodDefinition(n)
@@ -1101,10 +1099,21 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*UnaryExpression)(n.ptr).VisitWith(v)
 	case ExprUpdate:
 		(*UpdateExpression)(n.ptr).VisitWith(v)
-	case ExprVarDeclarator:
-		(*VariableDeclarator)(n.ptr).VisitWith(v)
 	case ExprYield:
 		(*YieldExpression)(n.ptr).VisitWith(v)
+	}
+}
+
+func (n *ForInit) VisitWith(v Visitor) {
+	v.VisitForInit(n)
+}
+
+func (n *ForInit) VisitChildrenWith(v Visitor) {
+	switch n.kind {
+	case ForInitExpr:
+		(*Expression)(n.ptr).VisitWith(v)
+	case ForInitVarDecl:
+		(*VariableDeclaration)(n.ptr).VisitWith(v)
 	}
 }
 
@@ -1117,19 +1126,6 @@ func (n *ForInto) VisitChildrenWith(v Visitor) {
 	case ForIntoPattern:
 		(*Pattern)(n.ptr).VisitWith(v)
 	case ForIntoVarDecl:
-		(*VariableDeclaration)(n.ptr).VisitWith(v)
-	}
-}
-
-func (n *ForLoopInitializer) VisitWith(v Visitor) {
-	v.VisitForLoopInitializer(n)
-}
-
-func (n *ForLoopInitializer) VisitChildrenWith(v Visitor) {
-	switch n.kind {
-	case ForInitExpr:
-		(*Expression)(n.ptr).VisitWith(v)
-	case ForInitVarDecl:
 		(*VariableDeclaration)(n.ptr).VisitWith(v)
 	}
 }
@@ -1235,10 +1231,6 @@ func (n *Statement) VisitChildrenWith(v Visitor) {
 		(*BlockStatement)(n.ptr).VisitWith(v)
 	case StmtBreak:
 		(*BreakStatement)(n.ptr).VisitWith(v)
-	case StmtCase:
-		(*CaseStatement)(n.ptr).VisitWith(v)
-	case StmtCatch:
-		(*CatchStatement)(n.ptr).VisitWith(v)
 	case StmtClassDecl:
 		(*ClassDeclaration)(n.ptr).VisitWith(v)
 	case StmtContinue:

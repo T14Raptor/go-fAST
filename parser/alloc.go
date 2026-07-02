@@ -76,26 +76,26 @@ type nodeAllocator struct {
 	assignPat  arena[ast.AssignmentPattern]
 
 	// Statement nodes.
-	exprStmt  arena[ast.ExpressionStatement]
-	blockStmt arena[ast.BlockStatement]
-	retStmt   arena[ast.ReturnStatement]
-	ifStmt    arena[ast.IfStatement]
-	throwStmt arena[ast.ThrowStatement]
-	switchStm arena[ast.SwitchStatement]
-	withStmt  arena[ast.WithStatement]
-	tryStmt   arena[ast.TryStatement]
-	catchStmt arena[ast.CatchStatement]
-	forStmt   arena[ast.ForStatement]
-	forInStmt arena[ast.ForInStatement]
-	forOfStmt arena[ast.ForOfStatement]
-	whileStmt arena[ast.WhileStatement]
-	doWhile   arena[ast.DoWhileStatement]
-	debugStmt arena[ast.DebuggerStatement]
-	emptyStmt arena[ast.EmptyStatement]
-	badStmt   arena[ast.BadStatement]
-	labelStmt arena[ast.LabelledStatement]
-	breakStmt arena[ast.BreakStatement]
-	contStmt  arena[ast.ContinueStatement]
+	exprStmt    arena[ast.ExpressionStatement]
+	blockStmt   arena[ast.BlockStatement]
+	retStmt     arena[ast.ReturnStatement]
+	ifStmt      arena[ast.IfStatement]
+	throwStmt   arena[ast.ThrowStatement]
+	switchStm   arena[ast.SwitchStatement]
+	withStmt    arena[ast.WithStatement]
+	tryStmt     arena[ast.TryStatement]
+	catchClause arena[ast.CatchStatement]
+	forStmt     arena[ast.ForStatement]
+	forInStmt   arena[ast.ForInStatement]
+	forOfStmt   arena[ast.ForOfStatement]
+	whileStmt   arena[ast.WhileStatement]
+	doWhile     arena[ast.DoWhileStatement]
+	debugStmt   arena[ast.DebuggerStatement]
+	emptyStmt   arena[ast.EmptyStatement]
+	badStmt     arena[ast.BadStatement]
+	labelStmt   arena[ast.LabelledStatement]
+	breakStmt   arena[ast.BreakStatement]
+	contStmt    arena[ast.ContinueStatement]
 
 	// Declaration nodes.
 	varDecl  arena[ast.VariableDeclaration]
@@ -111,7 +111,7 @@ type nodeAllocator struct {
 	pattern   arena[ast.Pattern]
 	patProp   arena[ast.PatternProperty]
 	concBody  arena[ast.ConciseBody]
-	forInit   arena[ast.ForLoopInitializer]
+	forInit   arena[ast.ForInit]
 	forInto   arena[ast.ForInto]
 	paramList arena[ast.ParameterList]
 
@@ -192,26 +192,26 @@ func newNodeAllocator() nodeAllocator {
 		assignPat:  newArena[ast.AssignmentPattern](32),
 
 		// Statements.
-		exprStmt:  newArena[ast.ExpressionStatement](256),
-		blockStmt: newArena[ast.BlockStatement](128),
-		retStmt:   newArena[ast.ReturnStatement](64),
-		ifStmt:    newArena[ast.IfStatement](64),
-		throwStmt: newArena[ast.ThrowStatement](32),
-		switchStm: newArena[ast.SwitchStatement](16),
-		withStmt:  newArena[ast.WithStatement](8),
-		tryStmt:   newArena[ast.TryStatement](16),
-		catchStmt: newArena[ast.CatchStatement](16),
-		forStmt:   newArena[ast.ForStatement](32),
-		forInStmt: newArena[ast.ForInStatement](16),
-		forOfStmt: newArena[ast.ForOfStatement](16),
-		whileStmt: newArena[ast.WhileStatement](32),
-		doWhile:   newArena[ast.DoWhileStatement](16),
-		debugStmt: newArena[ast.DebuggerStatement](8),
-		emptyStmt: newArena[ast.EmptyStatement](32),
-		badStmt:   newArena[ast.BadStatement](8),
-		labelStmt: newArena[ast.LabelledStatement](16),
-		breakStmt: newArena[ast.BreakStatement](16),
-		contStmt:  newArena[ast.ContinueStatement](16),
+		exprStmt:    newArena[ast.ExpressionStatement](256),
+		blockStmt:   newArena[ast.BlockStatement](128),
+		retStmt:     newArena[ast.ReturnStatement](64),
+		ifStmt:      newArena[ast.IfStatement](64),
+		throwStmt:   newArena[ast.ThrowStatement](32),
+		switchStm:   newArena[ast.SwitchStatement](16),
+		withStmt:    newArena[ast.WithStatement](8),
+		tryStmt:     newArena[ast.TryStatement](16),
+		catchClause: newArena[ast.CatchStatement](16),
+		forStmt:     newArena[ast.ForStatement](32),
+		forInStmt:   newArena[ast.ForInStatement](16),
+		forOfStmt:   newArena[ast.ForOfStatement](16),
+		whileStmt:   newArena[ast.WhileStatement](32),
+		doWhile:     newArena[ast.DoWhileStatement](16),
+		debugStmt:   newArena[ast.DebuggerStatement](8),
+		emptyStmt:   newArena[ast.EmptyStatement](32),
+		badStmt:     newArena[ast.BadStatement](8),
+		labelStmt:   newArena[ast.LabelledStatement](16),
+		breakStmt:   newArena[ast.BreakStatement](16),
+		contStmt:    newArena[ast.ContinueStatement](16),
 
 		// Declarations.
 		varDecl:  newArena[ast.VariableDeclaration](64),
@@ -227,7 +227,7 @@ func newNodeAllocator() nodeAllocator {
 		pattern:   newArena[ast.Pattern](128),
 		patProp:   newArena[ast.PatternProperty](64),
 		concBody:  newArena[ast.ConciseBody](64),
-		forInit:   newArena[ast.ForLoopInitializer](32),
+		forInit:   newArena[ast.ForInit](32),
 		forInto:   newArena[ast.ForInto](16),
 		paramList: newArena[ast.ParameterList](64),
 
@@ -465,9 +465,9 @@ func (a *nodeAllocator) PrivateDotExpression(left *ast.Expression, ident *ast.Pr
 	return n
 }
 
-func (a *nodeAllocator) MetaProperty(meta, property *ast.Identifier, idx ast.Idx) *ast.MetaProperty {
+func (a *nodeAllocator) MetaProperty(kind ast.MetaPropertyKind, idx ast.Idx) *ast.MetaProperty {
 	n := a.metaProp.make()
-	*n = ast.MetaProperty{Meta: meta, Property: property, Idx: idx}
+	*n = ast.MetaProperty{Kind: kind, Idx: idx}
 	return n
 }
 
@@ -691,13 +691,13 @@ func (a *nodeAllocator) TryStatement(idx ast.Idx, body *ast.BlockStatement) *ast
 	return n
 }
 
-func (a *nodeAllocator) CatchStatement(idx ast.Idx, param *ast.Pattern, body *ast.BlockStatement) *ast.CatchStatement {
-	n := a.catchStmt.make()
+func (a *nodeAllocator) CatchClause(idx ast.Idx, param *ast.Pattern, body *ast.BlockStatement) *ast.CatchStatement {
+	n := a.catchClause.make()
 	*n = ast.CatchStatement{Catch: idx, Parameter: param, Body: body}
 	return n
 }
 
-func (a *nodeAllocator) ForStatement(idx ast.Idx, init *ast.ForLoopInitializer, test, update *ast.Expression, body *ast.Statement) *ast.ForStatement {
+func (a *nodeAllocator) ForStatement(idx ast.Idx, init *ast.ForInit, test, update *ast.Expression, body *ast.Statement) *ast.ForStatement {
 	n := a.forStmt.make()
 	*n = ast.ForStatement{For: idx, Initializer: init, Test: test, Update: update, Body: body}
 	return n
@@ -797,7 +797,7 @@ func (a *nodeAllocator) ConciseBody(cb ast.ConciseBody) *ast.ConciseBody {
 	return n
 }
 
-func (a *nodeAllocator) ForLoopInitializer(fli ast.ForLoopInitializer) *ast.ForLoopInitializer {
+func (a *nodeAllocator) ForLoopInitializer(fli ast.ForInit) *ast.ForInit {
 	n := a.forInit.make()
 	*n = fli
 	return n

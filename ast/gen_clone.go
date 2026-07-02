@@ -5,7 +5,6 @@ package main
 import (
 	"bytes"
 	"cmp"
-	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -15,6 +14,9 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"text/template"
+
+	"github.com/t14raptor/go-fast/ast/internal/astgen"
 )
 
 type NodeType int
@@ -30,15 +32,12 @@ type CloneableNodeType struct {
 	Children []Child
 
 	IsUnion        bool
-	Variants       []UnionVariant
+	Variants       []astgen.UnionVariant
 	KindPrefix     string
 	ConstructorSfx string
 }
 
-type UnionVariant struct {
-	TypeName  string
-	ShortName string
-}
+func (n CloneableNodeType) IsSlice() bool { return n.Type == NodeTypeSlice }
 
 type CloneableInterface struct {
 	Name       string
@@ -59,6 +58,34 @@ func newChild(fieldName, fieldType string, cloneable, pointer, optional bool) Ch
 	return Child{FieldName: fieldName, FieldType: fieldType, Cloneable: cloneable, Pointer: pointer, Optional: optional}
 }
 
+// fieldValue returns the expression assigned to a struct field in the cloned
+// literal. Optional and interface children stage their value in a preamble
+// variable (see the template); the rest are inlined.
+func fieldValue(c Child) string {
+	switch {
+	case !c.Cloneable:
+		return "n." + c.FieldName
+	case c.Interface != nil:
+		return "cloned" + c.Interface.Name
+	case c.Optional:
+		return strings.ToLower(c.FieldName)
+	case c.Pointer:
+		return "n." + c.FieldName + ".Clone()"
+	default:
+		return "*n." + c.FieldName + ".Clone()"
+	}
+}
+
+// cloneFields renders the comma-separated `Field: value` list for a struct's
+// cloned literal. gofmt collapses the surrounding whitespace.
+func cloneFields(n CloneableNodeType) string {
+	parts := make([]string, len(n.Children))
+	for i, c := range n.Children {
+		parts[i] = c.FieldName + ": " + fieldValue(c)
+	}
+	return strings.Join(parts, ", ")
+}
+
 func main() {
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, "./ast", func(info fs.FileInfo) bool {
@@ -68,10 +95,11 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
+	specs := astgen.FindUnionSpecs(pkgs["ast"].Files)
 	var nodes []CloneableNodeType
 	var interfaces []CloneableInterface
 	for _, file := range pkgs["ast"].Files {
-		nodes = append(nodes, findCloneableNodes(file)...)
+		nodes = append(nodes, findCloneableNodes(file, specs)...)
 		interfaces = append(interfaces, findCloneableInterfaces(file)...)
 	}
 	for _, file := range pkgs["ast"].Files {
@@ -95,197 +123,72 @@ func main() {
 			return cmp.Compare(a, b)
 		})
 	}
-	var (
-		visitMethods []ast.Decl
-	)
-	for _, node := range nodes {
-		if node.IsUnion {
-			continue
-		}
 
-		recv := newFieldList("n", &ast.StarExpr{X: ast.NewIdent(node.Name)})
-		visitChildrenBlock := &ast.BlockStmt{}
-
-		var fields []ast.Expr
-		switch node.Type {
-		case NodeTypeStruct:
-			for _, child := range node.Children {
-				if !child.Cloneable {
-					fields = append(fields, &ast.KeyValueExpr{
-						Key:   ast.NewIdent(child.FieldName),
-						Value: newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-					})
-					continue
-				}
-				if child.Interface != nil {
-					declStmt, switchStmt := newCloner(newSelectorExpr(ast.NewIdent("n"), child.FieldName), child.Interface)
-					visitChildrenBlock.List = append(visitChildrenBlock.List, declStmt, switchStmt)
-
-					fields = append(fields, &ast.KeyValueExpr{
-						Key:   ast.NewIdent(child.FieldName),
-						Value: declStmt.Decl.(*ast.GenDecl).Specs[0].(*ast.ValueSpec).Names[0],
-					})
-					continue
-				}
-				if child.Optional {
-					visitChildrenBlock.List = append(visitChildrenBlock.List,
-						&ast.DeclStmt{
-							Decl: &ast.GenDecl{
-								Tok: token.VAR,
-								Specs: []ast.Spec{
-									&ast.ValueSpec{
-										Names: []*ast.Ident{ast.NewIdent(strings.ToLower(child.FieldName))},
-										Type:  &ast.StarExpr{X: ast.NewIdent(child.FieldType)},
-									},
-								},
-							},
-						}, &ast.IfStmt{
-							Cond: &ast.BinaryExpr{
-								X:  newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-								Op: token.NEQ,
-								Y:  ast.NewIdent("nil"),
-							},
-							Body: &ast.BlockStmt{
-								List: []ast.Stmt{
-									&ast.AssignStmt{
-										Lhs: []ast.Expr{ast.NewIdent(strings.ToLower(child.FieldName))},
-										Tok: token.ASSIGN,
-										Rhs: []ast.Expr{&ast.CallExpr{
-											Fun: newSelectorExpr(
-												newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-												"Clone",
-											),
-										}},
-									},
-								},
-							},
-						})
-					fields = append(fields, &ast.KeyValueExpr{
-						Key:   ast.NewIdent(child.FieldName),
-						Value: ast.NewIdent(strings.ToLower(child.FieldName)),
-					})
-					continue
-				}
-				if child.Pointer {
-					fields = append(fields, &ast.KeyValueExpr{
-						Key: ast.NewIdent(child.FieldName),
-						Value: &ast.CallExpr{
-							Fun: newSelectorExpr(
-								newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-								"Clone",
-							),
-						},
-					})
-					continue
-				}
-				fields = append(fields, &ast.KeyValueExpr{
-					Key: ast.NewIdent(child.FieldName),
-					Value: &ast.StarExpr{X: &ast.CallExpr{
-						Fun: newSelectorExpr(
-							newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-							"Clone",
-						),
-					}},
-				})
-			}
-
-			visitChildrenBlock.List = append(visitChildrenBlock.List, &ast.ReturnStmt{
-				Results: []ast.Expr{
-					&ast.UnaryExpr{Op: token.AND, X: &ast.CompositeLit{
-						Type: ast.NewIdent(node.Name),
-						Elts: fields,
-					}},
-				},
-			})
-		case NodeTypeSlice:
-			visitChildrenBlock.List = append(visitChildrenBlock.List, &ast.AssignStmt{
-				Lhs: []ast.Expr{ast.NewIdent("ns")},
-				Tok: token.DEFINE,
-				Rhs: []ast.Expr{&ast.CallExpr{
-					Fun: ast.NewIdent("make"),
-					Args: []ast.Expr{ast.NewIdent(node.Name), &ast.CallExpr{
-						Fun:  ast.NewIdent("len"),
-						Args: []ast.Expr{&ast.StarExpr{X: ast.NewIdent("n")}},
-					}},
-				}},
-			}, &ast.RangeStmt{
-				Key: ast.NewIdent("i"),
-				Tok: token.DEFINE,
-				X:   &ast.StarExpr{X: ast.NewIdent("n")},
-				Body: &ast.BlockStmt{
-					List: []ast.Stmt{
-						&ast.AssignStmt{Lhs: []ast.Expr{&ast.IndexExpr{
-							X:     &ast.Ident{Name: "ns"},
-							Index: ast.NewIdent("i"),
-						}}, Tok: token.ASSIGN, Rhs: []ast.Expr{&ast.StarExpr{X: &ast.CallExpr{
-							Fun: newSelectorExpr(&ast.IndexExpr{
-								X:     &ast.StarExpr{X: ast.NewIdent("n")},
-								Index: ast.NewIdent("i"),
-							}, "Clone"),
-						}}}},
-					},
-				},
-			}, &ast.ReturnStmt{
-				Results: []ast.Expr{
-					&ast.UnaryExpr{Op: token.AND, X: ast.NewIdent("ns")},
-				},
-			})
-		}
-
-		visitMethods = append(visitMethods, &ast.FuncDecl{
-			Recv: recv,
-			Name: ast.NewIdent("Clone"),
-			Type: &ast.FuncType{Results: &ast.FieldList{
-				List: []*ast.Field{
-					{
-						Type: &ast.StarExpr{X: &ast.Ident{Name: node.Name}},
-					},
-				},
-			}},
-			Body: visitChildrenBlock,
-		})
+	var buf bytes.Buffer
+	if err := cloneTemplate.Execute(&buf, nodes); err != nil {
+		log.Fatalf("template error: %v", err)
 	}
 
-	genPkg := &ast.File{
-		Name: ast.NewIdent("ast"),
-	}
-
-	genPkg.Decls = append(genPkg.Decls, visitMethods...)
-
-	s := bytes.NewBuffer([]byte("// Code generated by gen_clone.go; DO NOT EDIT.\n"))
-	format.Node(s, fset, genPkg)
-
-	for _, node := range nodes {
-		if !node.IsUnion {
-			continue
-		}
-		generateUnionClone(s, node)
-	}
-
-	formatted, err := format.Source(s.Bytes())
+	formatted, err := format.Source(buf.Bytes())
 	if err != nil {
-		os.WriteFile("ast/clone.go", s.Bytes(), 0644)
+		os.WriteFile("ast/clone.go", buf.Bytes(), 0644)
 		log.Fatalf("format error: %v", err)
 	}
-
 	os.WriteFile("ast/clone.go", formatted, 0644)
-
 }
 
-func generateUnionClone(buf *bytes.Buffer, node CloneableNodeType) {
-	fmt.Fprintf(buf, "\nfunc (n *%s) Clone() *%s {\n", node.Name, node.Name)
-	fmt.Fprintf(buf, "\tswitch n.kind {\n")
-	for _, v := range node.Variants {
-		fmt.Fprintf(buf, "\tcase %s%s:\n", node.KindPrefix, v.ShortName)
-		fmt.Fprintf(buf, "\t\tc := (*%s)(n.ptr).Clone()\n", v.TypeName)
-		fmt.Fprintf(buf, "\t\tr := New%s%s(c)\n", v.ShortName, node.ConstructorSfx)
-		fmt.Fprintf(buf, "\t\treturn &r\n")
+var cloneTemplate = template.Must(template.New("clone").Funcs(template.FuncMap{
+	"fieldValue":  fieldValue,
+	"cloneFields": cloneFields,
+	"toLower":     strings.ToLower,
+	"lowerFirst":  func(s string) string { return strings.ToLower(s[:1]) + s[1:] },
+}).Parse(`// Code generated by gen_clone.go; DO NOT EDIT.
+package ast
+{{range .}}{{if not .IsUnion}}
+func (n *{{.Name}}) Clone() *{{.Name}} {
+{{- if .IsSlice}}
+	ns := make({{.Name}}, len(*n))
+	for i := range *n {
+		ns[i] = *(*n)[i].Clone()
 	}
-	fmt.Fprintf(buf, "\t}\n")
-	fmt.Fprintf(buf, "\tr := %s{}\n", node.Name)
-	fmt.Fprintf(buf, "\treturn &r\n")
-	fmt.Fprintf(buf, "}\n\n")
+	return &ns
+{{- else}}
+{{- range .Children}}
+{{- if .Interface}}
+{{- $intf := .Interface}}
+	var cloned{{$intf.Name}} {{$intf.Name}}
+	switch {{lowerFirst $intf.Name}} := n.{{.FieldName}}.(type) {
+{{- range $intf.Structs}}
+	case *{{.}}:
+		cloned{{$intf.Name}} = {{lowerFirst $intf.Name}}.Clone()
+{{- end}}
+	}
+{{- else if and .Cloneable .Optional}}
+	var {{toLower .FieldName}} *{{.FieldType}}
+	if n.{{.FieldName}} != nil {
+		{{toLower .FieldName}} = n.{{.FieldName}}.Clone()
+	}
+{{- end}}
+{{- end}}
+	return &{{.Name}}{ {{cloneFields .}} }
+{{- end}}
 }
+{{- end}}{{end}}
+{{- range .}}{{if .IsUnion}}
+
+func (n *{{.Name}}) Clone() *{{.Name}} {
+	switch n.kind {
+{{- $kp := .KindPrefix}}{{$sfx := .ConstructorSfx}}{{range .Variants}}
+	case {{$kp}}{{.ShortName}}:
+		c := (*{{.TypeName}})(n.ptr).Clone()
+		r := New{{.ShortName}}{{$sfx}}(c)
+		return &r
+{{- end}}
+	}
+	return &{{.Name}}{}
+}
+{{- end}}{{end}}
+`))
 
 func findCloneableInterfaces(f *ast.File) []CloneableInterface {
 	var interfaces []CloneableInterface
@@ -353,7 +256,7 @@ func findStructsForInterfaces(f *ast.File, interfaces []CloneableInterface) {
 	}
 }
 
-func findCloneableNodes(f *ast.File) (types []CloneableNodeType) {
+func findCloneableNodes(f *ast.File, specs map[string]astgen.UnionSpec) (types []CloneableNodeType) {
 	for _, decl := range f.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok {
@@ -372,27 +275,21 @@ func findCloneableNodes(f *ast.File) (types []CloneableNodeType) {
 
 			switch t := typeSpec.Type.(type) {
 			case *ast.StructType:
+				// Spec structs (//union: ...) enumerate a union's variants for
+				// codegen; they are not real nodes.
+				if astgen.UnionWrapper(typeSpec.Doc) != "" {
+					continue
+				}
 				node := CloneableNodeType{
 					Type:     NodeTypeStruct,
 					Name:     typeSpec.Name.Name,
 					Children: findStructChildren(t.Fields.List),
 				}
-				if variantList := parseUnionComment(typeSpec.Doc); variantList != nil {
-					kindPrefix, _, ctorSuffix := deriveUnionNames(typeSpec.Name.Name)
-					var variants []UnionVariant
-					for _, typeName := range variantList {
-						variants = append(variants, UnionVariant{
-							TypeName:  typeName,
-							ShortName: deriveShortName(typeName),
-						})
-					}
-					slices.SortFunc(variants, func(a, b UnionVariant) int {
-						return cmp.Compare(a.ShortName, b.ShortName)
-					})
+				if union, ok := specs[typeSpec.Name.Name]; ok {
 					node.IsUnion = true
-					node.Variants = variants
-					node.KindPrefix = kindPrefix
-					node.ConstructorSfx = ctorSuffix
+					node.Variants = union.Variants
+					node.KindPrefix = union.KindPrefix
+					node.ConstructorSfx = union.ConstructorSfx
 				}
 				types = append(types, node)
 			case *ast.ArrayType:
@@ -421,7 +318,8 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 
 			switch fieldType.Name {
 			case "Idx", "any", "bool", "int", "ScopeContext", "string", "MethodKind", "Token", "VarKind",
-				"float64", "UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator":
+				"float64", "UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator",
+				"MetaPropertyKind":
 				children = appendNamedChildren(children, field.Names, fieldType.Name, false, false, optional)
 			default:
 				children = appendNamedChildren(children, field.Names, fieldType.Name, true, false, optional)
@@ -448,180 +346,4 @@ func appendNamedChildren(children []Child, names []*ast.Ident, fieldType string,
 		children = append(children, newChild(name.Name, fieldType, cloneable, pointer, optional))
 	}
 	return children
-}
-
-func newFieldList(name string, t ast.Expr) *ast.FieldList {
-	return &ast.FieldList{
-		List: []*ast.Field{{
-			Names: []*ast.Ident{ast.NewIdent(name)},
-			Type:  t,
-		}},
-	}
-}
-
-func newSelectorExpr(x ast.Expr, sel string) *ast.SelectorExpr {
-	return &ast.SelectorExpr{X: x, Sel: ast.NewIdent(sel)}
-}
-
-func lowerIdent(name string) *ast.Ident {
-	return ast.NewIdent(strings.ToLower(name[:1]) + name[1:])
-}
-
-func newCloner(expr ast.Expr, intf *CloneableInterface) (*ast.DeclStmt, *ast.TypeSwitchStmt) {
-	clonedExprDecl := &ast.DeclStmt{
-		Decl: &ast.GenDecl{
-			Tok: token.VAR,
-			Specs: []ast.Spec{
-				&ast.ValueSpec{
-					Names: []*ast.Ident{ast.NewIdent("cloned" + intf.Name)},
-					Type:  ast.NewIdent(intf.Name),
-				},
-			},
-		},
-	}
-
-	var cases []ast.Stmt
-
-	for _, structName := range intf.Structs {
-		caseClause := &ast.CaseClause{
-			List: []ast.Expr{
-				&ast.StarExpr{X: ast.NewIdent(structName)},
-			},
-			Body: []ast.Stmt{
-				&ast.AssignStmt{
-					Lhs: []ast.Expr{ast.NewIdent("cloned" + intf.Name)},
-					Tok: token.ASSIGN,
-					Rhs: []ast.Expr{
-						&ast.CallExpr{
-							Fun: &ast.SelectorExpr{
-								X:   lowerIdent(intf.Name),
-								Sel: ast.NewIdent("Clone"),
-							},
-						},
-					},
-				},
-			},
-		}
-		cases = append(cases, caseClause)
-	}
-
-	switchStmt := &ast.TypeSwitchStmt{
-		Assign: &ast.AssignStmt{
-			Lhs: []ast.Expr{
-				lowerIdent(intf.Name),
-			},
-			Tok: token.DEFINE,
-			Rhs: []ast.Expr{
-				&ast.TypeAssertExpr{
-					X: expr,
-				},
-			},
-		},
-		Body: &ast.BlockStmt{
-			List: cases,
-		},
-	}
-
-	return clonedExprDecl, switchStmt
-}
-
-func parseUnionComment(doc *ast.CommentGroup) []string {
-	if doc == nil {
-		return nil
-	}
-	for _, c := range doc.List {
-		text := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
-		if strings.HasPrefix(text, "union:") {
-			raw := strings.TrimPrefix(text, "union:")
-			var names []string
-			for _, name := range strings.Split(raw, ",") {
-				name = strings.TrimSpace(name)
-				if name != "" {
-					names = append(names, name)
-				}
-			}
-			return names
-		}
-	}
-	return nil
-}
-
-func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
-	switch name {
-	case "Expression":
-		return "Expr", "ExprKind", "Expr"
-	case "Statement":
-		return "Stmt", "StmtKind", "Stmt"
-	case "Property":
-		return "Prop", "PropKind", "Prop"
-	case "MemberProperty":
-		return "MemProp", "MemPropKind", "MemProp"
-	case "ForLoopInitializer":
-		return "ForInit", "ForInitKind", "ForInit"
-	case "ClassElement":
-		return "ClassElem", "ClassElemKind", "ClassElem"
-	case "PatternProperty":
-		return "PatProp", "PatPropKind", "PatProp"
-	case "PropertyName":
-		return "PropName", "PropNameKind", "PropName"
-	default:
-		return name, name + "Kind", name
-	}
-}
-
-var shortNameOverrides = map[string]string{
-	"OptionalChain":     "OptionalChain",
-	"Expression":        "Expr",
-	"Statement":         "Stmt",
-	"PropertyKeyValue":  "KeyValue",
-	"PropertyMethod":    "Method",
-	"PropertyGetter":    "Getter",
-	"PropertySetter":    "Setter",
-	"PropertyShort":     "Short",
-	"ComputedProperty":  "Computed",
-	"ClassStaticBlock":  "StaticBlock",
-	"FieldDefinition":   "FieldDef",
-	"MethodDefinition":  "MethodDef",
-	"AssignmentPattern": "Assign",
-	"PatternKeyValue":   "KeyValue",
-	"PatternShorthand":  "Shorthand",
-	"Pattern":           "Pattern",
-}
-
-func deriveShortName(typeName string) string {
-	if override, ok := shortNameOverrides[typeName]; ok {
-		return override
-	}
-
-	name := typeName
-
-	switch {
-	case strings.HasSuffix(name, "Expression"):
-		name = strings.TrimSuffix(name, "Expression")
-	case strings.HasSuffix(name, "Statement"):
-		name = strings.TrimSuffix(name, "Statement")
-	case strings.HasSuffix(name, "Literal"):
-		name = strings.TrimSuffix(name, "Literal") + "Lit"
-	case strings.HasSuffix(name, "Declaration"):
-		name = strings.TrimSuffix(name, "Declaration") + "Decl"
-	case strings.HasSuffix(name, "Element"):
-		name = strings.TrimSuffix(name, "Element")
-	case strings.HasSuffix(name, "Pattern"):
-		name = strings.TrimSuffix(name, "Pattern") + "Pat"
-	}
-
-	abbreviations := [][2]string{
-		{"ArrowFunction", "ArrowFunc"},
-		{"Function", "Func"},
-		{"Variable", "Var"},
-		{"Property", "Prop"},
-		{"Template", "Tmpl"},
-		{"Private", "Priv"},
-		{"Boolean", "Bool"},
-	}
-	for _, ab := range abbreviations {
-		name = strings.ReplaceAll(name, ab[0], ab[1])
-	}
-
-	return name
 }

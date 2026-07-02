@@ -63,7 +63,7 @@ func (p *parser) parsePrimaryExpression() ast.Expression {
 	case token.LeftParenthesis:
 		return p.parseParenthesisedExpression()
 	case token.NoSubstitutionTemplate, token.TemplateHead:
-		return ast.NewTmplLitExpr(p.parseTemplateLiteral(false))
+		return ast.NewTmplLitExpr(p.parseTemplateLiteral())
 	case token.This:
 		p.next()
 		return ast.NewThisExpr(p.alloc.ThisExpression(idx))
@@ -564,7 +564,7 @@ func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 	return p.alloc.ArrayLiteral(idx0, idx1, p.finishExprBuf(mark))
 }
 
-func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
+func (p *parser) parseTemplateLiteral() *ast.TemplateLiteral {
 	res := p.alloc.TemplateLiteral(p.currentOffset())
 	mark := len(p.exprBuf)
 
@@ -601,7 +601,7 @@ func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 }
 
 func (p *parser) parseTaggedTemplateLiteral(tag *ast.Expression) *ast.TemplateLiteral {
-	l := p.parseTemplateLiteral(true)
+	l := p.parseTemplateLiteral()
 	l.Tag = tag
 	return l
 }
@@ -675,11 +675,8 @@ func (p *parser) parseNewExpression() ast.Expression {
 	if p.currentKind() == token.Period {
 		p.next()
 		if p.currentString() == "target" {
-			return ast.NewMetaPropExpr(p.alloc.MetaProperty(
-				p.alloc.Identifier(idx, token.New.String()),
-				p.parseIdentifier(),
-				idx,
-			))
+			p.next() // consume "target"; new.target is a keyword form, not a member access
+			return ast.NewMetaPropExpr(p.alloc.MetaProperty(ast.MetaPropertyNewTarget, idx))
 		}
 		p.errorUnexpectedToken(token.Identifier)
 	}

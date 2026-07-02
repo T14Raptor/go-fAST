@@ -25,10 +25,17 @@ type (
 
 	ClassElements []ClassElement
 
-	//union:ClassStaticBlock,FieldDefinition,MethodDefinition
 	ClassElement struct {
 		ptr  unsafe.Pointer
 		kind ClassElemKind
+	}
+
+	// ClassElement union variants (gen_union.go): field = tag, type = payload.
+	//union:ClassElement
+	_ struct {
+		FieldDef    FieldDefinition
+		MethodDef   MethodDefinition
+		StaticBlock ClassStaticBlock
 	}
 
 	FieldDefinition struct {

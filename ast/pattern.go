@@ -13,24 +13,40 @@ type (
 	// The Member/PrivDot variants only occur in assignment-target position
 	// (e.g. `obj.x = 1`); declaration patterns never produce them. The validity
 	// of a given variant in a given position is enforced by the parser.
-	//
-	//union:Identifier,ArrayPattern,ObjectPattern,AssignmentPattern,MemberExpression,PrivateDotExpression,InvalidExpression
 	Pattern struct {
 		kind PatternKind
 
 		ptr unsafe.Pointer
 	}
 
+	// Pattern union variants (gen_union.go): field = tag, type = payload.
+	//union:Pattern
+	_ struct {
+		ArrayPat   ArrayPattern
+		Assign     AssignmentPattern
+		Identifier Identifier
+		Member     MemberExpression
+		ObjectPat  ObjectPattern
+		PrivDot    PrivateDotExpression
+
+		Invalid InvalidExpression
+	}
+
 	PatternProperties []PatternProperty
 
 	// PatternProperty is a single property inside an ObjectPattern. Unlike the
 	// object-literal Property union, its value is a Pattern.
-	//
-	//union:PatternKeyValue,PatternShorthand
 	PatternProperty struct {
 		kind PatPropKind
 
 		ptr unsafe.Pointer
+	}
+
+	// PatternProperty union variants (gen_union.go): field = tag, type = payload.
+	//union:PatternProperty
+	_ struct {
+		KeyValue  PatternKeyValue
+		Shorthand PatternShorthand
 	}
 
 	// PatternKeyValue is `{ key: value }` / `{ [key]: value }` inside a pattern.

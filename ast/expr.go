@@ -5,11 +5,48 @@ import "unsafe"
 type (
 	Expressions []Expression
 
-	//union:ArrayLiteral,ArrowFunctionLiteral,AssignExpression,AwaitExpression,BigIntLiteral,BinaryExpression,BooleanLiteral,CallExpression,ClassLiteral,ConditionalExpression,FunctionLiteral,Identifier,InvalidExpression,LogicalExpression,MemberExpression,MetaProperty,NewExpression,NullLiteral,NumberLiteral,ObjectLiteral,OptionalChain,Optional,PrivateDotExpression,PrivateIdentifier,RegExpLiteral,SequenceExpression,SpreadElement,StringLiteral,SuperExpression,ThisExpression,TemplateLiteral,UnaryExpression,UpdateExpression,VariableDeclarator,YieldExpression
 	Expression struct {
 		kind ExprKind
+		ptr  unsafe.Pointer
+	}
 
-		ptr unsafe.Pointer
+	// Expression union variants (gen_union.go): field = tag, type = payload.
+	//union:Expression
+	_ struct {
+		ArrayLit       ArrayLiteral
+		ArrowFuncLit   ArrowFunctionLiteral
+		Assign         AssignExpression
+		Await          AwaitExpression
+		BigIntLit      BigIntLiteral
+		Binary         BinaryExpression
+		BoolLit        BooleanLiteral
+		Call           CallExpression
+		ClassLit       ClassLiteral
+		Conditional    ConditionalExpression
+		FuncLit        FunctionLiteral
+		Identifier     Identifier
+		Logical        LogicalExpression
+		Member         MemberExpression
+		MetaProp       MetaProperty
+		New            NewExpression
+		NullLit        NullLiteral
+		NumberLit      NumberLiteral
+		ObjectLit      ObjectLiteral
+		Optional       Optional
+		OptionalChain  OptionalChain
+		PrivDot        PrivateDotExpression
+		PrivIdentifier PrivateIdentifier
+		RegExpLit      RegExpLiteral
+		Sequence       SequenceExpression
+		Spread         SpreadElement
+		StringLit      StringLiteral
+		Super          SuperExpression
+		This           ThisExpression
+		TmplLit        TemplateLiteral
+		Unary          UnaryExpression
+		Update         UpdateExpression
+		Yield          YieldExpression
+		Invalid        InvalidExpression
 	}
 
 	YieldExpression struct {
@@ -64,10 +101,16 @@ type (
 		Property *MemberProperty
 	}
 
-	//union:ComputedProperty,Identifier
 	MemberProperty struct {
-		ptr  unsafe.Pointer
 		kind MemPropKind
+		ptr  unsafe.Pointer
+	}
+
+	// MemberProperty union variants (gen_union.go): field = tag, type = payload.
+	//union:MemberProperty
+	_ struct {
+		Computed   ComputedProperty
+		Identifier Identifier
 	}
 
 	CallExpression struct {
@@ -97,10 +140,16 @@ type (
 		Expr *Expression
 	}
 
-	//union:BlockStatement,Expression
 	ConciseBody struct {
 		kind ConciseBodyKind
 		ptr  unsafe.Pointer
+	}
+
+	// ConciseBody union variants (gen_union.go): field = tag, type = payload.
+	//union:ConciseBody
+	_ struct {
+		Block BlockStatement
+		Expr  Expression
 	}
 
 	ArrowFunctionLiteral struct {
@@ -184,11 +233,30 @@ type (
 		Postfix  bool
 	}
 
+	// MetaProperty is a meta-property: new.target or import.meta.
 	MetaProperty struct {
-		Meta, Property *Identifier
-		Idx            Idx
+		Kind MetaPropertyKind
+		Idx  Idx
 	}
 )
+
+// MetaPropertyKind discriminates the meta-properties new.target and import.meta.
+type MetaPropertyKind uint8
+
+const (
+	MetaPropertyNewTarget  MetaPropertyKind = iota // new.target
+	MetaPropertyImportMeta                         // import.meta
+)
+
+func (k MetaPropertyKind) String() string {
+	switch k {
+	case MetaPropertyNewTarget:
+		return "new.target"
+	case MetaPropertyImportMeta:
+		return "import.meta"
+	}
+	return "MetaPropertyKind(?)"
+}
 
 // ExpressionFromPattern unwraps the simple-target variants of a pattern
 // (identifier, member, private-dot, invalid) back into an Expression. It is used
@@ -267,7 +335,7 @@ func (n *SequenceExpression) Idx0() Idx { return n.Sequence[0].Idx0() }
 func (n *SequenceExpression) Idx1() Idx { return n.Sequence[len(n.Sequence)-1].Idx1() }
 
 func (n *TemplateElement) Idx0() Idx { return n.Idx }
-func (n *TemplateElement) Idx1() Idx { return Idx(int(n.Idx) + len(n.Literal)) }
+func (n *TemplateElement) Idx1() Idx { return n.Idx + Idx(len(n.Literal)) }
 
 func (n *TemplateLiteral) Idx0() Idx { return n.OpenQuote }
 func (n *TemplateLiteral) Idx1() Idx { return n.CloseQuote + 1 }
@@ -290,7 +358,7 @@ func (n *UpdateExpression) Idx1() Idx {
 }
 
 func (n *MetaProperty) Idx0() Idx { return n.Idx }
-func (n *MetaProperty) Idx1() Idx { return n.Property.Idx1() }
+func (n *MetaProperty) Idx1() Idx { return n.Idx + Idx(len(n.Kind.String())) }
 
 func (m *MemberExpression) Idx0() Idx { return m.Object.Idx0() }
 func (m *MemberExpression) Idx1() Idx { return m.Property.Idx1() }

@@ -7,11 +7,37 @@ import (
 type (
 	Statements []Statement
 
-	//union:BadStatement,BlockStatement,BreakStatement,CaseStatement,CatchStatement,ClassDeclaration,ContinueStatement,DebuggerStatement,DoWhileStatement,EmptyStatement,ExpressionStatement,ForStatement,ForInStatement,ForOfStatement,FunctionDeclaration,IfStatement,LabelledStatement,ReturnStatement,SwitchStatement,ThrowStatement,TryStatement,VariableDeclaration,WhileStatement,WithStatement
 	Statement struct {
 		kind StmtKind
+		ptr  unsafe.Pointer
+	}
 
-		ptr unsafe.Pointer
+	// Statement union variants (gen_union.go): field = tag, type = payload.
+	//union:Statement
+	_ struct {
+		Block      BlockStatement
+		Break      BreakStatement
+		ClassDecl  ClassDeclaration
+		Continue   ContinueStatement
+		Debugger   DebuggerStatement
+		DoWhile    DoWhileStatement
+		Empty      EmptyStatement
+		Expression ExpressionStatement
+		For        ForStatement
+		ForIn      ForInStatement
+		ForOf      ForOfStatement
+		FuncDecl   FunctionDeclaration
+		If         IfStatement
+		Labelled   LabelledStatement
+		Return     ReturnStatement
+		Switch     SwitchStatement
+		Throw      ThrowStatement
+		Try        TryStatement
+		VarDecl    VariableDeclaration
+		While      WhileStatement
+		With       WithStatement
+
+		Bad BadStatement
 	}
 
 	BadStatement struct {
@@ -134,18 +160,24 @@ type (
 	}
 
 	ForStatement struct {
-		Initializer *ForLoopInitializer `optional:"true"`
-		Update      *Expression         `optional:"true"`
-		Test        *Expression         `optional:"true"`
+		Initializer *ForInit    `optional:"true"`
+		Update      *Expression `optional:"true"`
+		Test        *Expression `optional:"true"`
 		Body        *Statement
 
 		For Idx
 	}
 
-	//union:Expression,VariableDeclaration
-	ForLoopInitializer struct {
-		ptr  unsafe.Pointer
+	ForInit struct {
 		kind ForInitKind
+		ptr  unsafe.Pointer
+	}
+
+	// ForInit union variants (gen_union.go): field = tag, type = payload.
+	//union:ForInit
+	_ struct {
+		Expr    Expression
+		VarDecl VariableDeclaration
 	}
 
 	ForInStatement struct {
@@ -165,10 +197,16 @@ type (
 		Await bool
 	}
 
-	//union:Pattern,VariableDeclaration
 	ForInto struct {
-		ptr  unsafe.Pointer
 		kind ForIntoKind
+		ptr  unsafe.Pointer
+	}
+
+	// ForInto union variants (gen_union.go): field = tag, type = payload.
+	//union:ForInto
+	_ struct {
+		Pattern Pattern
+		VarDecl VariableDeclaration
 	}
 )
 

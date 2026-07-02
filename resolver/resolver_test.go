@@ -408,3 +408,18 @@ func TestForInOfLetInitializerDoesNotHoistToFunctionScope(t *testing.T) {
 		}
 	}
 }
+
+// new.target is a keyword form, not a member access: "new" and "target" are not
+// identifier references. The resolver (and any rename pass) must never see them
+// as Identifier nodes, even when a same-named binding is in scope.
+func TestMetaPropertyExposesNoIdentifiers(t *testing.T) {
+	src := `function f() { let target = 1; return new.target; }`
+
+	// The only "target" identifier is the binding; the meta property contributes none.
+	if ids := idsForName(t, src, "target"); len(ids) != 1 {
+		t.Fatalf("expected exactly 1 'target' identifier (the binding), got %d: %+v", len(ids), ids)
+	}
+	if ids := idsForName(t, src, "new"); len(ids) != 0 {
+		t.Fatalf("meta property exposed %d 'new' identifier(s); want 0", len(ids))
+	}
+}

@@ -139,7 +139,7 @@ func (n *ForOfStatement) Clone() *ForOfStatement {
 	return &ForOfStatement{Into: n.Into.Clone(), Source: n.Source.Clone(), Body: n.Body.Clone(), For: n.For, Await: n.Await}
 }
 func (n *ForStatement) Clone() *ForStatement {
-	var initializer *ForLoopInitializer
+	var initializer *ForInit
 	if n.Initializer != nil {
 		initializer = n.Initializer.Clone()
 	}
@@ -186,7 +186,7 @@ func (n *MemberExpression) Clone() *MemberExpression {
 	return &MemberExpression{Object: n.Object.Clone(), Property: n.Property.Clone()}
 }
 func (n *MetaProperty) Clone() *MetaProperty {
-	return &MetaProperty{Meta: n.Meta.Clone(), Property: n.Property.Clone(), Idx: n.Idx}
+	return &MetaProperty{Kind: n.Kind, Idx: n.Idx}
 }
 func (n *MethodDefinition) Clone() *MethodDefinition {
 	return &MethodDefinition{Key: n.Key.Clone(), Kind: n.Kind, Body: n.Body.Clone(), Idx: n.Idx, Static: n.Static}
@@ -400,8 +400,7 @@ func (n *ClassElement) Clone() *ClassElement {
 		r := NewStaticBlockClassElem(c)
 		return &r
 	}
-	r := ClassElement{}
-	return &r
+	return &ClassElement{}
 }
 
 func (n *ConciseBody) Clone() *ConciseBody {
@@ -415,8 +414,7 @@ func (n *ConciseBody) Clone() *ConciseBody {
 		r := NewExprConciseBody(c)
 		return &r
 	}
-	r := ConciseBody{}
-	return &r
+	return &ConciseBody{}
 }
 
 func (n *Expression) Clone() *Expression {
@@ -553,17 +551,26 @@ func (n *Expression) Clone() *Expression {
 		c := (*UpdateExpression)(n.ptr).Clone()
 		r := NewUpdateExpr(c)
 		return &r
-	case ExprVarDeclarator:
-		c := (*VariableDeclarator)(n.ptr).Clone()
-		r := NewVarDeclaratorExpr(c)
-		return &r
 	case ExprYield:
 		c := (*YieldExpression)(n.ptr).Clone()
 		r := NewYieldExpr(c)
 		return &r
 	}
-	r := Expression{}
-	return &r
+	return &Expression{}
+}
+
+func (n *ForInit) Clone() *ForInit {
+	switch n.kind {
+	case ForInitExpr:
+		c := (*Expression)(n.ptr).Clone()
+		r := NewExprForInit(c)
+		return &r
+	case ForInitVarDecl:
+		c := (*VariableDeclaration)(n.ptr).Clone()
+		r := NewVarDeclForInit(c)
+		return &r
+	}
+	return &ForInit{}
 }
 
 func (n *ForInto) Clone() *ForInto {
@@ -577,23 +584,7 @@ func (n *ForInto) Clone() *ForInto {
 		r := NewVarDeclForInto(c)
 		return &r
 	}
-	r := ForInto{}
-	return &r
-}
-
-func (n *ForLoopInitializer) Clone() *ForLoopInitializer {
-	switch n.kind {
-	case ForInitExpr:
-		c := (*Expression)(n.ptr).Clone()
-		r := NewExprForInit(c)
-		return &r
-	case ForInitVarDecl:
-		c := (*VariableDeclaration)(n.ptr).Clone()
-		r := NewVarDeclForInit(c)
-		return &r
-	}
-	r := ForLoopInitializer{}
-	return &r
+	return &ForInto{}
 }
 
 func (n *MemberProperty) Clone() *MemberProperty {
@@ -607,8 +598,7 @@ func (n *MemberProperty) Clone() *MemberProperty {
 		r := NewIdentifierMemProp(c)
 		return &r
 	}
-	r := MemberProperty{}
-	return &r
+	return &MemberProperty{}
 }
 
 func (n *Pattern) Clone() *Pattern {
@@ -642,8 +632,7 @@ func (n *Pattern) Clone() *Pattern {
 		r := NewPrivDotPattern(c)
 		return &r
 	}
-	r := Pattern{}
-	return &r
+	return &Pattern{}
 }
 
 func (n *PatternProperty) Clone() *PatternProperty {
@@ -657,8 +646,7 @@ func (n *PatternProperty) Clone() *PatternProperty {
 		r := NewShorthandPatProp(c)
 		return &r
 	}
-	r := PatternProperty{}
-	return &r
+	return &PatternProperty{}
 }
 
 func (n *Property) Clone() *Property {
@@ -688,8 +676,7 @@ func (n *Property) Clone() *Property {
 		r := NewSpreadProp(c)
 		return &r
 	}
-	r := Property{}
-	return &r
+	return &Property{}
 }
 
 func (n *PropertyName) Clone() *PropertyName {
@@ -715,8 +702,7 @@ func (n *PropertyName) Clone() *PropertyName {
 		r := NewStringLitPropName(c)
 		return &r
 	}
-	r := PropertyName{}
-	return &r
+	return &PropertyName{}
 }
 
 func (n *Statement) Clone() *Statement {
@@ -732,14 +718,6 @@ func (n *Statement) Clone() *Statement {
 	case StmtBreak:
 		c := (*BreakStatement)(n.ptr).Clone()
 		r := NewBreakStmt(c)
-		return &r
-	case StmtCase:
-		c := (*CaseStatement)(n.ptr).Clone()
-		r := NewCaseStmt(c)
-		return &r
-	case StmtCatch:
-		c := (*CatchStatement)(n.ptr).Clone()
-		r := NewCatchStmt(c)
 		return &r
 	case StmtClassDecl:
 		c := (*ClassDeclaration)(n.ptr).Clone()
@@ -818,6 +796,5 @@ func (n *Statement) Clone() *Statement {
 		r := NewWithStmt(c)
 		return &r
 	}
-	r := Statement{}
-	return &r
+	return &Statement{}
 }

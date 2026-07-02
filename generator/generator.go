@@ -653,9 +653,7 @@ func (g *GenVisitor) VisitObjectPattern(n *ast.ObjectPattern) {
 }
 
 func (g *GenVisitor) VisitMetaProperty(n *ast.MetaProperty) {
-	g.gen(n.Meta)
-	g.writeByte('.')
-	g.gen(n.Property)
+	g.writeString(n.Kind.String())
 }
 
 func (g *GenVisitor) VisitPattern(n *ast.Pattern) {
@@ -853,7 +851,7 @@ func (g *GenVisitor) VisitForStatement(n *ast.ForStatement) {
 	}
 }
 
-func (g *GenVisitor) VisitForLoopInitializer(n *ast.ForLoopInitializer) {
+func (g *GenVisitor) VisitForInit(n *ast.ForInit) {
 	switch n.Kind() {
 	case ast.ForInitExpr:
 		g.genExpr(n.MustExpr(), ast.PrecedenceLowest, ctxForbidIn)

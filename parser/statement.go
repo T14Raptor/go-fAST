@@ -181,8 +181,7 @@ func (p *parser) parseMaybeAsyncFunction(declaration bool) *ast.FunctionLiteral 
 	if p.peek().Kind == token.Function {
 		idx := p.currentOffset()
 		p.next()
-		fn := p.parseFunction(declaration, true, idx)
-		return fn
+		return p.parseFunction(declaration, true, idx)
 	}
 	return nil
 }
@@ -544,7 +543,7 @@ func (p *parser) parseForOf(idx ast.Idx, await bool, into *ast.ForInto) *ast.For
 	return p.alloc.ForOfStatement(idx, await, into, source, p.alloc.Statement(p.parseIterationStatement()))
 }
 
-func (p *parser) parseFor(idx ast.Idx, initializer *ast.ForLoopInitializer) *ast.ForStatement {
+func (p *parser) parseFor(idx ast.Idx, initializer *ast.ForInit) *ast.ForStatement {
 	var test, update *ast.Expression
 
 	if p.currentKind() != token.Semicolon {
@@ -572,7 +571,7 @@ func (p *parser) parseForOrForInStatement() ast.Statement {
 	}
 	p.expect(token.LeftParenthesis)
 
-	var initializer *ast.ForLoopInitializer
+	var initializer *ast.ForInit
 
 	forIn := false
 	forOf := false

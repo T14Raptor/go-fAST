@@ -278,7 +278,6 @@ const (
 	ExprTmplLit
 	ExprUnary
 	ExprUpdate
-	ExprVarDeclarator
 	ExprYield
 )
 
@@ -352,8 +351,6 @@ func (k ExprKind) String() string {
 		return "ExprUnary"
 	case ExprUpdate:
 		return "ExprUpdate"
-	case ExprVarDeclarator:
-		return "ExprVarDeclarator"
 	case ExprYield:
 		return "ExprYield"
 	}
@@ -1089,28 +1086,6 @@ func (n *Expression) IsUpdate() bool {
 	return n.kind == ExprUpdate
 }
 
-func NewVarDeclaratorExpr(n *VariableDeclarator) Expression {
-	return Expression{kind: ExprVarDeclarator, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Expression) VarDeclarator() (*VariableDeclarator, bool) {
-	if n.kind == ExprVarDeclarator {
-		return (*VariableDeclarator)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Expression) MustVarDeclarator() *VariableDeclarator {
-	if n.kind != ExprVarDeclarator {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*VariableDeclarator)(n.ptr)
-}
-
-func (n *Expression) IsVarDeclarator() bool {
-	return n.kind == ExprVarDeclarator
-}
-
 func NewYieldExpr(n *YieldExpression) Expression {
 	return Expression{kind: ExprYield, ptr: unsafe.Pointer(n)}
 }
@@ -1201,8 +1176,6 @@ func (n *Expression) Idx0() Idx {
 		return (*UnaryExpression)(n.ptr).Idx0()
 	case ExprUpdate:
 		return (*UpdateExpression)(n.ptr).Idx0()
-	case ExprVarDeclarator:
-		return (*VariableDeclarator)(n.ptr).Idx0()
 	case ExprYield:
 		return (*YieldExpression)(n.ptr).Idx0()
 	}
@@ -1277,8 +1250,6 @@ func (n *Expression) Idx1() Idx {
 		return (*UnaryExpression)(n.ptr).Idx1()
 	case ExprUpdate:
 		return (*UpdateExpression)(n.ptr).Idx1()
-	case ExprVarDeclarator:
-		return (*VariableDeclarator)(n.ptr).Idx1()
 	case ExprYield:
 		return (*YieldExpression)(n.ptr).Idx1()
 	}
@@ -1356,10 +1327,110 @@ func (n *Expression) Unwrap() VisitableNode {
 		return (*UnaryExpression)(n.ptr)
 	case ExprUpdate:
 		return (*UpdateExpression)(n.ptr)
-	case ExprVarDeclarator:
-		return (*VariableDeclarator)(n.ptr)
 	case ExprYield:
 		return (*YieldExpression)(n.ptr)
+	}
+	return nil
+}
+
+// ---- ForInit tagged union ----
+
+type ForInitKind uint8
+
+const (
+	ForInitNone ForInitKind = iota
+	ForInitExpr
+	ForInitVarDecl
+)
+
+func (k ForInitKind) String() string {
+	switch k {
+	case ForInitNone:
+		return "ForInitNone"
+	case ForInitExpr:
+		return "ForInitExpr"
+	case ForInitVarDecl:
+		return "ForInitVarDecl"
+	}
+	return "ForInitKind(?)"
+}
+
+func (n *ForInit) Kind() ForInitKind { return n.kind }
+func (n *ForInit) IsNone() bool      { return n.kind == ForInitNone }
+
+func NewExprForInit(n *Expression) ForInit {
+	return ForInit{kind: ForInitExpr, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ForInit) Expr() (*Expression, bool) {
+	if n.kind == ForInitExpr {
+		return (*Expression)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ForInit) MustExpr() *Expression {
+	if n.kind != ForInitExpr {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*Expression)(n.ptr)
+}
+
+func (n *ForInit) IsExpr() bool {
+	return n.kind == ForInitExpr
+}
+
+func NewVarDeclForInit(n *VariableDeclaration) ForInit {
+	return ForInit{kind: ForInitVarDecl, ptr: unsafe.Pointer(n)}
+}
+
+func (n *ForInit) VarDecl() (*VariableDeclaration, bool) {
+	if n.kind == ForInitVarDecl {
+		return (*VariableDeclaration)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *ForInit) MustVarDecl() *VariableDeclaration {
+	if n.kind != ForInitVarDecl {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*VariableDeclaration)(n.ptr)
+}
+
+func (n *ForInit) IsVarDecl() bool {
+	return n.kind == ForInitVarDecl
+}
+
+func (n *ForInit) Idx0() Idx {
+	switch n.kind {
+	case ForInitExpr:
+		return (*Expression)(n.ptr).Idx0()
+	case ForInitVarDecl:
+		return (*VariableDeclaration)(n.ptr).Idx0()
+	}
+	return 0
+}
+
+func (n *ForInit) Idx1() Idx {
+	switch n.kind {
+	case ForInitExpr:
+		return (*Expression)(n.ptr).Idx1()
+	case ForInitVarDecl:
+		return (*VariableDeclaration)(n.ptr).Idx1()
+	}
+	return 0
+}
+
+func (n *ForInit) Unwrap() VisitableNode {
+	if n == nil {
+		return nil
+	}
+	switch n.kind {
+	case ForInitExpr:
+		return (*Expression)(n.ptr)
+	case ForInitVarDecl:
+		return (*VariableDeclaration)(n.ptr)
 	}
 	return nil
 }
@@ -1461,108 +1532,6 @@ func (n *ForInto) Unwrap() VisitableNode {
 	case ForIntoPattern:
 		return (*Pattern)(n.ptr)
 	case ForIntoVarDecl:
-		return (*VariableDeclaration)(n.ptr)
-	}
-	return nil
-}
-
-// ---- ForLoopInitializer tagged union ----
-
-type ForInitKind uint8
-
-const (
-	ForInitNone ForInitKind = iota
-	ForInitExpr
-	ForInitVarDecl
-)
-
-func (k ForInitKind) String() string {
-	switch k {
-	case ForInitNone:
-		return "ForInitNone"
-	case ForInitExpr:
-		return "ForInitExpr"
-	case ForInitVarDecl:
-		return "ForInitVarDecl"
-	}
-	return "ForInitKind(?)"
-}
-
-func (n *ForLoopInitializer) Kind() ForInitKind { return n.kind }
-func (n *ForLoopInitializer) IsNone() bool      { return n.kind == ForInitNone }
-
-func NewExprForInit(n *Expression) ForLoopInitializer {
-	return ForLoopInitializer{kind: ForInitExpr, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ForLoopInitializer) Expr() (*Expression, bool) {
-	if n.kind == ForInitExpr {
-		return (*Expression)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ForLoopInitializer) MustExpr() *Expression {
-	if n.kind != ForInitExpr {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*Expression)(n.ptr)
-}
-
-func (n *ForLoopInitializer) IsExpr() bool {
-	return n.kind == ForInitExpr
-}
-
-func NewVarDeclForInit(n *VariableDeclaration) ForLoopInitializer {
-	return ForLoopInitializer{kind: ForInitVarDecl, ptr: unsafe.Pointer(n)}
-}
-
-func (n *ForLoopInitializer) VarDecl() (*VariableDeclaration, bool) {
-	if n.kind == ForInitVarDecl {
-		return (*VariableDeclaration)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *ForLoopInitializer) MustVarDecl() *VariableDeclaration {
-	if n.kind != ForInitVarDecl {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*VariableDeclaration)(n.ptr)
-}
-
-func (n *ForLoopInitializer) IsVarDecl() bool {
-	return n.kind == ForInitVarDecl
-}
-
-func (n *ForLoopInitializer) Idx0() Idx {
-	switch n.kind {
-	case ForInitExpr:
-		return (*Expression)(n.ptr).Idx0()
-	case ForInitVarDecl:
-		return (*VariableDeclaration)(n.ptr).Idx0()
-	}
-	return 0
-}
-
-func (n *ForLoopInitializer) Idx1() Idx {
-	switch n.kind {
-	case ForInitExpr:
-		return (*Expression)(n.ptr).Idx1()
-	case ForInitVarDecl:
-		return (*VariableDeclaration)(n.ptr).Idx1()
-	}
-	return 0
-}
-
-func (n *ForLoopInitializer) Unwrap() VisitableNode {
-	if n == nil {
-		return nil
-	}
-	switch n.kind {
-	case ForInitExpr:
-		return (*Expression)(n.ptr)
-	case ForInitVarDecl:
 		return (*VariableDeclaration)(n.ptr)
 	}
 	return nil
@@ -2459,8 +2428,6 @@ const (
 	StmtBad
 	StmtBlock
 	StmtBreak
-	StmtCase
-	StmtCatch
 	StmtClassDecl
 	StmtContinue
 	StmtDebugger
@@ -2492,10 +2459,6 @@ func (k StmtKind) String() string {
 		return "StmtBlock"
 	case StmtBreak:
 		return "StmtBreak"
-	case StmtCase:
-		return "StmtCase"
-	case StmtCatch:
-		return "StmtCatch"
 	case StmtClassDecl:
 		return "StmtClassDecl"
 	case StmtContinue:
@@ -2605,50 +2568,6 @@ func (n *Statement) MustBreak() *BreakStatement {
 
 func (n *Statement) IsBreak() bool {
 	return n.kind == StmtBreak
-}
-
-func NewCaseStmt(n *CaseStatement) Statement {
-	return Statement{kind: StmtCase, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Case() (*CaseStatement, bool) {
-	if n.kind == StmtCase {
-		return (*CaseStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustCase() *CaseStatement {
-	if n.kind != StmtCase {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*CaseStatement)(n.ptr)
-}
-
-func (n *Statement) IsCase() bool {
-	return n.kind == StmtCase
-}
-
-func NewCatchStmt(n *CatchStatement) Statement {
-	return Statement{kind: StmtCatch, ptr: unsafe.Pointer(n)}
-}
-
-func (n *Statement) Catch() (*CatchStatement, bool) {
-	if n.kind == StmtCatch {
-		return (*CatchStatement)(n.ptr), true
-	}
-	return nil, false
-}
-
-func (n *Statement) MustCatch() *CatchStatement {
-	if n.kind != StmtCatch {
-		panic("unexpected kind: " + n.kind.String())
-	}
-	return (*CatchStatement)(n.ptr)
-}
-
-func (n *Statement) IsCatch() bool {
-	return n.kind == StmtCatch
 }
 
 func NewClassDeclStmt(n *ClassDeclaration) Statement {
@@ -3077,10 +2996,6 @@ func (n *Statement) Idx0() Idx {
 		return (*BlockStatement)(n.ptr).Idx0()
 	case StmtBreak:
 		return (*BreakStatement)(n.ptr).Idx0()
-	case StmtCase:
-		return (*CaseStatement)(n.ptr).Idx0()
-	case StmtCatch:
-		return (*CatchStatement)(n.ptr).Idx0()
 	case StmtClassDecl:
 		return (*ClassDeclaration)(n.ptr).Idx0()
 	case StmtContinue:
@@ -3131,10 +3046,6 @@ func (n *Statement) Idx1() Idx {
 		return (*BlockStatement)(n.ptr).Idx1()
 	case StmtBreak:
 		return (*BreakStatement)(n.ptr).Idx1()
-	case StmtCase:
-		return (*CaseStatement)(n.ptr).Idx1()
-	case StmtCatch:
-		return (*CatchStatement)(n.ptr).Idx1()
 	case StmtClassDecl:
 		return (*ClassDeclaration)(n.ptr).Idx1()
 	case StmtContinue:
@@ -3188,10 +3099,6 @@ func (n *Statement) Unwrap() VisitableNode {
 		return (*BlockStatement)(n.ptr)
 	case StmtBreak:
 		return (*BreakStatement)(n.ptr)
-	case StmtCase:
-		return (*CaseStatement)(n.ptr)
-	case StmtCatch:
-		return (*CatchStatement)(n.ptr)
 	case StmtClassDecl:
 		return (*ClassDeclaration)(n.ptr)
 	case StmtContinue:

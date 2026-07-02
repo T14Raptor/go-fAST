@@ -5,7 +5,6 @@ package main
 import (
 	"bytes"
 	"cmp"
-	"fmt"
 	"go/ast"
 	"go/format"
 	"go/parser"
@@ -14,7 +13,9 @@ import (
 	"log"
 	"os"
 	"slices"
-	"strings"
+	"text/template"
+
+	"github.com/t14raptor/go-fast/ast/internal/astgen"
 )
 
 type NodeType int
@@ -30,14 +31,11 @@ type VisitableNodeType struct {
 	Children []Child
 
 	IsUnion    bool
-	Variants   []UnionVariant
+	Variants   []astgen.UnionVariant
 	KindPrefix string
 }
 
-type UnionVariant struct {
-	TypeName  string
-	ShortName string
-}
+func (n VisitableNodeType) IsSlice() bool { return n.Type == NodeTypeSlice }
 
 type Child struct {
 	FieldName string
@@ -57,192 +55,82 @@ func main() {
 		log.Fatalf("%v", err)
 	}
 
+	specs := astgen.FindUnionSpecs(pkgs["ast"].Files)
 	var nodes []VisitableNodeType
 	for _, file := range pkgs["ast"].Files {
-		nodes = append(nodes, findVisitableNodes(file)...)
+		nodes = append(nodes, findVisitableNodes(file, specs)...)
 	}
-
 	slices.SortFunc(nodes, func(a, b VisitableNodeType) int {
 		return cmp.Compare(a.Name, b.Name)
 	})
-	var (
-		visitorMethods     []*ast.Field
-		noopVisitorMethods []ast.Decl
-		visitMethods       []ast.Decl
-	)
-	for _, node := range nodes {
-		visitorMethods = append(visitorMethods, &ast.Field{
-			Names: []*ast.Ident{{Name: "Visit" + node.Name}},
-			Type: &ast.FuncType{
-				Params: newFieldList("n", &ast.StarExpr{X: ast.NewIdent(node.Name)}),
-			},
-		})
 
-		noopVisitorMethods = append(noopVisitorMethods, &ast.FuncDecl{
-			Recv: newFieldList("nv", &ast.StarExpr{X: ast.NewIdent("NoopVisitor")}),
-			Name: ast.NewIdent("Visit" + node.Name),
-			Type: &ast.FuncType{
-				Params: newFieldList("n", &ast.StarExpr{X: ast.NewIdent(node.Name)}),
-			},
-			Body: &ast.BlockStmt{
-				List: []ast.Stmt{
-					&ast.ExprStmt{X: &ast.CallExpr{
-						Fun:  newSelectorExpr(ast.NewIdent("n"), "VisitChildrenWith"),
-						Args: []ast.Expr{newSelectorExpr(ast.NewIdent("nv"), "V")},
-					}},
-				},
-			},
-		})
-
-		if node.IsUnion {
-			continue
-		}
-
-		recv := newFieldList("n", &ast.StarExpr{X: ast.NewIdent(node.Name)})
-		params := newFieldList("v", ast.NewIdent("Visitor"))
-		visitChildrenBlock := &ast.BlockStmt{}
-		switch node.Type {
-		case NodeTypeStruct:
-			for _, child := range node.Children {
-				callExpr := &ast.ExprStmt{X: &ast.CallExpr{
-					Fun: newSelectorExpr(
-						newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-						"VisitWith",
-					),
-					Args: []ast.Expr{ast.NewIdent("v")},
-				}}
-				if child.Optional {
-					visitChildrenBlock.List = append(visitChildrenBlock.List, &ast.IfStmt{
-						Cond: &ast.BinaryExpr{
-							X:  newSelectorExpr(ast.NewIdent("n"), child.FieldName),
-							Op: token.NEQ,
-							Y:  ast.NewIdent("nil"),
-						},
-						Body: &ast.BlockStmt{List: []ast.Stmt{callExpr}},
-					})
-				} else {
-					visitChildrenBlock.List = append(visitChildrenBlock.List, callExpr)
-				}
-			}
-		case NodeTypeSlice:
-			visitChildrenBlock.List = append(visitChildrenBlock.List, &ast.ForStmt{
-				Init: &ast.AssignStmt{
-					Lhs: []ast.Expr{ast.NewIdent("i")},
-					Tok: token.DEFINE,
-					Rhs: []ast.Expr{&ast.BasicLit{Value: "0"}},
-				},
-				Cond: &ast.BinaryExpr{
-					X:  ast.NewIdent("i"),
-					Op: token.LSS,
-					Y: &ast.CallExpr{
-						Fun:  ast.NewIdent("len"),
-						Args: []ast.Expr{&ast.StarExpr{X: ast.NewIdent("n")}},
-					},
-				},
-				Post: &ast.IncDecStmt{
-					X:   ast.NewIdent("i"),
-					Tok: token.INC,
-				},
-				Body: &ast.BlockStmt{
-					List: []ast.Stmt{
-						&ast.ExprStmt{X: &ast.CallExpr{
-							Fun: newSelectorExpr(&ast.IndexExpr{
-								X:     &ast.StarExpr{X: ast.NewIdent("n")},
-								Index: ast.NewIdent("i"),
-							}, "VisitWith"),
-							Args: []ast.Expr{ast.NewIdent("v")},
-						}},
-					},
-				},
-			})
-		}
-		visitMethods = append(visitMethods, &ast.FuncDecl{
-			Recv: recv,
-			Name: ast.NewIdent("VisitWith"),
-			Type: &ast.FuncType{Params: params},
-			Body: &ast.BlockStmt{
-				List: []ast.Stmt{
-					&ast.ExprStmt{X: &ast.CallExpr{
-						Fun:  newSelectorExpr(ast.NewIdent("v"), "Visit"+node.Name),
-						Args: []ast.Expr{ast.NewIdent("n")},
-					}},
-				},
-			},
-		}, &ast.FuncDecl{
-			Recv: recv,
-			Name: ast.NewIdent("VisitChildrenWith"),
-			Type: &ast.FuncType{Params: params},
-			Body: visitChildrenBlock,
-		})
+	var buf bytes.Buffer
+	if err := visitTemplate.Execute(&buf, nodes); err != nil {
+		log.Fatalf("template error: %v", err)
 	}
 
-	genPkg := &ast.File{
-		Name: ast.NewIdent("ast"),
-		Decls: []ast.Decl{
-			&ast.GenDecl{
-				Tok: token.TYPE,
-				Specs: []ast.Spec{
-					&ast.TypeSpec{
-						Name: ast.NewIdent("Visitor"),
-						Type: &ast.InterfaceType{
-							Methods: &ast.FieldList{List: visitorMethods},
-						},
-					},
-				},
-			},
-			&ast.GenDecl{
-				Tok: token.TYPE,
-				Specs: []ast.Spec{
-					&ast.TypeSpec{
-						Name: ast.NewIdent("NoopVisitor"),
-						Type: &ast.StructType{
-							Fields: newFieldList("V", ast.NewIdent("Visitor")),
-						},
-					},
-				},
-			},
-		},
-	}
-
-	genPkg.Decls = append(genPkg.Decls, noopVisitorMethods...)
-	genPkg.Decls = append(genPkg.Decls, visitMethods...)
-
-	s := bytes.NewBuffer([]byte("// Code generated by gen_visit.go; DO NOT EDIT.\n"))
-	format.Node(s, fset, genPkg)
-
-	for _, node := range nodes {
-		if !node.IsUnion {
-			continue
-		}
-		generateUnionVisit(s, node)
-	}
-
-	formatted, err := format.Source(s.Bytes())
+	formatted, err := format.Source(buf.Bytes())
 	if err != nil {
-		os.WriteFile("ast/visit.go", s.Bytes(), 0644)
+		os.WriteFile("ast/visit.go", buf.Bytes(), 0644)
 		log.Fatalf("format error: %v", err)
 	}
-
 	os.WriteFile("ast/visit.go", formatted, 0644)
-
 }
 
-func generateUnionVisit(buf *bytes.Buffer, node VisitableNodeType) {
-	fmt.Fprintf(buf, "\nfunc (n *%s) VisitWith(v Visitor) {\n", node.Name)
-	fmt.Fprintf(buf, "\tv.Visit%s(n)\n", node.Name)
-	fmt.Fprintf(buf, "}\n\n")
+var visitTemplate = template.Must(template.New("visit").Parse(`// Code generated by gen_visit.go; DO NOT EDIT.
+package ast
 
-	fmt.Fprintf(buf, "func (n *%s) VisitChildrenWith(v Visitor) {\n", node.Name)
-	fmt.Fprintf(buf, "\tswitch n.kind {\n")
-	for _, v := range node.Variants {
-		fmt.Fprintf(buf, "\tcase %s%s:\n", node.KindPrefix, v.ShortName)
-		fmt.Fprintf(buf, "\t\t(*%s)(n.ptr).VisitWith(v)\n", v.TypeName)
+type Visitor interface {
+{{- range .}}
+	Visit{{.Name}}(n *{{.Name}})
+{{- end}}
+}
+type NoopVisitor struct {
+	V Visitor
+}
+{{range .}}
+func (nv *NoopVisitor) Visit{{.Name}}(n *{{.Name}}) {
+	n.VisitChildrenWith(nv.V)
+}
+{{- end}}
+{{- range .}}{{if not .IsUnion}}
+func (n *{{.Name}}) VisitWith(v Visitor) {
+	v.Visit{{.Name}}(n)
+}
+func (n *{{.Name}}) VisitChildrenWith(v Visitor) {
+{{- if .IsSlice}}
+	for i := 0; i < len(*n); i++ {
+		(*n)[i].VisitWith(v)
 	}
-	fmt.Fprintf(buf, "\t}\n")
-	fmt.Fprintf(buf, "}\n\n")
+{{- else}}{{range .Children}}
+{{- if .Optional}}
+	if n.{{.FieldName}} != nil {
+		n.{{.FieldName}}.VisitWith(v)
+	}
+{{- else}}
+	n.{{.FieldName}}.VisitWith(v)
+{{- end}}{{end}}
+{{- end}}
+}
+{{- end}}{{end}}
+{{- range .}}{{if .IsUnion}}
+
+func (n *{{.Name}}) VisitWith(v Visitor) {
+	v.Visit{{.Name}}(n)
 }
 
-func findVisitableNodes(f *ast.File) (types []VisitableNodeType) {
+func (n *{{.Name}}) VisitChildrenWith(v Visitor) {
+	switch n.kind {
+{{- $kp := .KindPrefix}}{{range .Variants}}
+	case {{$kp}}{{.ShortName}}:
+		(*{{.TypeName}})(n.ptr).VisitWith(v)
+{{- end}}
+	}
+}
+{{- end}}{{end}}
+`))
+
+func findVisitableNodes(f *ast.File, specs map[string]astgen.UnionSpec) (types []VisitableNodeType) {
 	for _, decl := range f.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok {
@@ -261,26 +149,20 @@ func findVisitableNodes(f *ast.File) (types []VisitableNodeType) {
 
 			switch t := typeSpec.Type.(type) {
 			case *ast.StructType:
+				// Spec structs (//union: ...) enumerate a union's variants for
+				// codegen; they are not real nodes.
+				if astgen.UnionWrapper(typeSpec.Doc) != "" {
+					continue
+				}
 				node := VisitableNodeType{
 					Type:     NodeTypeStruct,
 					Name:     typeSpec.Name.Name,
 					Children: findStructChildren(t.Fields.List),
 				}
-				if variantList := parseUnionComment(typeSpec.Doc); variantList != nil {
-					kindPrefix, _, _ := deriveUnionNames(typeSpec.Name.Name)
-					var variants []UnionVariant
-					for _, typeName := range variantList {
-						variants = append(variants, UnionVariant{
-							TypeName:  typeName,
-							ShortName: deriveShortName(typeName),
-						})
-					}
-					slices.SortFunc(variants, func(a, b UnionVariant) int {
-						return cmp.Compare(a.ShortName, b.ShortName)
-					})
+				if union, ok := specs[typeSpec.Name.Name]; ok {
 					node.IsUnion = true
-					node.Variants = variants
-					node.KindPrefix = kindPrefix
+					node.Variants = union.Variants
+					node.KindPrefix = union.KindPrefix
 				}
 				types = append(types, node)
 			case *ast.ArrayType:
@@ -307,7 +189,8 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 
 			switch fieldType.Name {
 			case "Idx", "any", "bool", "int", "ScopeContext", "string", "MethodKind", "VarKind", "float64",
-				"UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator":
+				"UnaryOperator", "AssignmentOperator", "BinaryOperator", "UpdateOperator", "LogicalOperator",
+				"MetaPropertyKind":
 			default:
 				for _, name := range field.Names {
 					children = append(children, newChild(name.Name, optional))
@@ -329,118 +212,4 @@ func findStructChildren(fields []*ast.Field) (children []Child) {
 		}
 	}
 	return children
-}
-
-func newFieldList(name string, t ast.Expr) *ast.FieldList {
-	return &ast.FieldList{
-		List: []*ast.Field{{
-			Names: []*ast.Ident{ast.NewIdent(name)},
-			Type:  t,
-		}},
-	}
-}
-
-func newSelectorExpr(x ast.Expr, sel string) *ast.SelectorExpr {
-	return &ast.SelectorExpr{X: x, Sel: ast.NewIdent(sel)}
-}
-
-func parseUnionComment(doc *ast.CommentGroup) []string {
-	if doc == nil {
-		return nil
-	}
-	for _, c := range doc.List {
-		text := strings.TrimSpace(strings.TrimPrefix(c.Text, "//"))
-		if strings.HasPrefix(text, "union:") {
-			raw := strings.TrimPrefix(text, "union:")
-			var names []string
-			for _, name := range strings.Split(raw, ",") {
-				name = strings.TrimSpace(name)
-				if name != "" {
-					names = append(names, name)
-				}
-			}
-			return names
-		}
-	}
-	return nil
-}
-
-func deriveUnionNames(name string) (kindPrefix, kindType, ctorSuffix string) {
-	switch name {
-	case "Expression":
-		return "Expr", "ExprKind", "Expr"
-	case "Statement":
-		return "Stmt", "StmtKind", "Stmt"
-	case "Property":
-		return "Prop", "PropKind", "Prop"
-	case "MemberProperty":
-		return "MemProp", "MemPropKind", "MemProp"
-	case "ForLoopInitializer":
-		return "ForInit", "ForInitKind", "ForInit"
-	case "ClassElement":
-		return "ClassElem", "ClassElemKind", "ClassElem"
-	case "PatternProperty":
-		return "PatProp", "PatPropKind", "PatProp"
-	case "PropertyName":
-		return "PropName", "PropNameKind", "PropName"
-	default:
-		return name, name + "Kind", name
-	}
-}
-
-var shortNameOverrides = map[string]string{
-	"OptionalChain":     "OptionalChain",
-	"Expression":        "Expr",
-	"Statement":         "Stmt",
-	"PropertyKeyValue":  "KeyValue",
-	"PropertyMethod":    "Method",
-	"PropertyGetter":    "Getter",
-	"PropertySetter":    "Setter",
-	"PropertyShort":     "Short",
-	"ComputedProperty":  "Computed",
-	"ClassStaticBlock":  "StaticBlock",
-	"FieldDefinition":   "FieldDef",
-	"MethodDefinition":  "MethodDef",
-	"AssignmentPattern": "Assign",
-	"PatternKeyValue":   "KeyValue",
-	"PatternShorthand":  "Shorthand",
-	"Pattern":           "Pattern",
-}
-
-func deriveShortName(typeName string) string {
-	if override, ok := shortNameOverrides[typeName]; ok {
-		return override
-	}
-
-	name := typeName
-
-	switch {
-	case strings.HasSuffix(name, "Expression"):
-		name = strings.TrimSuffix(name, "Expression")
-	case strings.HasSuffix(name, "Statement"):
-		name = strings.TrimSuffix(name, "Statement")
-	case strings.HasSuffix(name, "Literal"):
-		name = strings.TrimSuffix(name, "Literal") + "Lit"
-	case strings.HasSuffix(name, "Declaration"):
-		name = strings.TrimSuffix(name, "Declaration") + "Decl"
-	case strings.HasSuffix(name, "Element"):
-		name = strings.TrimSuffix(name, "Element")
-	case strings.HasSuffix(name, "Pattern"):
-		name = strings.TrimSuffix(name, "Pattern") + "Pat"
-	}
-
-	abbreviations := [][2]string{
-		{"ArrowFunction", "ArrowFunc"},
-		{"Function", "Func"},
-		{"Variable", "Var"},
-		{"Property", "Prop"},
-		{"Template", "Tmpl"},
-		{"Private", "Priv"},
-		{"Boolean", "Bool"},
-	}
-	for _, ab := range abbreviations {
-		name = strings.ReplaceAll(name, ab[0], ab[1])
-	}
-
-	return name
 }

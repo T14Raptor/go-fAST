@@ -5,22 +5,40 @@ import "unsafe"
 type (
 	Properties []Property
 
-	//union:PropertyKeyValue,PropertyMethod,PropertyGetter,PropertySetter,PropertyShort,SpreadElement
 	Property struct {
 		kind PropKind
 
 		ptr unsafe.Pointer
 	}
 
+	// Property union variants (gen_union.go): field = tag, type = payload.
+	//union:Property
+	_ struct {
+		Getter   PropertyGetter
+		KeyValue PropertyKeyValue
+		Method   PropertyMethod
+		Setter   PropertySetter
+		Short    PropertyShort
+		Spread   SpreadElement
+	}
+
 	// PropertyName is an object/class member key. Computed keys (`[expr]`) are the
 	// ComputedProperty variant, so there is no separate "computed" flag, and a
 	// computed literal key (`["a"]`) stays distinct from a plain one (`"a"`).
-	//
-	//union:StringLiteral,NumberLiteral,BigIntLiteral,PrivateIdentifier,ComputedProperty
 	PropertyName struct {
 		kind PropNameKind
 
 		ptr unsafe.Pointer
+	}
+
+	// PropertyName union variants (gen_union.go): field = tag, type = payload.
+	//union:PropertyName
+	_ struct {
+		BigIntLit      BigIntLiteral
+		Computed       ComputedProperty
+		NumberLit      NumberLiteral
+		PrivIdentifier PrivateIdentifier
+		StringLit      StringLiteral
 	}
 
 	// PropertyKeyValue is `{ key: value }` / `{ [key]: value }`.
