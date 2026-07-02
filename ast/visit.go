@@ -15,9 +15,7 @@ type Visitor interface {
 	VisitBooleanLiteral(n *BooleanLiteral)
 	VisitBreakStatement(n *BreakStatement)
 	VisitCallExpression(n *CallExpression)
-	VisitCaseStatement(n *CaseStatement)
-	VisitCaseStatements(n *CaseStatements)
-	VisitCatchStatement(n *CatchStatement)
+	VisitCatchClause(n *CatchClause)
 	VisitClassDeclaration(n *ClassDeclaration)
 	VisitClassElement(n *ClassElement)
 	VisitClassElements(n *ClassElements)
@@ -83,6 +81,8 @@ type Visitor interface {
 	VisitStatements(n *Statements)
 	VisitStringLiteral(n *StringLiteral)
 	VisitSuperExpression(n *SuperExpression)
+	VisitSwitchCase(n *SwitchCase)
+	VisitSwitchCases(n *SwitchCases)
 	VisitSwitchStatement(n *SwitchStatement)
 	VisitTemplateElement(n *TemplateElement)
 	VisitTemplateElements(n *TemplateElements)
@@ -142,13 +142,7 @@ func (nv *NoopVisitor) VisitBreakStatement(n *BreakStatement) {
 func (nv *NoopVisitor) VisitCallExpression(n *CallExpression) {
 	n.VisitChildrenWith(nv.V)
 }
-func (nv *NoopVisitor) VisitCaseStatement(n *CaseStatement) {
-	n.VisitChildrenWith(nv.V)
-}
-func (nv *NoopVisitor) VisitCaseStatements(n *CaseStatements) {
-	n.VisitChildrenWith(nv.V)
-}
-func (nv *NoopVisitor) VisitCatchStatement(n *CatchStatement) {
+func (nv *NoopVisitor) VisitCatchClause(n *CatchClause) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitClassDeclaration(n *ClassDeclaration) {
@@ -346,6 +340,12 @@ func (nv *NoopVisitor) VisitStringLiteral(n *StringLiteral) {
 func (nv *NoopVisitor) VisitSuperExpression(n *SuperExpression) {
 	n.VisitChildrenWith(nv.V)
 }
+func (nv *NoopVisitor) VisitSwitchCase(n *SwitchCase) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitSwitchCases(n *SwitchCases) {
+	n.VisitChildrenWith(nv.V)
+}
 func (nv *NoopVisitor) VisitSwitchStatement(n *SwitchStatement) {
 	n.VisitChildrenWith(nv.V)
 }
@@ -476,27 +476,10 @@ func (n *CallExpression) VisitChildrenWith(v Visitor) {
 	n.Callee.VisitWith(v)
 	n.ArgumentList.VisitWith(v)
 }
-func (n *CaseStatement) VisitWith(v Visitor) {
-	v.VisitCaseStatement(n)
+func (n *CatchClause) VisitWith(v Visitor) {
+	v.VisitCatchClause(n)
 }
-func (n *CaseStatement) VisitChildrenWith(v Visitor) {
-	if n.Test != nil {
-		n.Test.VisitWith(v)
-	}
-	n.Consequent.VisitWith(v)
-}
-func (n *CaseStatements) VisitWith(v Visitor) {
-	v.VisitCaseStatements(n)
-}
-func (n *CaseStatements) VisitChildrenWith(v Visitor) {
-	for i := 0; i < len(*n); i++ {
-		(*n)[i].VisitWith(v)
-	}
-}
-func (n *CatchStatement) VisitWith(v Visitor) {
-	v.VisitCatchStatement(n)
-}
-func (n *CatchStatement) VisitChildrenWith(v Visitor) {
+func (n *CatchClause) VisitChildrenWith(v Visitor) {
 	if n.Parameter != nil {
 		n.Parameter.VisitWith(v)
 	}
@@ -887,6 +870,23 @@ func (n *SuperExpression) VisitWith(v Visitor) {
 	v.VisitSuperExpression(n)
 }
 func (n *SuperExpression) VisitChildrenWith(v Visitor) {
+}
+func (n *SwitchCase) VisitWith(v Visitor) {
+	v.VisitSwitchCase(n)
+}
+func (n *SwitchCase) VisitChildrenWith(v Visitor) {
+	if n.Test != nil {
+		n.Test.VisitWith(v)
+	}
+	n.Consequent.VisitWith(v)
+}
+func (n *SwitchCases) VisitWith(v Visitor) {
+	v.VisitSwitchCases(n)
+}
+func (n *SwitchCases) VisitChildrenWith(v Visitor) {
+	for i := 0; i < len(*n); i++ {
+		(*n)[i].VisitWith(v)
+	}
 }
 func (n *SwitchStatement) VisitWith(v Visitor) {
 	v.VisitSwitchStatement(n)

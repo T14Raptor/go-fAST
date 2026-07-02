@@ -48,26 +48,12 @@ func (n *BreakStatement) Clone() *BreakStatement {
 func (n *CallExpression) Clone() *CallExpression {
 	return &CallExpression{Callee: n.Callee.Clone(), ArgumentList: *n.ArgumentList.Clone(), LeftParenthesis: n.LeftParenthesis, RightParenthesis: n.RightParenthesis}
 }
-func (n *CaseStatement) Clone() *CaseStatement {
-	var test *Expression
-	if n.Test != nil {
-		test = n.Test.Clone()
-	}
-	return &CaseStatement{Test: test, Consequent: *n.Consequent.Clone(), Case: n.Case}
-}
-func (n *CaseStatements) Clone() *CaseStatements {
-	ns := make(CaseStatements, len(*n))
-	for i := range *n {
-		ns[i] = *(*n)[i].Clone()
-	}
-	return &ns
-}
-func (n *CatchStatement) Clone() *CatchStatement {
+func (n *CatchClause) Clone() *CatchClause {
 	var parameter *Pattern
 	if n.Parameter != nil {
 		parameter = n.Parameter.Clone()
 	}
-	return &CatchStatement{Parameter: parameter, Body: n.Body.Clone(), Catch: n.Catch}
+	return &CatchClause{Parameter: parameter, Body: n.Body.Clone(), Catch: n.Catch}
 }
 func (n *ClassDeclaration) Clone() *ClassDeclaration {
 	return &ClassDeclaration{Class: n.Class.Clone()}
@@ -311,6 +297,20 @@ func (n *StringLiteral) Clone() *StringLiteral {
 func (n *SuperExpression) Clone() *SuperExpression {
 	return &SuperExpression{Idx: n.Idx}
 }
+func (n *SwitchCase) Clone() *SwitchCase {
+	var test *Expression
+	if n.Test != nil {
+		test = n.Test.Clone()
+	}
+	return &SwitchCase{Test: test, Consequent: *n.Consequent.Clone(), Case: n.Case}
+}
+func (n *SwitchCases) Clone() *SwitchCases {
+	ns := make(SwitchCases, len(*n))
+	for i := range *n {
+		ns[i] = *(*n)[i].Clone()
+	}
+	return &ns
+}
 func (n *SwitchStatement) Clone() *SwitchStatement {
 	return &SwitchStatement{Discriminant: n.Discriminant.Clone(), Body: *n.Body.Clone(), Default: n.Default, Switch: n.Switch}
 }
@@ -338,7 +338,7 @@ func (n *ThrowStatement) Clone() *ThrowStatement {
 	return &ThrowStatement{Argument: n.Argument.Clone(), Throw: n.Throw}
 }
 func (n *TryStatement) Clone() *TryStatement {
-	var catch *CatchStatement
+	var catch *CatchClause
 	if n.Catch != nil {
 		catch = n.Catch.Clone()
 	}

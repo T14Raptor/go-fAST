@@ -84,7 +84,7 @@ type nodeAllocator struct {
 	switchStm   arena[ast.SwitchStatement]
 	withStmt    arena[ast.WithStatement]
 	tryStmt     arena[ast.TryStatement]
-	catchClause arena[ast.CatchStatement]
+	catchClause arena[ast.CatchClause]
 	forStmt     arena[ast.ForStatement]
 	forInStmt   arena[ast.ForInStatement]
 	forOfStmt   arena[ast.ForOfStatement]
@@ -200,7 +200,7 @@ func newNodeAllocator() nodeAllocator {
 		switchStm:   newArena[ast.SwitchStatement](16),
 		withStmt:    newArena[ast.WithStatement](8),
 		tryStmt:     newArena[ast.TryStatement](16),
-		catchClause: newArena[ast.CatchStatement](16),
+		catchClause: newArena[ast.CatchClause](16),
 		forStmt:     newArena[ast.ForStatement](32),
 		forInStmt:   newArena[ast.ForInStatement](16),
 		forOfStmt:   newArena[ast.ForOfStatement](16),
@@ -691,9 +691,9 @@ func (a *nodeAllocator) TryStatement(idx ast.Idx, body *ast.BlockStatement) *ast
 	return n
 }
 
-func (a *nodeAllocator) CatchClause(idx ast.Idx, param *ast.Pattern, body *ast.BlockStatement) *ast.CatchStatement {
+func (a *nodeAllocator) CatchClause(idx ast.Idx, param *ast.Pattern, body *ast.BlockStatement) *ast.CatchClause {
 	n := a.catchClause.make()
-	*n = ast.CatchStatement{Catch: idx, Parameter: param, Body: body}
+	*n = ast.CatchClause{Catch: idx, Parameter: param, Body: body}
 	return n
 }
 

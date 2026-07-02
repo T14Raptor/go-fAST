@@ -131,7 +131,7 @@ func (p *parser) parseTryStatement() ast.Statement {
 			parameter = p.parsePattern()
 			p.expect(token.RightParenthesis)
 		}
-		node.Catch = p.alloc.CatchStatement(catch, parameter, p.parseBlockStatement())
+		node.Catch = p.alloc.CatchClause(catch, parameter, p.parseBlockStatement())
 	}
 
 	if p.currentKind() == token.Finally {
@@ -488,8 +488,8 @@ func (p *parser) parseWithStatement() ast.Statement {
 	return ast.NewWithStmt(node)
 }
 
-func (p *parser) parseCaseStatement() ast.CaseStatement {
-	node := ast.CaseStatement{
+func (p *parser) parseSwitchCase() ast.SwitchCase {
+	node := ast.SwitchCase{
 		Case: p.currentOffset(),
 	}
 	if p.currentKind() == token.Default {

@@ -66,16 +66,16 @@ type (
 		Idx Idx
 	}
 
-	CaseStatements []CaseStatement
+	SwitchCases []SwitchCase
 
-	CaseStatement struct {
+	SwitchCase struct {
 		Test       *Expression `optional:"true"`
 		Consequent Statements
 
 		Case Idx
 	}
 
-	CatchStatement struct {
+	CatchClause struct {
 		Parameter *Pattern `optional:"true"`
 		Body      *BlockStatement
 
@@ -125,7 +125,7 @@ type (
 
 	SwitchStatement struct {
 		Discriminant *Expression
-		Body         CaseStatements
+		Body         SwitchCases
 		Default      int
 
 		Switch Idx
@@ -139,7 +139,7 @@ type (
 
 	TryStatement struct {
 		Body    *BlockStatement
-		Catch   *CatchStatement `optional:"true"`
+		Catch   *CatchClause    `optional:"true"`
 		Finally *BlockStatement `optional:"true"`
 
 		Try Idx
@@ -232,8 +232,8 @@ func (n *ContinueStatement) Idx1() Idx {
 	return n.Idx + 8 // "continue"
 }
 
-func (n *CaseStatement) Idx0() Idx { return n.Case }
-func (n *CaseStatement) Idx1() Idx {
+func (n *SwitchCase) Idx0() Idx { return n.Case }
+func (n *SwitchCase) Idx1() Idx {
 	if len(n.Consequent) > 0 {
 		return n.Consequent[len(n.Consequent)-1].Idx1()
 	}
@@ -243,8 +243,8 @@ func (n *CaseStatement) Idx1() Idx {
 	return n.Case + 7 // bare `default`
 }
 
-func (n *CatchStatement) Idx0() Idx { return n.Catch }
-func (n *CatchStatement) Idx1() Idx { return n.Body.Idx1() }
+func (n *CatchClause) Idx0() Idx { return n.Catch }
+func (n *CatchClause) Idx1() Idx { return n.Body.Idx1() }
 
 func (n *DebuggerStatement) Idx0() Idx { return n.Debugger }
 func (n *DebuggerStatement) Idx1() Idx { return n.Debugger + 8 }

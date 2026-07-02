@@ -71,7 +71,7 @@ func (h *hoister) VisitBlockStatement(n *ast.BlockStatement) {
 	h.inBlock = old
 }
 
-func (h *hoister) VisitCatchStatement(n *ast.CatchStatement) {
+func (h *hoister) VisitCatchClause(n *ast.CatchClause) {
 	oldExclude := h.excludedFromCatch
 	h.excludedFromCatch = nil
 	oldInCatchBody := h.inCatchBody

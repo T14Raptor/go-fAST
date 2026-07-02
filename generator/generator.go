@@ -941,7 +941,7 @@ func (g *GenVisitor) VisitSwitchStatement(n *ast.SwitchStatement) {
 	g.writeByte('}')
 }
 
-func (g *GenVisitor) VisitCaseStatement(n *ast.CaseStatement) {
+func (g *GenVisitor) VisitSwitchCase(n *ast.SwitchCase) {
 	if n.Test != nil {
 		g.writeString("case ")
 		g.genExpr(n.Test, ast.PrecedenceLowest, 0)
@@ -983,7 +983,7 @@ func (g *GenVisitor) VisitTryStatement(n *ast.TryStatement) {
 	}
 }
 
-func (g *GenVisitor) VisitCatchStatement(n *ast.CatchStatement) {
+func (g *GenVisitor) VisitCatchClause(n *ast.CatchClause) {
 	if n.Parameter != nil {
 		g.gen(n.Parameter)
 	}

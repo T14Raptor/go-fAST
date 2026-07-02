@@ -220,7 +220,7 @@ func (r *resolver) VisitParameterList(n *ast.ParameterList) {
 	r.identType = old
 }
 
-func (r *resolver) VisitCatchStatement(n *ast.CatchStatement) {
+func (r *resolver) VisitCatchClause(n *ast.CatchClause) {
 	r.pushScope(scopeKindBlock)
 	if n.Parameter != nil {
 		old := r.identType
