@@ -19,7 +19,7 @@ go get github.com/t14raptor/go-fast
 ```
 
 ## Docs
-[Documentation](https://yoghurtbot-io.gitbook.io/go-fast)
+[Documentation](https://gofast.disasm.dev)
 
 ## Credits
 
