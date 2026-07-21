@@ -56,6 +56,7 @@ type Visitor interface {
 	VisitOptional(n *Optional)
 	VisitOptionalChain(n *OptionalChain)
 	VisitParameterList(n *ParameterList)
+	VisitParenthesizedExpression(n *ParenthesizedExpression)
 	VisitPattern(n *Pattern)
 	VisitPatternKeyValue(n *PatternKeyValue)
 	VisitPatternProperties(n *PatternProperties)
@@ -263,6 +264,9 @@ func (nv *NoopVisitor) VisitOptionalChain(n *OptionalChain) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitParameterList(n *ParameterList) {
+	n.VisitChildrenWith(nv.V)
+}
+func (nv *NoopVisitor) VisitParenthesizedExpression(n *ParenthesizedExpression) {
 	n.VisitChildrenWith(nv.V)
 }
 func (nv *NoopVisitor) VisitPattern(n *Pattern) {
@@ -732,6 +736,12 @@ func (n *ParameterList) VisitChildrenWith(v Visitor) {
 		n.Rest.VisitWith(v)
 	}
 }
+func (n *ParenthesizedExpression) VisitWith(v Visitor) {
+	v.VisitParenthesizedExpression(n)
+}
+func (n *ParenthesizedExpression) VisitChildrenWith(v Visitor) {
+	n.Expression.VisitWith(v)
+}
 func (n *PatternKeyValue) VisitWith(v Visitor) {
 	v.VisitPatternKeyValue(n)
 }
@@ -1077,6 +1087,8 @@ func (n *Expression) VisitChildrenWith(v Visitor) {
 		(*Optional)(n.ptr).VisitWith(v)
 	case ExprOptionalChain:
 		(*OptionalChain)(n.ptr).VisitWith(v)
+	case ExprParen:
+		(*ParenthesizedExpression)(n.ptr).VisitWith(v)
 	case ExprPrivDot:
 		(*PrivateDotExpression)(n.ptr).VisitWith(v)
 	case ExprPrivIdentifier:

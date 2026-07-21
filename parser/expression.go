@@ -172,11 +172,14 @@ func (p *parser) parseParenthesisedExpression() ast.Expression {
 			}
 		}
 	}
-	p.expect(token.RightParenthesis)
+	closing := p.expect(token.RightParenthesis)
 	n := len(p.exprBuf) - mark
 	if n == 1 && p.errors == nil {
 		result := p.exprBuf[mark]
 		p.exprBuf = p.exprBuf[:mark]
+		if p.options.preserveParens {
+			return ast.NewParenExpr(p.alloc.ParenthesizedExpression(opening, p.alloc.Expression(result), closing))
+		}
 		return result
 	}
 	if n == 0 {

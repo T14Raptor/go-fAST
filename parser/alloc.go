@@ -39,6 +39,7 @@ type nodeAllocator struct {
 	updateExp arena[ast.UpdateExpression]
 	assignExp arena[ast.AssignExpression]
 	condExpr  arena[ast.ConditionalExpression]
+	parenExpr arena[ast.ParenthesizedExpression]
 	seqExpr   arena[ast.SequenceExpression]
 	memberExp arena[ast.MemberExpression]
 	memberPrp arena[ast.MemberProperty]
@@ -155,6 +156,7 @@ func newNodeAllocator() nodeAllocator {
 		updateExp: newArena[ast.UpdateExpression](64),
 		assignExp: newArena[ast.AssignExpression](64),
 		condExpr:  newArena[ast.ConditionalExpression](64),
+		parenExpr: newArena[ast.ParenthesizedExpression](32),
 		seqExpr:   newArena[ast.SequenceExpression](32),
 		memberExp: newArena[ast.MemberExpression](256),
 		memberPrp: newArena[ast.MemberProperty](256),
@@ -438,6 +440,12 @@ func (a *nodeAllocator) ComputedProperty(left ast.Idx, expr *ast.Expression, rig
 func (a *nodeAllocator) CallExpression(callee *ast.Expression, lp ast.Idx, args ast.Expressions, rp ast.Idx) *ast.CallExpression {
 	n := a.callExpr.make()
 	*n = ast.CallExpression{Callee: callee, LeftParenthesis: lp, ArgumentList: args, RightParenthesis: rp}
+	return n
+}
+
+func (a *nodeAllocator) ParenthesizedExpression(lp ast.Idx, expr *ast.Expression, rp ast.Idx) *ast.ParenthesizedExpression {
+	n := a.parenExpr.make()
+	*n = ast.ParenthesizedExpression{Expression: expr, LeftParenthesis: lp, RightParenthesis: rp}
 	return n
 }
 
