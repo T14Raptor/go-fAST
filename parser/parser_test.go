@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/generator"
@@ -2106,4 +2107,65 @@ func TestYieldExpressionAST(t *testing.T) {
 	if !y2.Delegate {
 		t.Error("yield* should be delegate")
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Scanner progress
+// ---------------------------------------------------------------------------
+
+// parseWithinTimeout fails instead of hanging the suite when the scanner stops
+// making progress.
+func parseWithinTimeout(t *testing.T, code string) {
+	t.Helper()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		_, _ = parser.Parse(code)
+	}()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatalf("Parse(%q) did not terminate", code)
+	}
+}
+
+// The scanner dispatch table enumerates byte cases, and bytes it did not list
+// left the source position untouched, so Next never reached Eof and any loop
+// scanning to Eof ran forever. Invalid UTF-8 leading bytes reached that state
+// directly; a malformed numeric literal reached it indirectly, because the
+// error path advances a single byte and can leave the scanner in the middle of
+// a multi-byte rune, positioned on a continuation byte.
+func TestScannerAlwaysAdvances(t *testing.T) {
+	for _, test := range []struct {
+		name string
+		code string
+	}{
+		{name: "invalid leading byte", code: "\x89"},
+		{name: "binary body", code: "\x89PNG\r\n\x1a\n"},
+		{name: "latin-1 identifier", code: "var caf\xe9 = 1;"},
+		{name: "unpaired continuation byte", code: "var a = 1;\x80"},
+		{name: "hex literal before a rune", code: "x = 0xé"},
+		{name: "exponent before a rune", code: "x = .1e\U0001F600"},
+		{name: "regex literal before a bad number", code: "x = /'/ + 0xé"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			parseWithinTimeout(t, test.code)
+		})
+	}
+}
+
+// Any single byte must terminate wherever it appears, including inside the
+// numeric literal error path.
+func TestScannerAdvancesOnEveryByte(t *testing.T) {
+	for b := 0; b <= 0xFF; b++ {
+		raw := string([]byte{byte(b)})
+		for _, code := range []string{raw, "var a = 1;" + raw, "x = 0x" + raw} {
+			parseWithinTimeout(t, code)
+		}
+	}
+}
+
+// Valid sources, including non-ASCII ones, must be unaffected.
+func TestScannerAcceptsNonASCIISources(t *testing.T) {
+	assertRoundTrip(t, "var café = '☕';", "var café = '☕';")
 }
