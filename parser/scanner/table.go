@@ -550,6 +550,20 @@ func (s *Scanner) Next() {
 				s.error(invalidCharacter(c, start, s.src.Offset()))
 				s.Token.Kind = token.Undetermined
 			}
+
+		// ---- Non-ASCII: invalid UTF-8 leading and continuation bytes ----
+		//
+		// Every remaining byte lands here: 0x80-0xC1 and 0xF5-0xFF. Without
+		// this arm the switch matched nothing, the source position stayed put,
+		// and the loop below broke out with Idx1 == Idx0, so Next never
+		// reached Eof and callers scanning to Eof spun forever. Consume a
+		// single byte rather than a rune: these bytes do not begin a valid
+		// sequence, and ConsumeRune would advance by the width of
+		// utf8.RuneError and could run past the end of the source.
+		default:
+			s.ConsumeByte()
+			s.error(invalidCharacter(rune(b), s.Token.Idx0, s.src.Offset()))
+			s.Token.Kind = token.Undetermined
 		}
 		break
 	}
