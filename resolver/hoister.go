@@ -4,6 +4,9 @@ import (
 	"github.com/t14raptor/go-fast/ast"
 )
 
+// hoister is the pre-pass that declares every var and (conditionally) function
+// declaration in the enclosing function/program scope before references are
+// resolved, so a use that textually precedes its declaration still resolves to it.
 type hoister struct {
 	ast.NoopVisitor
 
@@ -19,19 +22,8 @@ type hoister struct {
 	binder hoisterBinder
 }
 
-func newHoister(resolver *resolver) *hoister {
-	h := &hoister{
-		resolver: resolver,
-		kind:     declKindVar,
-	}
-	h.binder.h = h
-	h.binder.V = &h.binder
-	return h
-}
-
 // hoisterBinder registers each binding identifier of a pattern for hoisting,
-// skipping default values and computed keys (see resolverBinder). One instance
-// lives on the hoister and is reused.
+// skipping defaults and computed keys (see resolverBinder).
 type hoisterBinder struct {
 	ast.NoopVisitor
 
@@ -45,8 +37,8 @@ func (b *hoisterBinder) VisitIdentifier(n *ast.Identifier) { b.h.addIdentifier(n
 func (h *hoister) addIdentifier(id *ast.Identifier) {
 	if h.inCatchBody {
 		if _, ok := h.catchParamDecls[id.Name]; ok {
-			if r, _ := h.resolver.lookupContext(id.Name); r != ast.UnresolvedContext {
-				id.ScopeContext = r
+			if ctx := h.resolver.lookupContext(id.Name); ctx != ast.UnresolvedContext {
+				id.ScopeContext = ctx
 				return
 			}
 		}
@@ -141,32 +133,25 @@ func (h *hoister) VisitForStatement(n *ast.ForStatement) {
 			decl.VisitWith(h)
 		}
 	}
-
-	old := h.inBlock
-	h.inBlock = true
-	n.Body.VisitWith(h)
-	h.inBlock = old
+	h.hoistBlockBody(n.Body)
 }
 
-func (h *hoister) VisitForInStatement(n *ast.ForInStatement) {
-	if decl, ok := n.Into.VarDecl(); ok && decl.Kind == ast.VarKindVar {
+func (h *hoister) VisitForInStatement(n *ast.ForInStatement) { h.hoistForInOf(n.Into, n.Body) }
+func (h *hoister) VisitForOfStatement(n *ast.ForOfStatement) { h.hoistForInOf(n.Into, n.Body) }
+
+func (h *hoister) hoistForInOf(into *ast.ForInto, body *ast.Statement) {
+	if decl, ok := into.VarDecl(); ok && decl.Kind == ast.VarKindVar {
 		decl.VisitWith(h)
 	}
-
-	old := h.inBlock
-	h.inBlock = true
-	n.Body.VisitWith(h)
-	h.inBlock = old
+	h.hoistBlockBody(body)
 }
 
-func (h *hoister) VisitForOfStatement(n *ast.ForOfStatement) {
-	if decl, ok := n.Into.VarDecl(); ok && decl.Kind == ast.VarKindVar {
-		decl.VisitWith(h)
-	}
-
+// hoistBlockBody visits a loop body with inBlock set, so its lexical
+// declarations are not hoisted out.
+func (h *hoister) hoistBlockBody(body *ast.Statement) {
 	old := h.inBlock
 	h.inBlock = true
-	n.Body.VisitWith(h)
+	body.VisitWith(h)
 	h.inBlock = old
 }
 
@@ -176,7 +161,7 @@ func (h *hoister) VisitFunctionDeclaration(n *ast.FunctionDeclaration) {
 	}
 
 	if h.inBlock {
-		if kind, declared := h.resolver.current.isDeclared(n.Function.Name.Name); declared {
+		if kind, _, declared := h.resolver.lookup(n.Function.Name.Name); declared {
 			if kind != declKindVar && kind != declKindFunction {
 				return
 			}
