@@ -34,6 +34,7 @@ type (
 		ObjectLit      ObjectLiteral
 		Optional       Optional
 		OptionalChain  OptionalChain
+		Paren          ParenthesizedExpression
 		PrivDot        PrivateDotExpression
 		PrivIdentifier PrivateIdentifier
 		RegExpLit      RegExpLiteral
@@ -125,6 +126,18 @@ type (
 		Test       *Expression
 		Consequent *Expression
 		Alternate  *Expression
+	}
+
+	// ParenthesizedExpression is a grouping `( Expression )`. It is only
+	// produced when parsing with [parser.PreserveParens]; by default the
+	// parser discards grouping parentheses and yields the inner expression
+	// directly. Keeping the node makes a parenthesized expression's source
+	// span balanced, since the inner node's own offsets exclude the parens.
+	ParenthesizedExpression struct {
+		Expression *Expression
+
+		LeftParenthesis  Idx
+		RightParenthesis Idx
 	}
 
 	PrivateDotExpression struct {
@@ -310,6 +323,9 @@ func (n *CallExpression) Idx1() Idx { return n.RightParenthesis + 1 }
 
 func (n *ConditionalExpression) Idx0() Idx { return n.Test.Idx0() }
 func (n *ConditionalExpression) Idx1() Idx { return n.Alternate.Idx1() }
+
+func (n *ParenthesizedExpression) Idx0() Idx { return n.LeftParenthesis }
+func (n *ParenthesizedExpression) Idx1() Idx { return n.RightParenthesis + 1 }
 
 func (p *PrivateDotExpression) Idx0() Idx { return p.Left.Idx0() }
 func (p *PrivateDotExpression) Idx1() Idx { return p.Identifier.Idx1() }

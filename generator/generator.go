@@ -147,6 +147,12 @@ func (g *GenVisitor) VisitAssignExpression(n *ast.AssignExpression) {
 	}
 }
 
+func (g *GenVisitor) VisitParenthesizedExpression(n *ast.ParenthesizedExpression) {
+	g.writeByte('(')
+	g.genExpr(n.Expression, ast.PrecedenceLowest, 0)
+	g.writeByte(')')
+}
+
 func (g *GenVisitor) VisitConditionalExpression(n *ast.ConditionalExpression) {
 	ctx := g.ctx
 	wrap := g.prec > ast.PrecedenceConditional

@@ -26,6 +26,8 @@ type parser struct {
 
 	alloc nodeAllocator
 
+	options parseOptions
+
 	// Scratch buffers used as a stack for building Expression/Statement
 	// slices without per-call heap allocations. Each builder saves
 	// len(buf) as a mark, appends elements, copies the subslice to the
@@ -64,6 +66,7 @@ func getParser(src string) *parser {
 func putParser(p *parser) {
 	p.str = ""
 	p.alloc = nodeAllocator{}
+	p.options = parseOptions{}
 	p.scanner = scanner.Scanner{}
 	p.scope = nil
 	p.errors = nil
@@ -81,12 +84,16 @@ func putParser(p *parser) {
 
 // Parse parses src as an ECMAScript script and returns the program AST.
 // Errors are accumulated; on a non-nil error the returned [*ast.Program]
-// may still be partially populated.
+// may still be partially populated. Behavior can be tuned with [Option]
+// values such as [PreserveParens]; with none, parsing uses its defaults.
 //
 // To recover byte positions from errors use [errors.As] against
 // [*Error] or [scanner.Error], or the shared [ast.Positioned] interface.
-func Parse(src string) (*ast.Program, error) {
+func Parse(src string, opts ...Option) (*ast.Program, error) {
 	p := getParser(src)
+	for _, opt := range opts {
+		opt(&p.options)
+	}
 	program, err := p.parse()
 	putParser(p)
 	return program, err
@@ -96,8 +103,8 @@ func Parse(src string) (*ast.Program, error) {
 // contents must remain valid for the lifetime of the returned AST: the
 // parser stores no-copy references into src for identifier and literal
 // names.
-func ParseBytes(src []byte) (*ast.Program, error) {
-	return Parse(unsafe.String(unsafe.SliceData(src), len(src)))
+func ParseBytes(src []byte, opts ...Option) (*ast.Program, error) {
+	return Parse(unsafe.String(unsafe.SliceData(src), len(src)), opts...)
 }
 
 // parse ...

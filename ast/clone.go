@@ -209,6 +209,9 @@ func (n *ParameterList) Clone() *ParameterList {
 	}
 	return &ParameterList{List: *n.List.Clone(), Rest: rest, Opening: n.Opening, Closing: n.Closing}
 }
+func (n *ParenthesizedExpression) Clone() *ParenthesizedExpression {
+	return &ParenthesizedExpression{Expression: n.Expression.Clone(), LeftParenthesis: n.LeftParenthesis, RightParenthesis: n.RightParenthesis}
+}
 func (n *PatternKeyValue) Clone() *PatternKeyValue {
 	return &PatternKeyValue{Key: n.Key.Clone(), Value: n.Value.Clone()}
 }
@@ -506,6 +509,10 @@ func (n *Expression) Clone() *Expression {
 	case ExprOptionalChain:
 		c := (*OptionalChain)(n.ptr).Clone()
 		r := NewOptionalChainExpr(c)
+		return &r
+	case ExprParen:
+		c := (*ParenthesizedExpression)(n.ptr).Clone()
+		r := NewParenExpr(c)
 		return &r
 	case ExprPrivDot:
 		c := (*PrivateDotExpression)(n.ptr).Clone()
