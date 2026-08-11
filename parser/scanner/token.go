@@ -10,6 +10,8 @@ type Token struct {
 
 	OnNewLine bool
 	HasEscape bool
+	// HasInvalidEscape marks a template token containing a NotEscapeSequence.
+	HasInvalidEscape bool
 
 	Idx0, Idx1 ast.Idx // 8 bytes
 }

@@ -103,6 +103,8 @@ func (s *Scanner) AdvanceIfByteEquals(b byte) bool {
 }
 
 func (s *Scanner) NextTemplatePart() {
+	s.Token.HasEscape = false
+	s.Token.HasInvalidEscape = false
 	s.Token.Idx0 = s.src.Offset() - 1
 	s.Token.Kind = s.ReadTemplateLiteral(token.TemplateMiddle, token.TemplateTail)
 	s.Token.Idx1 = s.src.Offset()

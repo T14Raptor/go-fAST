@@ -63,7 +63,7 @@ func (p *parser) parsePrimaryExpression() ast.Expression {
 	case token.LeftParenthesis:
 		return p.parseParenthesisedExpression()
 	case token.NoSubstitutionTemplate, token.TemplateHead:
-		return ast.NewTmplLitExpr(p.parseTemplateLiteral())
+		return ast.NewTmplLitExpr(p.parseTemplateLiteral(false))
 	case token.This:
 		p.next()
 		return ast.NewThisExpr(p.alloc.ThisExpression(idx))
@@ -564,7 +564,7 @@ func (p *parser) parseArrayLiteral() *ast.ArrayLiteral {
 	return p.alloc.ArrayLiteral(idx0, idx1, p.finishExprBuf(mark))
 }
 
-func (p *parser) parseTemplateLiteral() *ast.TemplateLiteral {
+func (p *parser) parseTemplateLiteral(tagged bool) *ast.TemplateLiteral {
 	res := p.alloc.TemplateLiteral(p.currentOffset())
 	mark := len(p.exprBuf)
 
@@ -573,6 +573,9 @@ func (p *parser) parseTemplateLiteral() *ast.TemplateLiteral {
 		literal := p.scanner.Token.TemplateLiteral(p.scanner)
 		parsed := p.scanner.Token.TemplateParsed(p.scanner)
 		kind := p.currentKind()
+		if !tagged && p.scanner.Token.HasInvalidEscape {
+			p.errorAt(start, p.scanner.Token.Idx1, "Invalid escape sequence in untagged template literal")
+		}
 
 		res.Elements = append(res.Elements, ast.TemplateElement{
 			Idx:     start,
@@ -601,7 +604,7 @@ func (p *parser) parseTemplateLiteral() *ast.TemplateLiteral {
 }
 
 func (p *parser) parseTaggedTemplateLiteral(tag *ast.Expression) *ast.TemplateLiteral {
-	l := p.parseTemplateLiteral()
+	l := p.parseTemplateLiteral(true)
 	l.Tag = tag
 	return l
 }

@@ -9,6 +9,7 @@ import (
 
 func (s *Scanner) Next() {
 	s.Token.HasEscape = false
+	s.Token.HasInvalidEscape = false
 	s.Token.OnNewLine = false
 
 	for {

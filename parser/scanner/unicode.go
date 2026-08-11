@@ -135,20 +135,30 @@ func (s *Scanner) codePoint() rune {
 }
 
 func (s *Scanner) surrogatePair() rune {
+	const (
+		minHigh = 0xD800
+		maxHigh = 0xDBFF
+		minLow  = 0xDC00
+		maxLow  = 0xDFFF
+	)
+
 	high := s.hexFourDigits()
-	if !utf16.IsSurrogate(high) {
-		return high
-	} else if b, ok := s.src.PeekTwoBytes(); !ok || b != [2]byte{'\\', 'u'} {
+	if high < minHigh || high > maxHigh {
 		return high
 	}
 
+	if b, ok := s.src.PeekTwoBytes(); !ok || b != [2]byte{'\\', 'u'} {
+		return high
+	}
+
+	beforeSecond := s.src.Offset()
 	s.ConsumeByte()
 	s.ConsumeByte()
 
 	low := s.hexFourDigits()
-	if !utf16.IsSurrogate(low) {
-		// invalid
-		return -1
+	if low < minLow || low > maxLow {
+		s.src.SetPosition(beforeSecond)
+		return high
 	}
 
 	return utf16.DecodeRune(high, low)
