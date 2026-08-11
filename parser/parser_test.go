@@ -410,6 +410,78 @@ func TestTaggedTemplateLiteralAST(t *testing.T) {
 	}
 }
 
+func TestTemplateLiteralRejectsInvalidUntaggedEscapes(t *testing.T) {
+	tests := []string{
+		"`\\8`",
+		"`\\9`",
+		"`\\1`",
+		"`\\01`",
+		"`\\xG`",
+		"`\\uZZZZ`",
+		"`\\u{110000}`",
+		"`\\8${value}`",
+		"`${value}\\8${other}`",
+		"`${value}\\8`",
+	}
+
+	for _, code := range tests {
+		t.Run(code, func(t *testing.T) {
+			_, err := parser.Parse(code)
+			if err == nil {
+				t.Fatal("expected parse error")
+			}
+			if !strings.Contains(err.Error(), "Invalid escape sequence in untagged template literal") {
+				t.Fatalf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestTemplateLiteralAcceptsInvalidTaggedEscapes(t *testing.T) {
+	tests := []string{
+		"tag`\\8`",
+		"tag`\\9`",
+		"tag`\\1`",
+		"tag`\\01`",
+		"tag`\\xG`",
+		"tag`\\uZZZZ`",
+		"tag`\\u{110000}`",
+		"tag`\\uD834\\uZZZZ`",
+		"tag`\\8${value}`",
+		"tag`${value}\\8${other}`",
+		"tag`${value}\\8`",
+	}
+
+	for _, code := range tests {
+		t.Run(code, func(t *testing.T) {
+			mustParse(t, code)
+		})
+	}
+}
+
+func TestUnicodeSurrogateEscapeLookahead(t *testing.T) {
+	tests := []string{
+		"'\\uD834\\uDF06'",
+		"'\\uD834\\u0041'",
+		"'\\uDC00\\u0041'",
+		"`\\uD834\\uDF06`",
+		"`\\uD834\\u0041`",
+		"`\\uDC00\\u0041`",
+		"tag`\\uD834\\u0041`",
+	}
+
+	for _, code := range tests {
+		t.Run(code, func(t *testing.T) {
+			mustParse(t, code)
+		})
+	}
+
+	_, err := parser.Parse("`\\uD834\\uZZZZ`")
+	if err == nil {
+		t.Fatal("expected malformed second escape to fail")
+	}
+}
+
 // ---------------------------------------------------------------------------
 // RegExp literal — pattern and flags preserved
 // ---------------------------------------------------------------------------
