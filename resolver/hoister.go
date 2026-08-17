@@ -95,20 +95,24 @@ func (h *hoister) VisitCatchClause(n *ast.CatchClause) {
 }
 
 func (h *hoister) VisitStatements(n *ast.Statements) {
-	others := make(ast.Statements, 0, len(*n))
-	for i := range *n {
-		switch (*n)[i].Kind() {
+	statements := *n
+	// Declare var and function bindings before visiting any other statement.
+	// A second scan preserves that ordering without allocating a partition slice.
+	for i := range statements {
+		switch statements[i].Kind() {
 		case ast.StmtVarDecl:
-			(*n)[i].MustVarDecl().VisitWith(h)
+			statements[i].MustVarDecl().VisitWith(h)
 		case ast.StmtFuncDecl:
-			(*n)[i].MustFuncDecl().VisitWith(h)
-		default:
-			others = append(others, (*n)[i])
+			statements[i].MustFuncDecl().VisitWith(h)
 		}
 	}
 
-	for i := range others {
-		others[i].VisitWith(h)
+	for i := range statements {
+		switch statements[i].Kind() {
+		case ast.StmtVarDecl, ast.StmtFuncDecl:
+		default:
+			statements[i].VisitWith(h)
+		}
 	}
 }
 
