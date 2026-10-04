@@ -552,7 +552,7 @@ func (g *GenVisitor) VisitStringLiteral(n *ast.StringLiteral) {
 	if n.Raw != nil {
 		g.writeString(*n.Raw)
 	} else {
-		g.writeString(strconv.Quote(n.Value))
+		g.writeQuoted(n.Value)
 	}
 }
 

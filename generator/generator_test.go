@@ -3,6 +3,7 @@ package generator
 import (
 	"testing"
 
+	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/parser"
 	"github.com/t14raptor/go-fast/resolver"
 )
@@ -346,6 +347,40 @@ func TestArrayHoles(t *testing.T) {
 		}
 		if got := len(out.Body[0].MustExpression().Expression.MustAssign().Right.MustArrayLit().Value); got != want {
 			t.Errorf("%s printed as %q: %d elements, want %d", in, Generate(p), got, want)
+		}
+	}
+}
+
+// A string literal with no source text is quoted for JavaScript, and parses
+// back to the same value.
+func TestStringLiteralWithoutRaw(t *testing.T) {
+	for _, tt := range []struct{ value, want string }{
+		{"plain", `"plain"`},
+		{`a"b\c`, `"a\"b\\c"`},
+		{"\a\x00\x1f\x7f", `"\x07\x00\x1f\x7f"`},
+		{"\n\r\t\b\f\v", `"\n\r\t\b\f\v"`},
+		{"\u2028\u2029\ufeff", `"\u2028\u2029\ufeff"`},
+		{"caf\u00e9 \U0001F600", "\"caf\u00e9 \U0001F600\""},
+		{"\U000E0001", `"\udb40\udc01"`},
+	} {
+		lit := ast.NewStringLitExpr(&ast.StringLiteral{Value: tt.value})
+		p, err := parser.Parse("x = 1;")
+		if err != nil {
+			t.Fatal(err)
+		}
+		p.Body[0].MustExpression().Expression.MustAssign().Right = &lit
+		got := GenerateMinified(p)
+		if want := "x=" + tt.want + ";"; got != want {
+			t.Errorf("value %q: got %s, want %s", tt.value, got, want)
+			continue
+		}
+		back, err := parser.Parse(got)
+		if err != nil {
+			t.Errorf("reparse %s: %v", got, err)
+			continue
+		}
+		if v := back.Body[0].MustExpression().Expression.MustAssign().Right.MustStringLit().Value; v != tt.value {
+			t.Errorf("%s parses back to %q, want %q", got, v, tt.value)
 		}
 	}
 }
