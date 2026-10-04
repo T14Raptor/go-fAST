@@ -1117,7 +1117,13 @@ func (p *parser) parseExpression() ast.Expression {
 	return left
 }
 
+// checkComma reports a comma between from and to: one after a rest element.
+// An unterminated literal can end before its last element does, leaving
+// nothing between them.
 func (p *parser) checkComma(from, to ast.Idx) {
+	if to <= from || int(to) > len(p.str) {
+		return
+	}
 	if pos := strings.IndexByte(p.str[int(from):int(to)], ','); pos >= 0 {
 		p.errorf("Comma is not allowed here")
 	}

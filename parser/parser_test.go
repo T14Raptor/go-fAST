@@ -2199,3 +2199,23 @@ func TestUnterminatedRegExpPattern(t *testing.T) {
 		t.Errorf("pattern = %q, want %q", re.Pattern, "ab")
 	}
 }
+
+// A rest element in an unterminated array pattern ends after the literal's
+// (missing) closing bracket, and checking for a trailing comma sliced the
+// source backwards.
+func TestRestElementInUnterminatedArrayPattern(t *testing.T) {
+	for _, code := range []string{"function 0!...[...[", "function f(...[...[", "([...[a"} {
+		if _, err := parser.Parse(code); err == nil {
+			t.Errorf("Parse(%q): expected an error", code)
+		}
+	}
+}
+
+func TestCommaAfterRestElement(t *testing.T) {
+	for _, code := range []string{"[...a,] = b", "for ([...a,] of b) {}"} {
+		_, err := parser.Parse(code)
+		if err == nil || !strings.Contains(err.Error(), "Comma is not allowed here") {
+			t.Errorf("Parse(%q): got %v, want a trailing comma error", code, err)
+		}
+	}
+}
