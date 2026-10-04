@@ -34,6 +34,7 @@ type (
 		ObjectLit      ObjectLiteral
 		Optional       Optional
 		OptionalChain  OptionalChain
+		Paren          ParenthesizedExpression
 		PrivDot        PrivateDotExpression
 		PrivIdentifier PrivateIdentifier
 		RegExpLit      RegExpLiteral
@@ -134,6 +135,18 @@ type (
 
 	OptionalChain struct {
 		Base *Expression
+	}
+
+	// ParenthesizedExpression is an expression wrapped in grouping
+	// parentheses. The parser only produces it when parsing with
+	// parser.Options.PreserveParens; otherwise grouping parentheses leave no
+	// node behind. Assignment targets never contain one: `(a) = 1` stores the
+	// bare target in its Pattern.
+	ParenthesizedExpression struct {
+		Expression *Expression
+
+		LeftParenthesis  Idx
+		RightParenthesis Idx
 	}
 
 	Optional struct {
@@ -276,11 +289,25 @@ func ExpressionFromPattern(p *Pattern) Expression {
 	return Expression{}
 }
 
+// SkipParens returns expr with any enclosing ParenthesizedExpression wrappers
+// removed. Code that inspects an expression's kind or value, rather than how it
+// was written, should look through parentheses with it. A nil expr is returned
+// as is.
+func SkipParens(expr *Expression) *Expression {
+	for expr != nil && expr.kind == ExprParen {
+		expr = (*ParenthesizedExpression)(expr.ptr).Expression
+	}
+	return expr
+}
+
 func (o *Optional) Idx0() Idx { return o.Expr.Idx0() }
 func (o *Optional) Idx1() Idx { return o.Expr.Idx1() }
 
 func (n *OptionalChain) Idx0() Idx { return n.Base.Idx0() }
 func (n *OptionalChain) Idx1() Idx { return n.Base.Idx1() }
+
+func (n *ParenthesizedExpression) Idx0() Idx { return n.LeftParenthesis }
+func (n *ParenthesizedExpression) Idx1() Idx { return n.RightParenthesis + 1 }
 
 func (a *ArrayLiteral) Idx0() Idx { return a.LeftBracket }
 func (a *ArrayLiteral) Idx1() Idx { return a.RightBracket + 1 }

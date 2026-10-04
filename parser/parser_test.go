@@ -2219,3 +2219,297 @@ func TestCommaAfterRestElement(t *testing.T) {
 		}
 	}
 }
+
+// ---------------------------------------------------------------------------
+// Preserved parentheses — Options.PreserveParens
+// ---------------------------------------------------------------------------
+
+var preserveParens = parser.Options{PreserveParens: true}
+
+func mustParseParens(t *testing.T, code string) *ast.Program {
+	t.Helper()
+	p, err := parser.ParseWithOptions(code, preserveParens)
+	if err != nil {
+		t.Fatalf("Failed to parse:\n%s\nError: %v", code, err)
+	}
+	return p
+}
+
+// parenCollector records the source text of every ParenthesizedExpression,
+// outermost first.
+type parenCollector struct {
+	ast.NoopVisitor
+	src   string
+	spans []string
+}
+
+func (v *parenCollector) VisitParenthesizedExpression(n *ast.ParenthesizedExpression) {
+	v.spans = append(v.spans, v.src[n.Idx0():n.Idx1()])
+	n.VisitChildrenWith(v)
+}
+
+func parenSpans(src string, p *ast.Program) []string {
+	v := &parenCollector{src: src}
+	v.V = v
+	p.VisitWith(v)
+	return v.spans
+}
+
+func TestPreserveParensAST(t *testing.T) {
+	src := "(a + b) * c;"
+	bin := exprOf(firstStmt(mustParseParens(t, src), 0)).(*ast.BinaryExpression)
+	paren, ok := bin.Left.Paren()
+	if !ok {
+		t.Fatalf("left operand is %s, want ExprParen", bin.Left.Kind())
+	}
+	if paren.LeftParenthesis != 0 || paren.RightParenthesis != 6 {
+		t.Errorf("parens at %d and %d, want 0 and 6", paren.LeftParenthesis, paren.RightParenthesis)
+	}
+	if !paren.Expression.IsBinary() {
+		t.Errorf("parenthesized expression is %s, want ExprBinary", paren.Expression.Kind())
+	}
+	// The enclosing expression's range now starts at the parenthesis.
+	if bin.Idx0() != 0 || bin.Idx1() != 11 {
+		t.Errorf("binary spans [%d, %d), want [0, 11)", bin.Idx0(), bin.Idx1())
+	}
+
+	// Without the option the parentheses leave no node.
+	bin = exprOf(firstStmt(mustParse(t, src), 0)).(*ast.BinaryExpression)
+	if !bin.Left.IsBinary() {
+		t.Errorf("default parse: left operand is %s, want ExprBinary", bin.Left.Kind())
+	}
+}
+
+func TestPreserveParensSpans(t *testing.T) {
+	src := "x = ((a) + (b, c)) * f((d));"
+	got := parenSpans(src, mustParseParens(t, src))
+	want := []string{"((a) + (b, c))", "(a)", "(b, c)", "(d)"}
+	if len(got) != len(want) {
+		t.Fatalf("spans = %q, want %q", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("span %d = %q, want %q", i, got[i], want[i])
+		}
+	}
+
+	if spans := parenSpans(src, mustParse(t, src)); len(spans) != 0 {
+		t.Errorf("default parse kept parens: %q", spans)
+	}
+}
+
+func TestPreserveParensSequence(t *testing.T) {
+	seq := exprOf(firstStmt(mustParseParens(t, "((a), (b, c));"), 0)).(*ast.ParenthesizedExpression)
+	list := seq.Expression.MustSequence().Sequence
+	if len(list) != 2 {
+		t.Fatalf("sequence has %d elements, want 2", len(list))
+	}
+	if inner, ok := list[0].Paren(); !ok || !inner.Expression.IsIdentifier() {
+		t.Errorf("first element is %s, want (a)", list[0].Kind())
+	}
+	if inner, ok := list[1].Paren(); !ok || !inner.Expression.IsSequence() {
+		t.Errorf("second element is %s, want (b, c)", list[1].Kind())
+	}
+}
+
+// Assignment targets keep the bare target in their Pattern.
+func TestPreserveParensAssignmentTargets(t *testing.T) {
+	valid := []string{
+		"(a) = 1;",
+		"((a)) = 1;",
+		"(a.b) = 1;",
+		"(a[0]) += 1;",
+		"(a) ??= 1;",
+		"[(a), (b.c)] = d;",
+		"[(a) = 1] = b;",
+		"[...(a)] = b;",
+		"({ x: (a) } = b);",
+		"({ ...(a) } = b);",
+		"for ((a) of b);",
+		"for ((a.b) in c);",
+		"(a)++;",
+		"--(a.b);",
+		"class C { #x; m() { (this.#x) = 1; } }",
+	}
+	for _, src := range valid {
+		if _, err := parser.ParseWithOptions(src, preserveParens); err != nil {
+			t.Errorf("%s: %v", src, err)
+		}
+	}
+
+	assign := exprOf(firstStmt(mustParseParens(t, "(a) = 1;"), 0)).(*ast.AssignExpression)
+	if !assign.Left.IsIdentifier() {
+		t.Errorf("(a) = 1: target is %s, want PatternIdentifier", assign.Left.Kind())
+	}
+
+	// Update operands are expressions, so they keep their parentheses.
+	update := exprOf(firstStmt(mustParseParens(t, "(a)++;"), 0)).(*ast.UpdateExpression)
+	if !update.Operand.IsParen() {
+		t.Errorf("(a)++: operand is %s, want ExprParen", update.Operand.Kind())
+	}
+}
+
+func TestPreserveParensArrowFunctions(t *testing.T) {
+	valid := []string{
+		"(a) => a;",
+		"(a, b) => a;",
+		"() => 1;",
+		"(a = 1) => a;",
+		"(a = (1)) => a;",
+		"({ a }) => a;",
+		"([a]) => a;",
+		"(...a) => a;",
+		"(a, ...b) => a;",
+		"async (a) => a;",
+		"x = (y) => (z);",
+		"() => ({});",
+		// The parenthesized assignment is in a default value, not the target.
+		"(a, b = ((c) = 1, 2)) => a;",
+	}
+	for _, src := range valid {
+		if _, err := parser.ParseWithOptions(src, preserveParens); err != nil {
+			t.Errorf("%s: %v", src, err)
+		}
+	}
+
+	arrow := exprOf(firstStmt(mustParseParens(t, "(a, b) => a;"), 0)).(*ast.ArrowFunctionLiteral)
+	if params := arrow.ParameterList; params.Opening != 0 || params.Closing != 5 || len(params.List) != 2 {
+		t.Errorf("(a, b) => a: params at %d..%d with %d entries, want 0..5 with 2",
+			params.Opening, params.Closing, len(params.List))
+	}
+	arrow = exprOf(firstStmt(mustParseParens(t, "(a) => a;"), 0)).(*ast.ArrowFunctionLiteral)
+	if params := arrow.ParameterList; params.Opening != 0 || params.Closing != 2 || len(params.List) != 1 {
+		t.Errorf("(a) => a: params at %d..%d with %d entries, want 0..2 with 1",
+			params.Opening, params.Closing, len(params.List))
+	}
+	body := arrow.Body.MustExpr()
+	if !body.IsIdentifier() {
+		t.Errorf("(a) => a: body is %s, want ExprIdentifier", body.Kind())
+	}
+}
+
+// These are syntax errors that only the preserved parentheses reveal.
+func TestPreserveParensErrors(t *testing.T) {
+	invalid := []string{
+		"((a)) => a;",
+		"(a, (b)) => b;",
+		"(a, (b) = 1) => b;",
+		"(a, [(b) = 1]) => b;",
+		"(a, [(b)]) => b;",
+		"(a, { b: (c) }) => c;",
+		"((b) = 1) => b;",
+		"(a): b;",
+		"({ a }) = 1;",
+		"([a]) = 1;",
+		"[({ a })] = b;",
+		"[([a])] = b;",
+		"({ a: ([b]) } = c);",
+		"[...([a])] = b;",
+		"for (([a]) of b);",
+		"(a + b) = 1;",
+		"(a + b)++;",
+		"++(a, b);",
+	}
+	for _, src := range invalid {
+		if _, err := parser.ParseWithOptions(src, preserveParens); err == nil {
+			t.Errorf("%s: parsed without error", src)
+		}
+	}
+}
+
+func TestParseBytesWithOptions(t *testing.T) {
+	src := "((a));"
+	p, err := parser.ParseBytesWithOptions([]byte(src), preserveParens)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := parenSpans(src, p); len(got) != 2 {
+		t.Errorf("spans = %q, want 2", got)
+	}
+}
+
+// Printing the kept parentheses must not change what the program means: the
+// output, parsed without the option, matches the source parsed without it.
+// Printing is also stable across a second parse with the option.
+func TestPreserveParensKeepMeaning(t *testing.T) {
+	sources := []string{
+		"(a + b) * c;",
+		"a + (b * c);",
+		"(a, b), c;",
+		"x = (1, 2);",
+		"(function () {})();",
+		"(function () {}());",
+		"(class {});",
+		"({}).toString();",
+		"({} = a);",
+		"(a?.b).c;",
+		"(a?.b)();",
+		"a?.(b);",
+		"new (foo())();",
+		"new (foo().bar)();",
+		"new (a.b)();",
+		"(new a)();",
+		"(-x) ** 2;",
+		"(await_) ** 2;",
+		"(a ?? b) || c;",
+		"a ?? (b || c);",
+		"(5).toString();",
+		"() => ({});",
+		"(() => {})();",
+		"(async () => {})();",
+		"for (x = (a in b);;) {}",
+		"for (var x = (a in b) ? 1 : 2;;) {}",
+		"for ((a in b);;) {}",
+		"(a) = 1;",
+		"(a)++;",
+		"[(a), (b.c)] = d;",
+		"for ((a) of b) {}",
+		"class A extends (B, C) {}",
+		"typeof (a);",
+		"delete (a.b);",
+		"(a)`x`;",
+		"(\"use strict\");",
+		"(let)[0] = 1;",
+		"(a ? b : c) ? d : e;",
+		"a = (b = c);",
+		"(yield_) => 1;",
+		"function* g() { yield (a, b); }",
+		"async function f() { await (a || b); }",
+		"x = ((a));",
+		"`${(a, b)}`;",
+		"a[(b, c)];",
+		"f((a, b), c);",
+		"if ((a = b)) {}",
+		"while ((a)) {}",
+		"switch ((a)) { case (b): }",
+		"throw (a);",
+		"label: (a);",
+	}
+	for _, src := range sources {
+		kept, err := parser.ParseWithOptions(src, preserveParens)
+		if err != nil {
+			t.Errorf("%s: %v", src, err)
+			continue
+		}
+		out := generator.GenerateMinified(kept)
+
+		plain := mustParse(t, src)
+		reparsed, err := parser.Parse(out)
+		if err != nil {
+			t.Errorf("%s: output %q does not parse: %v", src, out, err)
+			continue
+		}
+		if got, want := generator.GenerateMinified(reparsed), generator.GenerateMinified(plain); got != want {
+			t.Errorf("%s: output %q means %q, want %q", src, out, got, want)
+		}
+
+		again, err := parser.ParseWithOptions(out, preserveParens)
+		if err != nil {
+			t.Errorf("%s: output %q does not parse with parens: %v", src, out, err)
+			continue
+		}
+		if out2 := generator.GenerateMinified(again); out2 != out {
+			t.Errorf("%s: printing is not stable: %q then %q", src, out, out2)
+		}
+	}
+}

@@ -12,6 +12,7 @@ import (
 
 // IsString returns true if the expression is a potential string value.
 func IsString(n *ast.Expression) bool {
+	n = ast.SkipParens(n)
 	switch n.Kind() {
 	case ast.ExprStringLit, ast.ExprTmplLit:
 		return true
@@ -44,7 +45,7 @@ func IsString(n *ast.Expression) bool {
 
 // IsArrayLiteral returns true if the expression is an array literal.
 func IsArrayLiteral(n *ast.Expression) bool {
-	return n.IsArrayLit()
+	return ast.SkipParens(n).IsArrayLit()
 }
 
 // IsNaN returns true if expr is a global reference to NaN.
@@ -59,7 +60,7 @@ func IsUndefined(expr *ast.Expression) bool {
 
 // IsVoid returns true if expr is a void operator.
 func IsVoid(expr *ast.Expression) bool {
-	if e, ok := expr.Unary(); ok {
+	if e, ok := ast.SkipParens(expr).Unary(); ok {
 		return e.Operator == ast.UnaryVoid
 	}
 	return false
@@ -68,7 +69,7 @@ func IsVoid(expr *ast.Expression) bool {
 // IsGlobalRefTo returns true if expr references the global id: a name no
 // scope declares, so its resolved context is UnresolvedContext.
 func IsGlobalRefTo(expr *ast.Expression, id string) bool {
-	if ident, ok := expr.Identifier(); ok {
+	if ident, ok := ast.SkipParens(expr).Identifier(); ok {
 		return ident.Name == id && ident.ScopeContext == ast.UnresolvedContext
 	}
 	return false
@@ -84,6 +85,7 @@ func AsPureBool(expr *ast.Expression) BoolValue {
 
 // CastToBool emulates the Boolean() JavaScript cast function.
 func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
+	expr = ast.SkipParens(expr)
 	if IsGlobalRefTo(expr, "undefined") || IsNaN(expr) {
 		return BoolValue{}, true
 	}
@@ -162,10 +164,10 @@ func CastToBool(expr *ast.Expression) (value BoolValue, pure bool) {
 			}
 			value = v
 		case ast.BinaryAddition:
-			if s, ok := e.Left.StringLit(); ok && s.Value != "" {
+			if s, ok := ast.SkipParens(e.Left).StringLit(); ok && s.Value != "" {
 				return BoolValue{Known(true)}, false
 			}
-			if s, ok := e.Right.StringLit(); ok && s.Value != "" {
+			if s, ok := ast.SkipParens(e.Right).StringLit(); ok && s.Value != "" {
 				return BoolValue{Known(true)}, false
 			}
 			value = BoolValue{Unknown[bool]()}
@@ -239,6 +241,7 @@ func AsPureNumber(expr *ast.Expression) Value[float64] {
 
 // CastToNumber emulates the Number() JavaScript cast function.
 func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
+	expr = ast.SkipParens(expr)
 	switch expr.Kind() {
 	case ast.ExprBoolLit:
 		e := expr.MustBoolLit()
@@ -313,6 +316,7 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		return fmt.Sprintf("function %s() { [native code] }", name)
 	}
 
+	expr = ast.SkipParens(expr)
 	switch expr.Kind() {
 	case ast.ExprStringLit:
 		return Known(expr.MustStringLit().Value)
@@ -358,10 +362,11 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		e := expr.MustArrayLit()
 		var sb strings.Builder
 		// null, undefined is "" in array literal.
-		for idx, elem := range e.Value {
+		for idx := range e.Value {
 			if idx > 0 {
 				sb.WriteString(",")
 			}
+			elem := ast.SkipParens(&e.Value[idx])
 			switch elem.Kind() {
 			case ast.ExprNullLit:
 				sb.WriteString("")
@@ -380,7 +385,7 @@ func AsPureString(expr *ast.Expression) Value[string] {
 			case ast.ExprNone:
 				sb.WriteString("")
 			default:
-				if s := AsPureString(&elem); s.Known() {
+				if s := AsPureString(elem); s.Known() {
 					sb.WriteString(s.Val())
 				} else {
 					return Unknown[string]()
@@ -395,16 +400,17 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		case ast.MemPropIdentifier:
 			sym = e.Property.MustIdentifier().Name
 		case ast.MemPropComputed:
-			if s, ok := e.Property.MustComputed().Expr.StringLit(); ok {
+			if s, ok := ast.SkipParens(e.Property.MustComputed().Expr).StringLit(); ok {
 				sym = s.Value
 			}
 		default:
 			return Unknown[string]()
 		}
 		// Convert some built-in funcs to string.
-		switch e.Object.Kind() {
+		object := ast.SkipParens(e.Object)
+		switch object.Kind() {
 		case ast.ExprIdentifier:
-			obj := e.Object.MustIdentifier()
+			obj := object.MustIdentifier()
 			switch obj.Name {
 			case "Math":
 				if slices.Contains([]string{"abs", "acos", "acosh", "asin", "asinh", "atan", "atan2", "atanh", "cbrt", "ceil", "clz32", "cos", "cosh", "exp", "expm1", "floor", "fround", "hypot", "imul", "log", "log10", "log1p", "log2", "max", "min", "pow", "random", "round", "sign", "sin", "sinh", "sqrt", "tan", "tanh", "trunc"}, sym) {
@@ -446,6 +452,7 @@ func AsPureString(expr *ast.Expression) Value[string] {
 
 // GetType returns the type of the expression.
 func GetType(expr *ast.Expression) TypeValue {
+	expr = ast.SkipParens(expr)
 	switch expr.Kind() {
 	case ast.ExprAssign:
 		e := expr.MustAssign()
@@ -465,11 +472,12 @@ func GetType(expr *ast.Expression) TypeValue {
 		e := expr.MustMember()
 		if ident, ok := e.Property.Identifier(); ok {
 			if ident.Name == "length" {
-				switch e.Object.Kind() {
+				object := ast.SkipParens(e.Object)
+				switch object.Kind() {
 				case ast.ExprArrayLit, ast.ExprStringLit:
 					return TypeValue{Known[Type](NumberType{})}
 				case ast.ExprIdentifier:
-					if e.Object.MustIdentifier().Name == "arguments" {
+					if object.MustIdentifier().Name == "arguments" {
 						return TypeValue{Known[Type](NumberType{})}
 					}
 				}
@@ -574,6 +582,7 @@ func GetType(expr *ast.Expression) TypeValue {
 
 // IsPureCallee returns true if the expression is a pure function.
 func IsPureCallee(expr *ast.Expression) bool {
+	expr = ast.SkipParens(expr)
 	if IsGlobalRefTo(expr, "Date") {
 		return true
 	}
@@ -615,6 +624,7 @@ func IsPureCallee(expr *ast.Expression) bool {
 
 // MayHaveSideEffects returns true if the expression may have side effects.
 func MayHaveSideEffects(expr *ast.Expression) bool {
+	expr = ast.SkipParens(expr)
 	if expr == nil || expr.IsNone() {
 		return false
 	}
@@ -657,14 +667,15 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 		return MayHaveSideEffects(e.Left) || MayHaveSideEffects(e.Right)
 	case ast.ExprMember:
 		e := expr.MustMember()
-		switch e.Object.Kind() {
+		object := ast.SkipParens(e.Object)
+		switch object.Kind() {
 		case ast.ExprObjectLit, ast.ExprFuncLit, ast.ExprArrowFuncLit, ast.ExprClassLit:
-			if MayHaveSideEffects(e.Object) {
+			if MayHaveSideEffects(object) {
 				return true
 			}
-			switch e.Object.Kind() {
+			switch object.Kind() {
 			case ast.ExprClassLit:
-				obj := e.Object.MustClassLit()
+				obj := object.MustClassLit()
 				for _, elem := range obj.Body {
 					if method, ok := elem.MethodDef(); ok && method.Static {
 						if method.Kind == ast.MethodKindGet || method.Kind == ast.MethodKindSet {
@@ -674,7 +685,7 @@ func MayHaveSideEffects(expr *ast.Expression) bool {
 				}
 				return false
 			case ast.ExprObjectLit:
-				obj := e.Object.MustObjectLit()
+				obj := object.MustObjectLit()
 				for _, prop := range obj.Value {
 					switch prop.Kind() {
 					case ast.PropSpread:

@@ -9,13 +9,38 @@ import (
 	"github.com/t14raptor/go-fast/parser/scanner/token"
 )
 
+// Options configures parsing. The zero value parses the same way as [Parse].
+type Options struct {
+	// PreserveParens keeps grouping parentheses in the AST as
+	// [ast.ParenthesizedExpression] nodes, so that their source range is kept
+	// and the generator prints them as written. Without it, grouping
+	// parentheses only steer parsing and leave no node behind.
+	//
+	// Parentheses around an assignment target are dropped either way: the
+	// target's Pattern holds the bare identifier or member expression, so
+	// `(a) = 1` and `[(a.b)] = c` keep no paren nodes.
+	//
+	// Keeping the parentheses also lets the parser reject a few programs whose
+	// errors depend on them, such as `((a)) => a`, `(a): b` and `[({a})] = c`.
+	// With the option off those parse as if the parentheses were absent.
+	PreserveParens bool
+}
+
 // parser ...
 type parser struct {
 	scanner scanner.Scanner
 
 	str string
 
+	opts Options
+
 	scope *scope
+
+	// parenTarget is the start of the latest parenthesized assignment target
+	// unwrapped into a Pattern, as in `(a) = 1` (PreserveParens only). Arrow
+	// parameters enclosing one are re-parsed, since a binding pattern can't
+	// hold parentheses: `(a, (b) = 1) => b` is an error.
+	parenTarget ast.Idx
 
 	errors  error
 	recover struct {
@@ -53,9 +78,10 @@ var parserPool = sync.Pool{
 	},
 }
 
-func getParser(src string) *parser {
+func getParser(src string, opts Options) *parser {
 	p := parserPool.Get().(*parser)
 	p.str = src
+	p.opts = opts
 	p.alloc = newNodeAllocator()
 	p.scanner = scanner.NewScanner(src, &p.errors)
 	return p
@@ -63,9 +89,11 @@ func getParser(src string) *parser {
 
 func putParser(p *parser) {
 	p.str = ""
+	p.opts = Options{}
 	p.alloc = nodeAllocator{}
 	p.scanner = scanner.Scanner{}
 	p.scope = nil
+	p.parenTarget = 0
 	p.errors = nil
 	p.recover.idx = 0
 	p.recover.count = 0
@@ -86,7 +114,12 @@ func putParser(p *parser) {
 // To recover byte positions from errors use [errors.As] against
 // [*Error] or [scanner.Error], or the shared [ast.Positioned] interface.
 func Parse(src string) (*ast.Program, error) {
-	p := getParser(src)
+	return ParseWithOptions(src, Options{})
+}
+
+// ParseWithOptions is identical to [Parse] but configures the parser with opts.
+func ParseWithOptions(src string, opts Options) (*ast.Program, error) {
+	p := getParser(src, opts)
 	program, err := p.parse()
 	putParser(p)
 	return program, err
@@ -97,7 +130,13 @@ func Parse(src string) (*ast.Program, error) {
 // parser stores no-copy references into src for identifier and literal
 // names.
 func ParseBytes(src []byte) (*ast.Program, error) {
-	return Parse(unsafe.String(unsafe.SliceData(src), len(src)))
+	return ParseBytesWithOptions(src, Options{})
+}
+
+// ParseBytesWithOptions is identical to [ParseBytes] but configures the parser
+// with opts.
+func ParseBytesWithOptions(src []byte, opts Options) (*ast.Program, error) {
+	return ParseWithOptions(unsafe.String(unsafe.SliceData(src), len(src)), opts)
 }
 
 // parse ...

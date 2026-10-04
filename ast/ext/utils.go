@@ -253,6 +253,7 @@ func PreserveEffects(val ast.Expression, exprs []ast.Expression) ast.Expression 
 
 // ExtractSideEffectsTo adds side effects of expr to to.
 func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
+	expr = ast.SkipParens(expr)
 	if expr == nil || expr.IsNone() {
 		return
 	}
@@ -271,7 +272,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 		*to = append(*to, *expr)
 	case ast.ExprNew:
 		e := expr.MustNew()
-		if id, ok := e.Callee.Identifier(); ok && id.Name == "Date" && len(e.ArgumentList) == 0 {
+		if id, ok := ast.SkipParens(e.Callee).Identifier(); ok && id.Name == "Date" && len(e.ArgumentList) == 0 {
 			return
 		}
 		*to = append(*to, *expr)
@@ -282,7 +283,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 	case ast.ExprUnary:
 		e := expr.MustUnary()
 		if e.Operator == ast.UnaryTypeof {
-			if _, ok := e.Operand.Identifier(); ok {
+			if _, ok := ast.SkipParens(e.Operand).Identifier(); ok {
 				return
 			}
 		}
@@ -366,6 +367,7 @@ func ExtractSideEffectsTo(to *[]ast.Expression, expr *ast.Expression) {
 
 // PropNameEq returns true if the property name of the expression is equal to key.
 func PropNameEq(p *ast.Expression, key string) bool {
+	p = ast.SkipParens(p)
 	switch p.Kind() {
 	case ast.ExprIdentifier:
 		return p.MustIdentifier().Name == key

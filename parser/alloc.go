@@ -52,6 +52,7 @@ type nodeAllocator struct {
 	metaProp  arena[ast.MetaProperty]
 	optional  arena[ast.Optional]
 	optChain  arena[ast.OptionalChain]
+	parenExpr arena[ast.ParenthesizedExpression]
 	objLit    arena[ast.ObjectLiteral]
 	arrLit    arena[ast.ArrayLiteral]
 	arrPat    arena[ast.ArrayPattern]
@@ -168,6 +169,7 @@ func newNodeAllocator() nodeAllocator {
 		metaProp:  newArena[ast.MetaProperty](8),
 		optional:  newArena[ast.Optional](32),
 		optChain:  newArena[ast.OptionalChain](32),
+		parenExpr: newArena[ast.ParenthesizedExpression](64),
 		objLit:    newArena[ast.ObjectLiteral](64),
 		arrLit:    newArena[ast.ArrayLiteral](64),
 		arrPat:    newArena[ast.ArrayPattern](32),
@@ -474,6 +476,12 @@ func (a *nodeAllocator) MetaProperty(kind ast.MetaPropertyKind, idx ast.Idx) *as
 func (a *nodeAllocator) Optional(expr *ast.Expression) *ast.Optional {
 	n := a.optional.make()
 	*n = ast.Optional{Expr: expr}
+	return n
+}
+
+func (a *nodeAllocator) ParenthesizedExpression(lp ast.Idx, expr *ast.Expression, rp ast.Idx) *ast.ParenthesizedExpression {
+	n := a.parenExpr.make()
+	*n = ast.ParenthesizedExpression{Expression: expr, LeftParenthesis: lp, RightParenthesis: rp}
 	return n
 }
 

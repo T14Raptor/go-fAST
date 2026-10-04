@@ -621,6 +621,10 @@ func (p *parser) parseForOrForInStatement() ast.Statement {
 				forOf = true
 			}
 			if forIn || forOf {
+				// A parenthesized target, as in `for ((a) of b)`, must be simple.
+				if inner, ok := simpleTarget(exprNode); ok {
+					exprNode = inner
+				}
 				switch exprNode.Kind() {
 				case ast.ExprIdentifier, ast.ExprPrivDot, ast.ExprMember, ast.ExprArrayLit, ast.ExprObjectLit:
 					pat := p.alloc.Pattern(p.patternFromExpression(exprNode, patAssign))

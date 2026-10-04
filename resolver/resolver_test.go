@@ -478,3 +478,25 @@ func TestArgumentsIsFunctionLocal(t *testing.T) {
 		t.Fatalf("parameter, use and var named arguments differ: %+v", ids)
 	}
 }
+
+// Parenthesized targets and operands resolve to the binding they name.
+func TestPreservedParensResolve(t *testing.T) {
+	program, err := parser.ParseWithOptions(
+		`let a = 0; (a) = 1; (a)++; [(a)] = [2]; for ((a) of []); function f() { return (a); }`,
+		parser.Options{PreserveParens: true},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver.Resolve(program)
+
+	visitor := &idVisitor{name: "a"}
+	visitor.V = visitor
+	program.VisitWith(visitor)
+	requireIDCount(t, visitor.ids, 6)
+	for _, id := range visitor.ids[1:] {
+		if id.ScopeContext != visitor.ids[0].ScopeContext {
+			t.Fatalf("parenthesized use resolved to a different binding: %+v vs %+v", id, visitor.ids[0])
+		}
+	}
+}

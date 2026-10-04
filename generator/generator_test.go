@@ -384,3 +384,59 @@ func TestStringLiteralWithoutRaw(t *testing.T) {
 		}
 	}
 }
+
+func TestPreservedParens(t *testing.T) {
+	tests := []struct {
+		in, want string
+	}{
+		// Kept as written, even where precedence makes them redundant.
+		{`(a + b) * c;`, `(a+b)*c;`},
+		{`(a * b) + c;`, `(a*b)+c;`},
+		{`((a));`, `((a));`},
+		{`x = (1);`, `x=(1);`},
+		// The parentheses already delimit their contents.
+		{`(a, b);`, `(a,b);`},
+		{`f((a, b));`, `f((a,b));`},
+		{`({}).toString();`, `({}).toString();`},
+		{`(function () {})();`, `(function(){})();`},
+		{`() => ({});`, `()=>({});`},
+		{`(5).toString();`, `(5).toString();`},
+		{`(a?.b).c;`, `(a?.b).c;`},
+		{`new (foo())();`, `new (foo())();`},
+		{`(-x) ** 2;`, `(-x)**2;`},
+		{`(a ?? b) || c;`, `(a??b)||c;`},
+		{`for (x = (a in b);;) {}`, `for(x=(a in b);;){}`},
+		{`(a)++;`, `(a)++;`},
+		{`typeof (a);`, `typeof (a);`},
+		// Assignment targets keep only the bare target.
+		{`(a) = 1;`, `a=1;`},
+		{`[(a), (b.c)] = d;`, `([a,b.c]=d);`},
+		{`for ((a) of b) {}`, `for(a of b){}`},
+	}
+	for _, tt := range tests {
+		p, err := parser.ParseWithOptions(tt.in, parser.Options{PreserveParens: true})
+		if err != nil {
+			t.Fatalf("Failed to parse %q: %v", tt.in, err)
+		}
+		if got := GenerateMinified(p); got != tt.want {
+			t.Errorf("gen(%q) = %q; want %q", tt.in, got, tt.want)
+		}
+	}
+}
+
+// A ParenthesizedExpression built by hand prints like a parsed one: its
+// contents are delimited, so a sequence or a bare `in` needs no more parens.
+func TestPreservedParensBuiltByHand(t *testing.T) {
+	a := ast.NewIdentifierExpr(&ast.Identifier{Name: "a"})
+	b := ast.NewIdentifierExpr(&ast.Identifier{Name: "b"})
+	seq := ast.NewSequenceExpr(&ast.SequenceExpression{Sequence: ast.Expressions{a, b}})
+	paren := ast.NewParenExpr(&ast.ParenthesizedExpression{Expression: &seq})
+	call := ast.NewCallExpr(&ast.CallExpression{
+		Callee:       &a,
+		ArgumentList: ast.Expressions{paren},
+	})
+	stmt := ast.NewExpressionStmt(&ast.ExpressionStatement{Expression: &call})
+	if got, want := GenerateMinified(&ast.Program{Body: ast.Statements{stmt}}), `a((a,b));`; got != want {
+		t.Errorf("gen = %q; want %q", got, want)
+	}
+}

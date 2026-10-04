@@ -147,6 +147,35 @@ func (p *parser) reinterpretSequenceAsArrowFuncParams(list ast.Expressions) *ast
 	})
 }
 
+// arrowParamsFromParen reinterprets a preserved parenthesized expression, the
+// cover grammar of an arrow function's parameters, as its parameter list. It
+// re-parses from state instead when the cover can't be converted faithfully:
+// after an error, or when it unwrapped a parenthesized assignment target.
+func (p *parser) arrowParamsFromParen(paren *ast.ParenthesizedExpression, state parserState) *ast.ParameterList {
+	if p.errors != nil || p.parenTarget > paren.LeftParenthesis {
+		p.restore(state)
+		return p.parseFunctionParameterList()
+	}
+	var params *ast.ParameterList
+	switch inner := paren.Expression; inner.Kind() {
+	case ast.ExprSequence:
+		params = p.reinterpretSequenceAsArrowFuncParams(inner.MustSequence().Sequence)
+	case ast.ExprIdentifier, ast.ExprParen:
+		// A lone name converts in place, as does a parenthesized one, which
+		// is reported as an invalid binding: `((a)) => a`.
+		params = p.alloc.ParameterList(ast.ParameterList{
+			List: ast.VariableDeclarators{p.declaratorFromExpression(inner)},
+		})
+	default:
+		// Anything else, such as `(a = 1)` or `({a})`, is re-parsed so it is
+		// checked as a formal parameter (no yield in a default, and so on).
+		p.restore(state)
+		return p.parseFunctionParameterList()
+	}
+	params.Opening, params.Closing = paren.LeftParenthesis, paren.RightParenthesis
+	return params
+}
+
 func (p *parser) parseParenthesisedExpression() ast.Expression {
 	opening := p.currentOffset()
 	p.expect(token.LeftParenthesis)
@@ -172,19 +201,37 @@ func (p *parser) parseParenthesisedExpression() ast.Expression {
 			}
 		}
 	}
-	p.expect(token.RightParenthesis)
+	closing := p.expect(token.RightParenthesis)
 	n := len(p.exprBuf) - mark
-	if n == 1 && p.errors == nil {
-		result := p.exprBuf[mark]
+	var result ast.Expression
+	switch {
+	case n == 1 && p.errors == nil:
+		result = p.exprBuf[mark]
 		p.exprBuf = p.exprBuf[:mark]
-		return result
-	}
-	if n == 0 {
+	case n == 0:
 		p.exprBuf = p.exprBuf[:mark]
 		p.errorUnexpectedToken(token.RightParenthesis)
 		return ast.NewInvalidExpr(p.alloc.InvalidExpression(opening, p.currentOffset()))
+	default:
+		result = ast.NewSequenceExpr(p.alloc.SequenceExpression(p.finishExprBuf(mark)))
 	}
-	return ast.NewSequenceExpr(p.alloc.SequenceExpression(p.finishExprBuf(mark)))
+	if p.opts.PreserveParens {
+		return ast.NewParenExpr(p.alloc.ParenthesizedExpression(opening, p.alloc.Expression(result), closing))
+	}
+	return result
+}
+
+// simpleTarget returns the simple assignment target (identifier, member or
+// private member) that expr denotes, looking through any parentheses. Only a
+// simple target may be parenthesized: `(a) = 1` and `[(a.b)] = c` are valid,
+// while `({a}) = 1` and `[([a])] = c` are not.
+func simpleTarget(expr *ast.Expression) (*ast.Expression, bool) {
+	inner := ast.SkipParens(expr)
+	switch inner.Kind() {
+	case ast.ExprIdentifier, ast.ExprMember, ast.ExprPrivDot:
+		return inner, true
+	}
+	return nil, false
 }
 
 func (p *parser) isBindingId(tok token.Token) bool {
@@ -778,9 +825,7 @@ func (p *parser) parseUpdateExpression() ast.Expression {
 		idx := p.currentOffset()
 		p.next()
 		operand := p.parseUnaryExpression()
-		switch operand.Kind() {
-		case ast.ExprIdentifier, ast.ExprPrivDot, ast.ExprMember:
-		default:
+		if _, ok := simpleTarget(&operand); !ok {
 			p.errorf("Invalid left-hand side in assignment")
 			p.nextStatement()
 			return ast.NewInvalidExpr(p.alloc.InvalidExpression(idx, p.currentOffset()))
@@ -793,9 +838,7 @@ func (p *parser) parseUpdateExpression() ast.Expression {
 	if isUpdateOperator(postKind) && !p.scanner.Token.OnNewLine {
 		idx := p.currentOffset()
 		p.next()
-		switch operand.Kind() {
-		case ast.ExprIdentifier, ast.ExprPrivDot, ast.ExprMember:
-		default:
+		if _, ok := simpleTarget(&operand); !ok {
 			p.errorf("Invalid left-hand side in assignment")
 			p.nextStatement()
 			return ast.NewInvalidExpr(p.alloc.InvalidExpression(idx, p.currentOffset()))
@@ -1012,6 +1055,11 @@ func (p *parser) parseAssignmentExpression() ast.Expression {
 					Target: p.alloc.Pattern(ast.NewIdentifierPattern(id)),
 				}},
 			})
+		} else if paren, ok := left.Paren(); ok {
+			// With PreserveParens the cover grammar arrives wrapped. Its
+			// contents are the parameters, so a parenthesized parameter,
+			// as in `((a)) => a` or `(a, (b)) => b`, is rejected.
+			paramList = p.arrowParamsFromParen(paren, state)
 		} else if parenthesis {
 			if seq, ok := left.Sequence(); ok && p.errors == nil {
 				paramList = p.reinterpretSequenceAsArrowFuncParams(seq.Sequence)
@@ -1058,6 +1106,14 @@ func (p *parser) parseAssignmentExpression() ast.Expression {
 		case ast.ExprArrayLit, ast.ExprObjectLit:
 			if !parenthesis && operator == ast.AssignmentAssign {
 				target = p.alloc.Pattern(p.patternFromExpression(p.alloc.Expression(left), patAssign))
+			}
+		case ast.ExprParen:
+			// Unwrap through the node's own pointer: taking &left would move
+			// left to the heap on every call.
+			paren := left.MustParen()
+			if inner, ok := simpleTarget(paren.Expression); ok {
+				p.parenTarget = paren.LeftParenthesis
+				target = p.alloc.Pattern(p.patternFromExpression(inner, patAssign))
 			}
 		}
 		if target != nil {
@@ -1167,6 +1223,12 @@ func (p *parser) patternFromExpression(expr *ast.Expression, mode patternMode) a
 		if mode == patAssign {
 			return ast.NewPrivDotPattern(expr.MustPrivDot())
 		}
+	case ast.ExprParen:
+		// The pattern keeps the bare target: `[(a)] = b` stores `a`.
+		if inner, ok := simpleTarget(expr); ok && mode == patAssign {
+			p.parenTarget = expr.Idx0()
+			return p.patternFromExpression(inner, mode)
+		}
 	case ast.ExprArrayLit:
 		return p.arrayPatternFromLiteral(expr.MustArrayLit(), mode)
 	case ast.ExprObjectLit:
@@ -1249,6 +1311,11 @@ func (p *parser) restPattern(expr *ast.Expression, mode patternMode) ast.Pattern
 	case ast.ExprPrivDot:
 		if mode == patAssign {
 			return ast.NewPrivDotPattern(expr.MustPrivDot())
+		}
+	case ast.ExprParen:
+		if inner, ok := simpleTarget(expr); ok && mode == patAssign {
+			p.parenTarget = expr.Idx0()
+			return p.restPattern(inner, mode)
 		}
 	}
 	return p.invalidPattern(expr, mode)

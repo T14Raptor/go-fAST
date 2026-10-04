@@ -267,6 +267,7 @@ const (
 	ExprObjectLit
 	ExprOptional
 	ExprOptionalChain
+	ExprParen
 	ExprPrivDot
 	ExprPrivIdentifier
 	ExprRegExpLit
@@ -329,6 +330,8 @@ func (k ExprKind) String() string {
 		return "ExprOptional"
 	case ExprOptionalChain:
 		return "ExprOptionalChain"
+	case ExprParen:
+		return "ExprParen"
 	case ExprPrivDot:
 		return "ExprPrivDot"
 	case ExprPrivIdentifier:
@@ -844,6 +847,28 @@ func (n *Expression) IsOptionalChain() bool {
 	return n.kind == ExprOptionalChain
 }
 
+func NewParenExpr(n *ParenthesizedExpression) Expression {
+	return Expression{kind: ExprParen, ptr: unsafe.Pointer(n)}
+}
+
+func (n *Expression) Paren() (*ParenthesizedExpression, bool) {
+	if n.kind == ExprParen {
+		return (*ParenthesizedExpression)(n.ptr), true
+	}
+	return nil, false
+}
+
+func (n *Expression) MustParen() *ParenthesizedExpression {
+	if n.kind != ExprParen {
+		panic("unexpected kind: " + n.kind.String())
+	}
+	return (*ParenthesizedExpression)(n.ptr)
+}
+
+func (n *Expression) IsParen() bool {
+	return n.kind == ExprParen
+}
+
 func NewPrivDotExpr(n *PrivateDotExpression) Expression {
 	return Expression{kind: ExprPrivDot, ptr: unsafe.Pointer(n)}
 }
@@ -1154,6 +1179,8 @@ func (n *Expression) Idx0() Idx {
 		return (*Optional)(n.ptr).Idx0()
 	case ExprOptionalChain:
 		return (*OptionalChain)(n.ptr).Idx0()
+	case ExprParen:
+		return (*ParenthesizedExpression)(n.ptr).Idx0()
 	case ExprPrivDot:
 		return (*PrivateDotExpression)(n.ptr).Idx0()
 	case ExprPrivIdentifier:
@@ -1228,6 +1255,8 @@ func (n *Expression) Idx1() Idx {
 		return (*Optional)(n.ptr).Idx1()
 	case ExprOptionalChain:
 		return (*OptionalChain)(n.ptr).Idx1()
+	case ExprParen:
+		return (*ParenthesizedExpression)(n.ptr).Idx1()
 	case ExprPrivDot:
 		return (*PrivateDotExpression)(n.ptr).Idx1()
 	case ExprPrivIdentifier:
@@ -1305,6 +1334,8 @@ func (n *Expression) Unwrap() VisitableNode {
 		return (*Optional)(n.ptr)
 	case ExprOptionalChain:
 		return (*OptionalChain)(n.ptr)
+	case ExprParen:
+		return (*ParenthesizedExpression)(n.ptr)
 	case ExprPrivDot:
 		return (*PrivateDotExpression)(n.ptr)
 	case ExprPrivIdentifier:

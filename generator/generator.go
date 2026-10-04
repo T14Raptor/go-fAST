@@ -362,6 +362,16 @@ func (g *GenVisitor) genAccessHead(expr *ast.Expression, prec ast.Precedence, wr
 	g.genExpr(expr, prec, 0)
 }
 
+// VisitParenthesizedExpression prints parentheses kept by the parser. They
+// already delimit the inner expression, so it is printed at the lowest
+// precedence with no context: `(a, b)` and `for (x = (a in b);;)` need no
+// further wrapping.
+func (g *GenVisitor) VisitParenthesizedExpression(n *ast.ParenthesizedExpression) {
+	g.writeByte('(')
+	g.genExpr(n.Expression, ast.PrecedenceLowest, 0)
+	g.writeByte(')')
+}
+
 func (g *GenVisitor) VisitOptionalChain(n *ast.OptionalChain) {
 	g.genExpr(n.Base, ast.PrecedenceCall, 0)
 }
