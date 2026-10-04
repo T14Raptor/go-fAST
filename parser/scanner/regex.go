@@ -1,6 +1,7 @@
 package scanner
 
 import (
+	"github.com/t14raptor/go-fast/ast"
 	"github.com/t14raptor/go-fast/parser/scanner/token"
 	"unicode"
 )
@@ -15,8 +16,12 @@ func (s *Scanner) ParseRegExp() (string, string, string) {
 	var (
 		inEscape    bool
 		inCharClass bool
+		// end is where the pattern stops: at the closing slash, or where an
+		// unterminated pattern runs out.
+		end ast.Idx
 	)
 	for {
+		end = s.src.Offset()
 		chr, ok := s.NextRune()
 		if !ok {
 			s.error(unterminatedRegExp(s.Token.Idx0, s.src.Offset()))
@@ -41,8 +46,7 @@ func (s *Scanner) ParseRegExp() (string, string, string) {
 	}
 
 	// Pattern is between the slashes (exclusive of closing /)
-	// Current position is after closing /, so subtract 1
-	pattern := s.src.Slice(offset+1, s.src.Offset()-1)
+	pattern := s.src.Slice(offset+1, end)
 
 	// Parse flags with duplicate/invalid flag detection
 	flags := ""

@@ -116,11 +116,23 @@ func (s *Source) AdvanceIfByteEquals(b byte) (matched bool) {
 	return false
 }
 
+// FromPositionToCurrent returns the source from pos to the current position,
+// "" when that is empty (see Slice).
 func (s *Source) FromPositionToCurrent(pos ast.Idx) string {
+	if s.pos <= pos {
+		return ""
+	}
 	return newString(unsafe.Add(s.base, pos), uintptr(s.pos-pos))
 }
 
+// Slice returns the source between from and to. An empty or reversed range
+// is "" without touching the source: from can be its end, and a pointer one
+// past the end of an allocation is one the garbage collector rejects (and
+// checkptr flags), while a reversed range's length wraps around.
 func (s *Source) Slice(from, to ast.Idx) string {
+	if to <= from {
+		return ""
+	}
 	return newString(unsafe.Add(s.base, from), uintptr(to-from))
 }
 

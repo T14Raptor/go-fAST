@@ -2,6 +2,7 @@ package parser_test
 
 import (
 	"fmt"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -2168,4 +2169,33 @@ func TestScannerAdvancesOnEveryByte(t *testing.T) {
 // Valid sources, including non-ASCII ones, must be unaffected.
 func TestScannerAcceptsNonASCIISources(t *testing.T) {
 	assertRoundTrip(t, "var café = '☕';", "var café = '☕';")
+}
+
+// An unterminated regular expression ending the source sliced its pattern from
+// one past the end with a wrapped-around length. The garbage collector later
+// found that string pointing outside any allocation and aborted the process.
+func TestUnterminatedRegExpAtEOF(t *testing.T) {
+	for _, code := range []string{"/", "a;\n/", "x = /", "x = /ab"} {
+		if _, err := parser.Parse(code); err == nil {
+			t.Errorf("Parse(%q): expected an unterminated regular expression error", code)
+		}
+	}
+
+	code := strings.Repeat("a;\n", 1<<14) + "/"
+	for range 3 {
+		_, _ = parser.Parse(code)
+		runtime.GC()
+	}
+}
+
+func TestUnterminatedRegExpPattern(t *testing.T) {
+	p, _ := parser.Parse("x = /ab")
+	assign := exprOf(firstStmt(p, 0)).(*ast.AssignExpression)
+	re, ok := assign.Right.RegExpLit()
+	if !ok {
+		t.Fatalf("expected a regular expression literal, got %T", assign.Right.Unwrap())
+	}
+	if re.Pattern != "ab" {
+		t.Errorf("pattern = %q, want %q", re.Pattern, "ab")
+	}
 }
