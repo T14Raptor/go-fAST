@@ -587,6 +587,10 @@ func (g *GenVisitor) VisitArrayLiteral(n *ast.ArrayLiteral) {
 			g.space()
 		}
 	}
+	// A trailing hole needs a comma of its own: `[1,,]` has length 2.
+	if len(n.Value) > 0 && n.Value[len(n.Value)-1].IsNone() {
+		g.writeByte(',')
+	}
 	g.writeByte(']')
 }
 
@@ -620,6 +624,11 @@ func (g *GenVisitor) VisitArrayPattern(n *ast.ArrayPattern) {
 			g.writeByte(',')
 			g.space()
 		}
+	}
+	// A trailing elision still steps the iterator: `[a,,] = it` reads two
+	// values. Before a rest element, the rest's own comma keeps it.
+	if n.Rest == nil && len(n.Elements) > 0 && n.Elements[len(n.Elements)-1].IsNone() {
+		g.writeByte(',')
 	}
 	if n.Rest != nil {
 		if len(n.Elements) > 0 {

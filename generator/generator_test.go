@@ -322,3 +322,30 @@ func TestTemplateLiteralMinified(t *testing.T) {
 	assertMinified(t, "(class {})`x`;", "(class {})`x`;")
 	assertMinified(t, "({})`x`;", "({})`x`;")
 }
+
+func TestArrayHoles(t *testing.T) {
+	assertMinified(t, `x = [,];`, `x=[,];`)
+	assertMinified(t, `x = [,,];`, `x=[,,];`)
+	assertMinified(t, `x = [1, 2, ,];`, `x=[1,2,,];`)
+	assertMinified(t, `x = [1, , 2];`, `x=[1,,2];`)
+	assertMinified(t, `x = [1, 2,];`, `x=[1,2];`)
+	assertMinified(t, `[a, ,] = it;`, `([a,,]=it);`)
+	assertMinified(t, `var [, ] = it;`, `var [,]=it;`)
+	assertMinified(t, `var [a, , ...r] = it;`, `var [a,,...r]=it;`)
+
+	// The printed array has the parsed one's length.
+	for _, in := range []string{`x = [,];`, `x = [1, 2, ,];`, `x = [, , 3, ,];`} {
+		p, err := parser.Parse(in)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := len(p.Body[0].MustExpression().Expression.MustAssign().Right.MustArrayLit().Value)
+		out, err := parser.Parse(Generate(p))
+		if err != nil {
+			t.Fatalf("reparse %q: %v", Generate(p), err)
+		}
+		if got := len(out.Body[0].MustExpression().Expression.MustAssign().Right.MustArrayLit().Value); got != want {
+			t.Errorf("%s printed as %q: %d elements, want %d", in, Generate(p), got, want)
+		}
+	}
+}
