@@ -423,3 +423,58 @@ func TestMetaPropertyExposesNoIdentifiers(t *testing.T) {
 		t.Fatalf("meta property exposed %d 'new' identifier(s); want 0", len(ids))
 	}
 }
+
+// A name no scope declares is a global. Its references stay unresolved,
+// wherever they appear, while a top-level declaration of the name is a binding
+// like any other.
+func TestGlobalReferencesStayUnresolved(t *testing.T) {
+	ids := idsForName(t, `function a() { g; } function b() { g = 1; } (() => g)(); g;`, "g")
+	requireIDCount(t, ids, 4)
+	for _, id := range ids {
+		if id.ScopeContext != ast.UnresolvedContext {
+			t.Fatalf("global reference resolved to %+v, want it unresolved", id)
+		}
+	}
+
+	ids = idsForName(t, `function f() { g; } var g;`, "g")
+	requireIDCount(t, ids, 2)
+	if ids[0] != ids[1] || ids[0].ScopeContext != ast.TopLevelContext {
+		t.Fatalf("reference and top-level var differ: %+v %+v", ids[0], ids[1])
+	}
+
+	ids = idsForName(t, `function f() { var g; function h() { g; } } g;`, "g")
+	requireIDCount(t, ids, 3)
+	if ids[1].ScopeContext != ids[0].ScopeContext {
+		t.Fatalf("nested reference missed the enclosing var: %+v %+v", ids[1], ids[0])
+	}
+	if ids[2].ScopeContext != ast.UnresolvedContext {
+		t.Fatalf("outer reference resolved to %+v, want it unresolved", ids[2])
+	}
+}
+
+// Each non-arrow function has its own arguments; an arrow function uses the
+// enclosing function's.
+func TestArgumentsIsFunctionLocal(t *testing.T) {
+	ids := idsForName(t, `function f() { arguments; (() => arguments)(); { arguments; } } function g() { arguments; } arguments;`, "arguments")
+	requireIDCount(t, ids, 5)
+	f, arrow, block, g, top := ids[0], ids[1], ids[2], ids[3], ids[4]
+
+	if f.ScopeContext == ast.UnresolvedContext || f.ScopeContext == ast.TopLevelContext {
+		t.Fatalf("arguments in f resolved to %+v, want f's scope", f)
+	}
+	if arrow != f || block != f {
+		t.Fatalf("arguments in f's arrow or block resolved elsewhere: f=%+v arrow=%+v block=%+v", f, arrow, block)
+	}
+	if g == f || g.ScopeContext == ast.UnresolvedContext {
+		t.Fatalf("arguments in g resolved to %+v, want g's own scope (f's is %+v)", g, f)
+	}
+	if top.ScopeContext != ast.UnresolvedContext {
+		t.Fatalf("top-level arguments resolved to %+v, want it unresolved", top)
+	}
+
+	ids = idsForName(t, `function f(arguments) { arguments; var arguments; }`, "arguments")
+	requireIDCount(t, ids, 3)
+	if ids[0] != ids[1] || ids[1] != ids[2] {
+		t.Fatalf("parameter, use and var named arguments differ: %+v", ids)
+	}
+}

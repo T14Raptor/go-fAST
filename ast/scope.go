@@ -5,7 +5,8 @@ package ast
 // two identifiers share a context if they refer to the same binding.
 //
 // Two values are reserved:
-//   - [UnresolvedContext] (zero) means "not yet resolved" or "free reference".
+//   - [UnresolvedContext] (zero) means "not yet resolved", or a free reference:
+//     a global, which no scope in the program declares.
 //   - [TopLevelContext]   (one)  is the program-scope context.
 type ScopeContext int32
 

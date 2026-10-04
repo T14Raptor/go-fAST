@@ -65,10 +65,11 @@ func IsVoid(expr *ast.Expression) bool {
 	return false
 }
 
-// IsGlobalRefTo returns true if id references a global object.
+// IsGlobalRefTo returns true if expr references the global id: a name no
+// scope declares, so its resolved context is UnresolvedContext.
 func IsGlobalRefTo(expr *ast.Expression, id string) bool {
 	if ident, ok := expr.Identifier(); ok {
-		return ident.Name == id && ident.ScopeContext == ast.TopLevelContext
+		return ident.Name == id && ident.ScopeContext == ast.UnresolvedContext
 	}
 	return false
 }
@@ -259,10 +260,10 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 		return numFromStr(s.Val()), true
 	case ast.ExprIdentifier:
 		e := expr.MustIdentifier()
-		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == ast.TopLevelContext {
+		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == ast.UnresolvedContext {
 			return Known(math.NaN()), true
 		}
-		if e.Name == "Infinity" && e.ScopeContext == ast.TopLevelContext {
+		if e.Name == "Infinity" && e.ScopeContext == ast.UnresolvedContext {
 			return Known(math.Inf(1)), true
 		}
 		return Unknown[float64](), true

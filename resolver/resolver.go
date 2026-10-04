@@ -203,6 +203,10 @@ func (r *resolver) VisitFunctionLiteral(n *ast.FunctionLiteral) {
 	if n.Name != nil {
 		r.modify(n.Name, declKindFunction)
 	}
+	// Every non-arrow function binds its own arguments object; arrow
+	// functions see the enclosing one's. A parameter or var named arguments
+	// redeclares this binding.
+	r.declare("arguments", declKindVar)
 
 	n.ScopeContext = r.current.ctx
 
@@ -325,11 +329,8 @@ func (r *resolver) VisitIdentifier(n *ast.Identifier) {
 	case identTypeBinding:
 		r.modify(n, r.declKind)
 	case identTypeRef:
-		if mark := r.lookupContext(n.Name); mark != ast.UnresolvedContext {
-			n.ScopeContext = mark
-		} else {
-			r.modify(n, r.declKind)
-		}
+		// A name no scope declares is a global and stays unresolved.
+		n.ScopeContext = r.lookupContext(n.Name)
 	}
 }
 
