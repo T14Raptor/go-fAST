@@ -83,3 +83,33 @@ func TestReadingAnUndeclaredGlobalMayHaveSideEffects(t *testing.T) {
 		}
 	}
 }
+
+// A declared undefined, NaN or Math is the program's own binding, not the
+// global: casting it is unknown.
+func TestCastsOnlyFoldGlobals(t *testing.T) {
+	for _, tt := range []struct {
+		src        string
+		wantNumber bool
+		wantString bool
+	}{
+		{"function f() { return undefined; }", true, true},
+		{"function f(undefined) { return undefined; }", false, false},
+		{"function f() { return NaN; }", true, true},
+		{"function f(NaN) { return NaN; }", false, false},
+		{"function f(Math) { return Math; }", false, false},
+	} {
+		program, err := parser.Parse(tt.src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolver.Resolve(program)
+		body := program.Body[0].MustFuncDecl().Function.Body.List
+		arg := body[len(body)-1].MustReturn().Argument
+		if n, _ := ext.CastToNumber(arg); n.Known() != tt.wantNumber {
+			t.Errorf("%s: CastToNumber known = %v, want %v", tt.src, n.Known(), tt.wantNumber)
+		}
+		if s := ext.AsPureString(arg); s.Known() != tt.wantString {
+			t.Errorf("%s: AsPureString known = %v, want %v", tt.src, s.Known(), tt.wantString)
+		}
+	}
+}

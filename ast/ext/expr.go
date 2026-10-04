@@ -260,7 +260,7 @@ func CastToNumber(expr *ast.Expression) (value Value[float64], pure bool) {
 		return numFromStr(s.Val()), true
 	case ast.ExprIdentifier:
 		e := expr.MustIdentifier()
-		if e.Name == "undefined" || e.Name == "NaN" && e.ScopeContext == ast.UnresolvedContext {
+		if (e.Name == "undefined" || e.Name == "NaN") && e.ScopeContext == ast.UnresolvedContext {
 			return Known(math.NaN()), true
 		}
 		if e.Name == "Infinity" && e.ScopeContext == ast.UnresolvedContext {
@@ -332,6 +332,10 @@ func AsPureString(expr *ast.Expression) Value[string] {
 		// converted.
 	case ast.ExprIdentifier:
 		e := expr.MustIdentifier()
+		if e.ScopeContext != ast.UnresolvedContext {
+			// A binding the program declares, not the global.
+			break
+		}
 		switch e.Name {
 		case "undefined", "Infinity", "NaN":
 			return Known(e.Name)
