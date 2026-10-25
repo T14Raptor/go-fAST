@@ -97,14 +97,21 @@ func putParser(p *parser) {
 	p.errors = nil
 	p.recover.idx = 0
 	p.recover.count = 0
-	p.exprBuf = p.exprBuf[:0]
-	p.stmtBuf = p.stmtBuf[:0]
-	p.propBuf = p.propBuf[:0]
-	p.elemBuf = p.elemBuf[:0]
-	p.declBuf = p.declBuf[:0]
-	p.patBuf = p.patBuf[:0]
-	p.patPropBuf = p.patPropBuf[:0]
+	// Clear the scratch buffers up to cap: truncating alone would keep the
+	// last parse's nodes reachable from the pool.
+	p.exprBuf = clearBuf(p.exprBuf)
+	p.stmtBuf = clearBuf(p.stmtBuf)
+	p.propBuf = clearBuf(p.propBuf)
+	p.elemBuf = clearBuf(p.elemBuf)
+	p.declBuf = clearBuf(p.declBuf)
+	p.patBuf = clearBuf(p.patBuf)
+	p.patPropBuf = clearBuf(p.patPropBuf)
 	parserPool.Put(p)
+}
+
+func clearBuf[T any](b []T) []T {
+	clear(b[:cap(b)])
+	return b[:0]
 }
 
 // Parse parses src as an ECMAScript script and returns the program AST.
