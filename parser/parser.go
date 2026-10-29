@@ -82,7 +82,7 @@ func getParser(src string, opts Options) *parser {
 	p := parserPool.Get().(*parser)
 	p.str = src
 	p.opts = opts
-	p.alloc = newNodeAllocator()
+	p.alloc = newNodeAllocator(len(src))
 	p.scanner = scanner.NewScanner(src, &p.errors)
 	return p
 }
