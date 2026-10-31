@@ -128,6 +128,7 @@ func (s *Scanner) templateLiteralEscaped(str *strings.Builder, chunkStart ast.Id
 			str.WriteString(s.src.FromPositionToCurrent(chunkStart))
 			s.EscapedStr = str.String()
 			s.Token.HasEscape = true
+			s.Token.HasInvalidEscape = !*isValid
 			return token.Undetermined
 		}
 
@@ -146,6 +147,7 @@ func (s *Scanner) templateLiteralEscaped(str *strings.Builder, chunkStart ast.Id
 				s.ConsumeByte() // {
 				s.EscapedStr = str.String()
 				s.Token.HasEscape = true
+				s.Token.HasInvalidEscape = !*isValid
 				return ret // = sub
 			}
 			// Not `${`, continue scanning
@@ -158,6 +160,7 @@ func (s *Scanner) templateLiteralEscaped(str *strings.Builder, chunkStart ast.Id
 			ret = tail
 			s.EscapedStr = str.String()
 			s.Token.HasEscape = true
+			s.Token.HasInvalidEscape = !*isValid
 			return ret
 
 		case '\r':
